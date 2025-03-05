@@ -12,38 +12,38 @@ class SpiDriver : public Spi
 
     enum class Mode: uint32_t
     {
-        MASTER = 0x4,
-        SLAVE = 0x0
+        Master = 0x4,
+        Slave = 0x0
     };
 
     enum class ClockPolarity: uint32_t
     {
-        IDLE_LOW = 0x0,
-        IDLE_HIGH = 0x2
+        IdleLow = 0x0,
+        IdleHigh = 0x2
     };
 
     enum class ClockPhase: uint32_t
     {
-        FIRST_EDGE = 0x0,
-        SECOND_EDGE = 0x1
+        FirstEdge = 0x0,
+        SecondEdge = 0x1
     };
 
     enum class DataSize: uint32_t
     {
-        BITS_8 = 0x0,
-        BITS_16 = 0x800
+        Bits8 = 0x0,
+        Bits16 = 0x800
     };
 
     enum class BaudRatePrescaler: uint32_t
     {
-        DIV2 = 0x0,
-        DIV4 = 0x1,
-        DIV8 = 0x2,
-        DIV16 = 0x3,
-        DIV32 = 0x4,
-        DIV64 = 0x5,
-        DIV128 = 0x6,
-        DIV256 = 0x7
+        Div2 = 0x0,
+        Div4 = 0x1,
+        Div8 = 0x2,
+        Div16 = 0x3,
+        Div32 = 0x4,
+        Div64 = 0x5,
+        Div128 = 0x6,
+        Div256 = 0x7
     };
 
     SpiDriver(SPI_TypeDef *spi, Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, BaudRatePrescaler baudRatePrescaler)

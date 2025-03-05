@@ -14,16 +14,16 @@ class GpioDriver : public Gpio
 
     enum class Mode: uint8_t
     {
-        INPUT = 0x0,
-        OUTPUT_PUSHPULL = 0x8,
-        OUTPUT_OPENDRAIN = 0x4
+        Input = 0x0,
+        OutputPushpull = 0x8,
+        OutputOpendrain = 0x4
     };
 
     enum class Speed: uint8_t
     {
-        LOW = 0x1,
-        MEDIUM = 0x2,
-        HIGH = 0x3
+        Low = 0x1,
+        Meduim = 0x2,
+        High = 0x3
     };
 
     GpioDriver(GPIO_TypeDef *port, size_t pin, Mode mode, Speed speed)
@@ -46,7 +46,7 @@ class GpioDriver : public Gpio
         _port->BRR = 1 << _pin;
 
         // Configure mode
-        uint8_t conf = (_mode == Mode::INPUT) ? static_cast<uint8_t>(_mode) : (static_cast<uint8_t>(_mode) | static_cast<uint8_t>(_speed)) & ~0x8;
+        uint8_t conf = (_mode == Mode::Input) ? static_cast<uint8_t>(_mode) : (static_cast<uint8_t>(_mode) | static_cast<uint8_t>(_speed)) & ~0x8;
         if (_pin < 8)
         {
             _port->CRL &= ~(0xF << (_pin * 4));
