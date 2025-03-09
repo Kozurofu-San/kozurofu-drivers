@@ -8,6 +8,6 @@ class Spi
 
     virtual ~Spi() = default;
     virtual void init() = 0;
-    virtual void spiWrite(uint8_t data) = 0;
-    virtual uint8_t spiRead() = 0;
+    virtual void write(uint8_t data) = 0;
+    virtual uint8_t read() = 0;
 };

@@ -37,59 +37,44 @@ class SpiDriver : public Spi
     enum class BaudRatePrescaler: uint32_t
     {
         Div2 = 0x0,
-        Div4 = 0x1,
-        Div8 = 0x2,
-        Div16 = 0x3,
-        Div32 = 0x4,
-        Div64 = 0x5,
-        Div128 = 0x6,
-        Div256 = 0x7
+        Div4 = 0x8,
+        Div8 = 0x10,
+        Div16 = 0x18,
+        Div32 = 0x20,
+        Div64 = 0x28,
+        Div128 = 0x30,
+        Div256 = 0x38
     };
 
     SpiDriver(SPI_TypeDef *spi, Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, BaudRatePrescaler baudRatePrescaler)
-        : _spi(spi), _mode(mode), _clockPolarity(clockPolarity), _clockPhase(clockPhase), _dataSize(dataSize), _baudRatePrescaler(baudRatePrescaler)
-    {
-    }
-
-    private:
-
-    SPI_TypeDef *_spi;
-    Mode _mode;
-    ClockPolarity _clockPolarity;
-    ClockPhase _clockPhase;
-    DataSize _dataSize;
-    BaudRatePrescaler _baudRatePrescaler;
-
-    void init() override
+        : _spi(spi)
     {
         // Clock enable
         if (_spi == SPI1) RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
         else if (_spi == SPI2) RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
 
         // Configure mode
-        _spi->CR1 = static_cast<uint32_t>(_mode) | static_cast<uint32_t>(_clockPolarity) | static_cast<uint32_t>(_clockPhase) | static_cast<uint32_t>(_dataSize) | static_cast<uint32_t>(_baudRatePrescaler);
+        _spi->CR1 = static_cast<uint32_t>(mode) | static_cast<uint32_t>(clockPolarity) | static_cast<uint32_t>(clockPhase) | static_cast<uint32_t>(dataSize) | static_cast<uint32_t>(baudRatePrescaler);
         _spi->CR2 = 0x0;
 
         // Enable SPI
         _spi->CR1 |= SPI_CR1_SPE;
+    }
+
+    void init() override
+    {
     };
 
-    void spiWrite(uint8_t data) override
+    void write(uint8_t data) override
     {
         // Wait until TXE is set
         while (!(_spi->SR & SPI_SR_TXE));
 
         // Write data to the DR register
         _spi->DR = data;
-
-        // Wait until RXNE is set
-        while (!(_spi->SR & SPI_SR_RXNE));
-
-        // Read the received data
-        uint8_t receivedData = _spi->DR;
     };
 
-    uint8_t spiRead() override
+    uint8_t read() override
     {
         // Wait until TXE is set
         while (!(_spi->SR & SPI_SR_TXE));
@@ -103,6 +88,10 @@ class SpiDriver : public Spi
         // Read the received data
         return _spi->DR;
     };
+    
+    private:
+
+    SPI_TypeDef *_spi;
 };
 
 }
