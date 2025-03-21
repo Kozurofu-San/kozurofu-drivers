@@ -27,12 +27,12 @@ public:
 
 
     GpioDriver(size_t pin, Mode mode, Pull pull)
-        : _pin(1 << pin)
+        : _pin(pin)
     {
         gpio_config_t io_conf;
         io_conf.intr_type = GPIO_INTR_DISABLE; // disable interrupt
         io_conf.mode = GPIO_MODE_OUTPUT; // set as output mode
-        io_conf.pin_bit_mask = _pin; // bit mask of the pins that you want to set, eg. GPIO18
+        io_conf.pin_bit_mask = 1 << _pin; // bit mask of the pins that you want to set, eg. GPIO18
         io_conf.pull_down_en = (pull == Pull::Down) ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE; // disable pull-down mode
         io_conf.pull_up_en = (pull == Pull::Up) ?  GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE; // enable pull-up mode
         gpio_config(&io_conf); // configure GPIO with the given settings
