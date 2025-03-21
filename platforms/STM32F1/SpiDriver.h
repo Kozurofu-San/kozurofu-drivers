@@ -1,6 +1,7 @@
 #pragma once
 
 #include "interface/Spi.h"
+
 #include "stm32f1xx.h"
 
 namespace driver

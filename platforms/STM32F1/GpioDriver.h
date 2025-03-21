@@ -1,6 +1,7 @@
 #pragma once
 
 #include "interface/Gpio.h"
+
 #include "stm32f1xx.h"
 #include <cstdint>
 #include <cstddef>
