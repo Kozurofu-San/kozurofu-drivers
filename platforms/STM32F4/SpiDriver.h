@@ -2,7 +2,7 @@
 
 #include "interface/Spi.h"
 
-#include "stm32f1xx.h"
+#include "stm32f4xx.h"
 
 namespace driver
 {

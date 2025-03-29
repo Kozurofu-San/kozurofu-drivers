@@ -11,11 +11,11 @@ class LogsDriver : public Logs
 
     LogsDriver()
     {
-        // esp_log_level_set("*", ESP_LOG_MAX);        // set all components to ERROR level
     }
 
-    void init() override
+    void init()
     {
+        // esp_log_level_set("*", ESP_LOG_MAX);        // set all components to ERROR level
     }
 
     void LOGI(const char* message, ...) override

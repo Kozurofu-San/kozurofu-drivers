@@ -58,7 +58,7 @@ class GpioDriver : public Gpio
         }
     }
 
-    void init() override
+    void init()
     {
     }
 

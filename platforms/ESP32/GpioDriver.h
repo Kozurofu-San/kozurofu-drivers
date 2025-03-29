@@ -5,11 +5,18 @@
 // #include "esp_system.h"
 #include "driver/gpio.h"
 
+#include <functional>
+#include <optional>
+
 class GpioDriver : public Gpio
 {
-private:
+
+    private:
+
     uint32_t _pin;
-public:
+    std::optional<std::function<void(void)>> _callback = nullptr;
+
+    public:
 
     enum class Mode: uint32_t
     {
@@ -26,20 +33,33 @@ public:
     };
 
 
-    GpioDriver(size_t pin, Mode mode, Pull pull)
-        : _pin(pin)
+    GpioDriver(uint32_t pin, std::optional<std::function<void(void)>> callback)
+        : _pin(pin), _callback(callback)
     {
-        gpio_config_t io_conf;
-        io_conf.intr_type = GPIO_INTR_DISABLE; // disable interrupt
-        io_conf.mode = GPIO_MODE_OUTPUT; // set as output mode
-        io_conf.pin_bit_mask = 1 << _pin; // bit mask of the pins that you want to set, eg. GPIO18
-        io_conf.pull_down_en = (pull == Pull::Down) ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE; // disable pull-down mode
-        io_conf.pull_up_en = (pull == Pull::Up) ?  GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE; // enable pull-up mode
-        gpio_config(&io_conf); // configure GPIO with the given settings
     };
     ~GpioDriver() = default;
 
-    void init(){
+    void init(Mode mode, Pull pull, gpio_int_type_t intr_type)
+    {
+        gpio_config_t io_conf {
+            .pin_bit_mask = 1ULL << _pin,
+            .mode = static_cast<gpio_mode_t>(mode),
+            .pull_up_en = (pull == Pull::Up) ?  GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE,
+            .pull_down_en = (pull == Pull::Down) ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE,
+            .intr_type = intr_type
+        };
+        gpio_config(&io_conf);
+        if (intr_type != GPIO_INTR_DISABLE)
+        {
+            gpio_install_isr_service(0);
+            // gpio_isr_handler_add(static_cast<gpio_num_t>(_pin), [](void* arg) {
+            //     auto gpio = static_cast<GpioDriver*>(arg);
+            //     if (gpio->_callback.has_value())
+            //     {
+            //         gpio->_callback.value()();
+            //     }
+            // }, this);
+        }
     }
 
     void write(bool state) override
@@ -51,5 +71,7 @@ public:
     {
         return gpio_get_level(static_cast<gpio_num_t>(_pin));
     }
+
+
 
 };

@@ -1,13 +1,14 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
+#include <optional>
 
 class Spi
 {
     public:
 
     virtual ~Spi() = default;
-    virtual void init() = 0;
-    virtual void write(uint8_t data) = 0;
-    virtual uint8_t read() = 0;
+    virtual void write(uint8_t *data, size_t len) = 0;
+    virtual void read(uint8_t *data, size_t len) = 0;
 };
