@@ -4,7 +4,7 @@
 
 #include "esp_log.h"
 
-class LogsDriver : public Logs
+class LogsDriver : public ILogs
 {
     public:
 

@@ -1,10 +1,10 @@
 #pragma once
 
-class Gpio
+class IGpio
 {
     public:
 
-    virtual ~Gpio() = default;
+    virtual ~IGpio() = default;
     virtual void write(bool state) = 0;
     virtual bool read() = 0;
 };

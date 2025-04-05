@@ -7,7 +7,7 @@
 namespace driver
 {
 
-class SpiDriver : public Spi
+class SpiDriver : public ISpi
 {
     public:
 
@@ -47,24 +47,28 @@ class SpiDriver : public Spi
         Div256 = 0x38
     };
 
-    SpiDriver(SPI_TypeDef *spi, Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, BaudRatePrescaler baudRatePrescaler)
+    SpiDriver(SPI_TypeDef *spi)
         : _spi(spi)
+    {
+    }
+
+    void init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, BaudRatePrescaler baudRatePrescaler)
     {
         // Clock enable
         if (_spi == SPI1) RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
         else if (_spi == SPI2) RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
 
         // Configure mode
-        _spi->CR1 = static_cast<uint32_t>(mode) | static_cast<uint32_t>(clockPolarity) | static_cast<uint32_t>(clockPhase) | static_cast<uint32_t>(dataSize) | static_cast<uint32_t>(baudRatePrescaler);
+        _spi->CR1 = static_cast<uint32_t>(mode) 
+            | static_cast<uint32_t>(clockPolarity) 
+            | static_cast<uint32_t>(clockPhase) 
+            | static_cast<uint32_t>(dataSize) 
+            | static_cast<uint32_t>(baudRatePrescaler);
         _spi->CR2 = 0x0;
 
         // Enable SPI
         _spi->CR1 |= SPI_CR1_SPE;
     }
-
-    void init()
-    {
-    };
 
     void write(uint8_t *data, size_t len) override
     {

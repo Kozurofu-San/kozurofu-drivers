@@ -7,7 +7,7 @@
 namespace driver
 {
 
-class SpiDriver : public Spi
+class SpiDriver : public ISpi
 {
     public:
 

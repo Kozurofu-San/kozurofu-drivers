@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-class Logs
+class  ILogs
 {
     public:
 
@@ -12,7 +12,7 @@ class Logs
         Off = false
     };
 
-    virtual ~Logs() = default;
+    virtual ~ ILogs() = default;
     virtual void LOGI(const char* message, ...) = 0;
     virtual void LOGW(const char* message, ...) = 0;
     virtual void LOGE(const char* message, ...) = 0;

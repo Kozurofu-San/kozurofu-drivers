@@ -7,7 +7,7 @@
 #include <cstdio>
 #include <cstdint>
 
-class LogsDriver : public Logs
+class LogsDriver : public ILogs
 {
     public:
 
@@ -20,7 +20,11 @@ class LogsDriver : public Logs
     * @retval None
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     */
-    LogsDriver(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
+    LogsDriver()
+    {
+    }
+
+    void init(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
     {
         uint32_t SWOPrescaler = (cpuCoreFreqHz / baudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
         
@@ -34,10 +38,6 @@ class LogsDriver : public Logs
         ITM->TER	= portMask;                             // ITM Trace Enable Register: Enabled tracing on stimulus ports. One bit per stimulus port.
         DWT->CTRL	= 0x400003FEu;                          // Data Watchpoint and Trace Register
         TPI->FFCR	= 0x00000100u;                          // Formatter and Flush Control Register
-    }
-
-    void init()
-    {
     }
 
     void LOGI(const char* message, ...) override

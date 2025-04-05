@@ -2,7 +2,7 @@
 
 #include "interface/Logs.h"
 
-#include <stm32f4xx.h>
+#include <sam3x8e.h>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdint>
@@ -20,16 +20,12 @@ class LogsDriver : public ILogs
     * @retval None
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     */
-    LogsDriver()
-    {
-    }
-
-    void init(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
+    LogsDriver(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
     {
         uint32_t SWOPrescaler = (cpuCoreFreqHz / baudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
         
         CoreDebug->DEMCR = CoreDebug_DEMCR_TRCENA_Msk;      // Debug Exception and Monitor Control Register (DEMCR): enable trace in core debug
-        DBGMCU->CR	= 0x00000027u;                          // DBGMCU_CR : TRACE_IOEN DBG_STANDBY DBG_STOP 	DBG_SLEEP
+        // DBGMCU->CR	= 0x00000027u;                          // DBGMCU_CR : TRACE_IOEN DBG_STANDBY DBG_STOP 	DBG_SLEEP
         TPI->SPPR	= 0x00000002u;                          // Selected PIN Protocol Register: Select which protocol to use for trace output (2: SWO)
         TPI->ACPR	= SWOPrescaler;                         // Async Clock Prescaler Register: Scale the baud rate of the asynchronous output
         ITM->LAR	= 0xC5ACCE55u;                          // ITM Lock Access Register: C5ACCE55 enables more write access to Control Register 0xE00 :: 0xFFC
@@ -38,6 +34,10 @@ class LogsDriver : public ILogs
         ITM->TER	= portMask;                             // ITM Trace Enable Register: Enabled tracing on stimulus ports. One bit per stimulus port.
         DWT->CTRL	= 0x400003FEu;                          // Data Watchpoint and Trace Register
         TPI->FFCR	= 0x00000100u;                          // Formatter and Flush Control Register
+    }
+
+    void init()
+    {
     }
 
     void LOGI(const char* message, ...) override

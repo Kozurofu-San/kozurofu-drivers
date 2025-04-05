@@ -9,7 +9,7 @@
 namespace driver
 {
     
-class GpioDriver : public Gpio
+class GpioDriver : public IGpio
 {
     public:
 

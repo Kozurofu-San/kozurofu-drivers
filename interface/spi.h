@@ -4,11 +4,11 @@
 #include <functional>
 #include <optional>
 
-class Spi
+class ISpi
 {
     public:
 
-    virtual ~Spi() = default;
+    virtual ~ISpi() = default;
     virtual void write(uint8_t *data, size_t len) = 0;
     virtual void read(uint8_t *data, size_t len) = 0;
 };

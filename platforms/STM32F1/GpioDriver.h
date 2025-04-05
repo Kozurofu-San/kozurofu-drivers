@@ -9,7 +9,7 @@
 namespace driver
 {
     
-class GpioDriver : public Gpio
+class GpioDriver : public IGpio
 {
     public:
 
@@ -29,8 +29,12 @@ class GpioDriver : public Gpio
         High = 0x3
     };
 
-    GpioDriver(GPIO_TypeDef *port, size_t pin, Mode mode, Speed speed)
+    GpioDriver(GPIO_TypeDef *port, size_t pin)
         : _port(port), _pin(pin)
+    {
+    }
+
+    void init(Mode mode, Speed speed)
     {
         // Clock enable
         uint32_t rccPort = 0;
@@ -56,10 +60,6 @@ class GpioDriver : public Gpio
             _port->CRH &= ~(0xF << ((_pin - 8) * 4));
             _port->CRH |= conf << ((_pin - 8) * 4);
         }
-    }
-
-    void init()
-    {
     }
 
     void write(bool state) override

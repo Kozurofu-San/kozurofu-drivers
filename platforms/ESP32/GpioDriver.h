@@ -8,7 +8,7 @@
 #include <functional>
 #include <optional>
 
-class GpioDriver : public Gpio
+class GpioDriver : public IGpio
 {
 
     private:
