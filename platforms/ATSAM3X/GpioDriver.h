@@ -88,6 +88,10 @@ class GpioDriver : public IGpio
         return (_port->PIO_PDSR & (1 << _pin)) != 0;
     }
 
+    void callback(void (*cb)(uint32_t))
+    {
+        _cb = cb;
+    }
     
     enum class Peripheral: uint8_t
     {
@@ -124,6 +128,8 @@ class GpioDriver : public IGpio
 
     Pio *_port;
     size_t _pin;
+
+    void (*_cb)(uint32_t) = nullptr;
 };
 
 }

@@ -2,8 +2,8 @@
 
 #include "interface/Spi.h"
 
-#include "msp430g2553.h"
-
+#undef REG
+#define REG(p, bias) (*(volatile uint16_t *)((uint16_t)p + (uint16_t)& bias - (uint16_t)& UCA0CTL0))
 
 namespace driver
 {
@@ -12,79 +12,109 @@ class SpiDriver : public ISpi
 {
     public:
 
-    enum class Mode: uint32_t
+    enum class P: uint16_t
     {
-        Master = 0x1,
-        Slave = 0x0
+        UsciA0 = 0x60,
+        UsciB0 = 0x68,
     };
 
-    enum class ClockPolarity: uint32_t
+    enum class Mode: uint8_t
     {
-        IdleLow = 0x0,
-        IdleHigh = 0x1
+        Master  = UCMST,
+        Slave   = 0
     };
 
-    enum class ClockPhase: uint32_t
+    enum class ClockPolarity: uint8_t
     {
-        FirstEdge = 0x0,
-        SecondEdge = 0x2
+        IdleLow     = 0,
+        IdleHigh    = UCMSB
     };
 
-    enum class DataSize: uint32_t
+    enum class ClockPhase: uint8_t
     {
-        Bits8 = 0x0,
-        Bits16 = 0x80
+        FirstEdge   = 0,
+        SecondEdge  = UCCKPH
     };
 
-    SpiDriver(Spi *spi)
+    enum class Interrupt: uint8_t
+    {
+        None    = 0,
+        Tx      = UCA0TXIE,
+        Rx      = UCA0RXIE
+    };
+
+    SpiDriver(P spi)
         : _spi(spi)
     {
     }
 
-    void init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, uint32_t baudRatePrescaler)
+    void init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, uint16_t baudRatePrescaler, Interrupt interrupt = Interrupt::None)
     {
-        // Clock enable
-        if (_spi == SPI0) {
-            PMC->PMC_PCER0 = (1 << ID_SPI0);
-        }
-        
-        _spi->SPI_CR = SPI_CR_SPIDIS; // Disable SPI
-        // Configure mode
-        _spi->SPI_MR = static_cast<uint32_t>(mode)
-            | SPI_MR_WDRBT;
-        _spi->SPI_CSR[0] = static_cast<uint32_t>(clockPolarity)
-            | static_cast<uint32_t>(clockPhase)
-            | static_cast<uint32_t>(dataSize)
-            | SPI_CSR_SCBR(baudRatePrescaler)
-            | SPI_CSR_DLYBCT(0x0); // Delay between chip selects
+        __disable_interrupt();
 
-        // Enable SPI
-        _spi->SPI_CR = SPI_CR_SPIEN;
+        // Reset
+        REG(_spi, UCA0CTL1) |= UCSWRST; 
+
+        // Config
+        REG(_spi, UCA0CTL0)
+            = static_cast<uint8_t>(mode)
+            | static_cast<uint8_t>(clockPolarity)
+            | static_cast<uint8_t>(clockPhase)
+            | UCMSB     // MSB
+            | UCMODE_3  // NSS
+            | UCSYNC    // SPI
+        ;
+
+        // Interrupts
+        uint8_t intr = static_cast<uint8_t>(interrupt);
+        if (_spi == P::UsciB0)
+        {
+            intr <<= 2;
+        }
+        IE2 = intr;
+        IFG2 = 0;
+
+        // Clock
+        REG(_spi, UCA0CTL1) |= UCSSEL_2;   // SMCLK
+
+        // Prescaler
+        REG(_spi, UCA0BR0) = baudRatePrescaler & 0xFF; 
+        REG(_spi, UCA0BR1) = (baudRatePrescaler >> 8) & 0xFF; 
+        
+        // End of init
+        REG(_spi, UCA0CTL1) &= ~UCSWRST; 
+        __enable_interrupt();
     };
 
     void write(uint8_t *data, size_t len) override
     {
+        uint8_t flagTx = (_spi == P::UsciA0) ? UCA0TXIFG : UCB0TXIFG;
         for (size_t i = 0; i < len; ++i)
         {
-            while (!(_spi->SPI_SR & SPI_SR_TDRE));
-            _spi->SPI_TDR = data[i];
+            // while (!(IFG2 & flagTx));
+            IFG2 &= ~flagTx;
+            REG(_spi, UCA0TXBUF) = data[i];
         }
     };
 
     void read(uint8_t *data, size_t len) override
     {
+        uint8_t flagTx = (_spi == P::UsciA0) ? UCA0TXIFG : UCB0TXIFG;
+        uint8_t flagRx = (_spi == P::UsciA0) ? UCA0RXIFG : UCB0RXIFG;
         for (size_t i = 0; i < len; ++i)
         {
-            while (!(_spi->SPI_SR & SPI_SR_TDRE));
-            _spi->SPI_TDR = 0xFF;
-            while (!(_spi->SPI_SR & SPI_SR_RDRF));
-            data[i] = _spi->SPI_RDR;
+            while (!(IFG2 & flagTx));
+            IFG2 &= ~flagTx;
+            REG(_spi, UCA0TXBUF) = 0xFF;
+            while (!(IFG2 & flagRx));
+            IFG2 &= ~flagRx;
+            data[i] = REG(_spi, UCA0RXBUF);
         }
     };
     
     private:
 
-    Spi *_spi;
+    P _spi;
 };
 
 }

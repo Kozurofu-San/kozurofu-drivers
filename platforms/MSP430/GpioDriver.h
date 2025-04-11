@@ -2,9 +2,11 @@
 
 #include "interface/Gpio.h"
 
-#include "msp430g2553.h"
 #include <cstdint>
 #include <cstddef>
+
+#undef REG
+#define REG(p, bias) (*(volatile uint16_t *)((uint16_t)p + (uint16_t)& bias - (uint16_t)& P1IN))
 
 namespace driver
 {
@@ -12,6 +14,12 @@ namespace driver
 class GpioDriver : public IGpio
 {
     public:
+
+    enum class P: uint16_t
+    {
+        Port1 = 0x0020,
+        Port2 = 0x0028,
+    };
 
     enum class Mode: uint8_t
     {
@@ -26,80 +34,127 @@ class GpioDriver : public IGpio
         Down    = 0x0
     };
 
-    GpioDriver(uint16_t port, uint8_t pin)
+    enum class Interrupt: uint8_t
+    {
+        None    = 0x8,
+        Rise    = 0x0,
+        Fall    = 0x1
+    };
+
+    GpioDriver(P port, uint8_t pin)
         : _port(port), _pin(1 << pin)
     {
     }
 
-    void init(Mode mode, Pull pull)
+    void init(Mode mode, Pull pull, Interrupt interrupt = Interrupt::None)
     {
+        __disable_interrupt();
+
         if (mode == Mode::Input)
         {
-            *(volatile uint8_t *)(_port + (uintptr_t)&P1DIR - (uintptr_t)&P1IN) &= ~_pin;
+            REG(_port, P1DIR) &= ~_pin;
         }
         else
         {
-            *(volatile uint8_t *)(_port + (uintptr_t)&P1DIR - (uintptr_t)&P1IN) |= _pin;
+            REG(_port, P1DIR) |= _pin;
         }
 
-        *(volatile uint8_t *)(_port + (uintptr_t)&P1REN- (uintptr_t)&P1IN) &= ~_pin;
+        REG(_port, P1REN) &= ~_pin;
         if (pull == Pull::Up)
         {
-            *(volatile uint8_t *)(_port + (uintptr_t)&P1REN - (uintptr_t)&P1IN) |= _pin;
-            *(volatile uint8_t *)(_port + (uintptr_t)&P1OUT - (uintptr_t)&P1IN) |= _pin;
+            REG(_port, P1REN) |= _pin;
+            REG(_port, P1OUT) |= _pin;
         }
         else if (pull == Pull::Down)
         {
-            *(volatile uint8_t *)(_port + (uintptr_t)&P1REN - (uintptr_t)&P1IN) |= _pin;
-            *(volatile uint8_t *)(_port + (uintptr_t)&P1OUT - (uintptr_t)&P1IN) &= ~_pin;
+            REG(_port, P1REN) |= _pin;
+            REG(_port, P1OUT) &= ~_pin;
         }
+
+        REG(_port, P1IE) |= _pin;
+        if (interrupt == Interrupt::None)
+        {
+            REG(_port, P1IE) &= ~_pin;
+        }
+        if (interrupt == Interrupt::Rise)
+        {
+            REG(_port, P1IES) |= _pin;
+        }
+        else if (interrupt == Interrupt::Fall)
+        {
+            REG(_port, P1IES) &= ~_pin;
+        }
+
+        __enable_interrupt();
     }
 
     void write(bool state) override
     {
-        state ? (*(volatile uint8_t *)(_port + (uintptr_t)&P1OUT - (uintptr_t)&P1IN) |=  _pin) : (*(volatile uint8_t *)(_port + (uintptr_t)&P1OUT - (uintptr_t)&P1IN) &= ~_pin);
+        state ? (REG(_port, P1OUT) |=  _pin) : (REG(_port, P1OUT) &= ~_pin);
     }
 
     bool read() override
     {
-        return (_port & _pin) != 0;
+        return ((uintptr_t)_port & _pin) != 0;
     }
 
+    void callback(void (*cb)(uint32_t)) override
+    {
+        _cb = cb;
+    }
     
-    // enum class Peripheral: uint8_t
-    // {
-    //     A   = 0x0,
-    //     B   = 0x1
-    // };
+    void interrupt(uint32_t arg)
+    {
+        if (_cb != nullptr)
+        {
+            _cb(arg);
+        }
+    }
+    
+    enum class Peripheral: uint8_t
+    {
+        Gpio    = 0x0,
+        P1      = 0x1,
+        P2      = 0x2,
+        P3      = 0x3,
+    };
 
 
-    // static void mode(uint16_t port, size_t pin, Peripheral mode)
-    // {
-    //     // port->PIO_PDR |= (1 << pin); // Disable pin
-    //     // if (mode == Peripheral::A)
-    //     // {
-    //     //     port->PIO_ABSR &= ~(1 << pin);
-    //     // }
-    //     // else
-    //     // {
-    //     //     port->PIO_ABSR |= (1 << pin);
-    //     // }
-    // }
+    static void remap(P port, size_t pin, Peripheral mode)
+    {
+        REG(port, P1SEL)    = static_cast<uint8_t>(mode) & pin;
+        REG(port, P1SEL2)   = (static_cast<uint8_t>(mode) >> 1) & pin;
+    }
 
-    // static uint16_t readPort(uint16_t port)
-    // {
-    //     return port;
-    // }
+    static void mode(P port, size_t pin, Mode mode)
+    {
+        
+        if (mode == Mode::Input)
+        {
+            REG(port, P1DIR) &= ~pin;
+        }
+        else
+        {
+            REG(port, P1DIR) |= pin;
+        }
+    }
 
-    // static void writePort(uint16_t port, uint16_t value)
-    // {
-    //     port = value;
-    // }
+    static uint16_t readPort(P port)
+    {
+        return (uint16_t)port;
+    }
+
+    static void writePort(uint16_t port, uint16_t value)
+    {
+        REG(port, P1OUT) = value;
+    }
 
     private:
 
-    uint16_t _port;
+    P _port;
     uint8_t _pin;
+
+    void (*_cb)(uint32_t) = nullptr;
 };
 
 }

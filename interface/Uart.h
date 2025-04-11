@@ -3,11 +3,13 @@
 #include <cstdint>
 #include <functional>
 
-class ISpi
+class IUart
 {
     public:
 
-    virtual ~ISpi() = default;
+    virtual ~IUart() = default;
     virtual void write(uint8_t *data, size_t len) = 0;
     virtual void read(uint8_t *data, size_t len) = 0;
+    
+    virtual void callback(void cb(uint32_t)) = 0;
 };
