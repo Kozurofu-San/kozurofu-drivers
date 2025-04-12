@@ -20,7 +20,7 @@ class LogsDriver : public ILogs
     * @retval None
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     */
-    LogsDriver(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
+    LogsDriver()
     {
         // uint32_t SWOPrescaler = (cpuCoreFreqHz / baudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
         

@@ -59,6 +59,7 @@ class GpioDriver : public IGpio
     bool read() override
     {
         // return (_port->PIO_PDSR & (1 << _pin)) != 0;
+        return false;
     }
 
     void callback(void (*cb)(uint32_t))
@@ -89,6 +90,7 @@ class GpioDriver : public IGpio
     static uint16_t readPort(P port)
     {
         // return port->PIO_PDSR;
+        return 0;
     }
 
     static void writePort(P port, uint16_t value)

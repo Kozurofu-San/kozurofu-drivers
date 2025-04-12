@@ -133,10 +133,17 @@ class GpioDriver : public IGpio
         port->ODR = value;
     }
 
+    void callback(void (*cb)(uint32_t)) override
+    {
+        _cb = cb;
+    }
+    
     private:
 
     GPIO_TypeDef *_port;
     size_t _pin;
+    
+    void (*_cb)(uint32_t) = nullptr;
 };
 
 }

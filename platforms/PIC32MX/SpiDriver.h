@@ -40,7 +40,7 @@ class SpiDriver : public ISpi
         Bits16 = 0x80
     };
 
-    SpiDriver(P *spi)
+    SpiDriver(P spi)
         : _spi(spi)
     {
     }
@@ -88,7 +88,7 @@ class SpiDriver : public ISpi
     
     private:
 
-    P *_spi;
+    P _spi;
 };
 
 }

@@ -1,13 +1,12 @@
 #pragma once
 
+#include "interface/Communication.h"
 #include <cstdint>
 #include <functional>
 
-class ISpi
+class ISpi : ICommunication
 {
     public:
 
     virtual ~ISpi() = default;
-    virtual void write(uint8_t *data, size_t len) = 0;
-    virtual void read(uint8_t *data, size_t len) = 0;
 };
