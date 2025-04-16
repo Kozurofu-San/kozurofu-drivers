@@ -103,7 +103,7 @@ class TimerDriver : public ITimer
         REG(_timer, TACCR0) = pwm;
     }
 
-    void callback(void cb(uint32_t)) override
+    void callback(void cb(uint32_t))
     {
         _cb = cb;
     }

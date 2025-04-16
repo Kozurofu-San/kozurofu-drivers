@@ -8,5 +8,5 @@ class IFsmc : ICommunication
 {
     public:
 
-    virtual ~IFsmc() = default;
+    // virtual ~IFsmc() = default;
 };

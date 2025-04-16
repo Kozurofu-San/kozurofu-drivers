@@ -17,7 +17,7 @@ class Ili9341Driver: IDisplay
     public:
 
     Ili9341Driver(uint32_t x, uint32_t y, ICommunication &p, ITimer &timer, IGpio *backlight = nullptr)
-        : _sizeX(x), _sizeY(y), _p(p), _timer(timer), _backlight(backlight) {}
+        : _p(p), _timer(timer), _backlight(backlight) {_sizeX = x; _sizeY = y;}
 
     void init()
     {
@@ -30,17 +30,22 @@ class Ili9341Driver: IDisplay
         uint32_t id = 0;
         _p.sendCommand(Ili9341::ReadId4);
         id = _p.readData();
-        id << 8;
+        id <<= 8;
         id |= _p.readData();
-        id << 8;
+        id <<= 8;
         id |= _p.readData();
-        id << 8;
+        id <<= 8;
         id |= _p.readData();
 
         // Init display
         _p.sendCommand(Ili9341::Rst);
-        _timer->delay(100);
+        _timer.delay(100);
 
+
+    }
+
+    void setPixel(uint32_t x, uint32_t y, uint32_t color)
+    {
 
     }
 
@@ -50,8 +55,8 @@ class Ili9341Driver: IDisplay
     ITimer& _timer;
     IGpio* _backlight;
 
-    uint16_t _sizeX = 0;
-    uint16_t _sizeY = 0;
+    uint32_t _sizeX;
+    uint32_t _sizeY;
 
 };
 
