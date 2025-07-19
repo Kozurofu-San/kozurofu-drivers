@@ -2,13 +2,11 @@
 
 #include "interface/Voltage.h"
 #include <cstdint>
-#include <cstddef>
 #include <functional>
 
-class IDac : public IVoltage
+class IPwm : public IVoltage
 {
     public:
 
-    virtual ~IDac() = default;
-
+    virtual ~IPwm() = default;
 };
