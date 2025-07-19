@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <functional>
 
-class ISpi : ICommunication
+class ISpi : public ICommunication
 {
     public:
 

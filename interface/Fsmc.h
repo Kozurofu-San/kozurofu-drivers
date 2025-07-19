@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <functional>
 
-class IFsmc : ICommunication
+class IFsmc : public ICommunication
 {
     public:
 

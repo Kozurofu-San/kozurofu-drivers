@@ -7,7 +7,7 @@
 namespace driver
 {
 
-class FsmcDriver: IFsmc
+class FsmcDriver: public IFsmc
 {
     public:
 

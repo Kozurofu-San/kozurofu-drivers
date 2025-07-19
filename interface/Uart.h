@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <functional>
 
-class IUart : ICommunication
+class IUart : public ICommunication
 {
     public:
 

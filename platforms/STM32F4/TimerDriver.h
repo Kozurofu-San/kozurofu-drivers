@@ -7,7 +7,7 @@
 namespace driver
 {
 
-class TimerDriver : ITimer
+class TimerDriver : public ITimer
 {
     public:
 

@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <functional>
 
-class II2c : ICommunication
+class II2c : public ICommunication
 {
     public:
 
