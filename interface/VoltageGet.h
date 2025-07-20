@@ -3,14 +3,11 @@
 #include <cstdint>
 #include <functional>
 
-class IVoltage
+class IVoltageGet
 {
     public:
 
-    virtual ~IVoltage() = default;
-
-    // Set voltage in volts
-    virtual void setVoltage(float voltage) = 0;
+    virtual ~IVoltageGet() = default;
 
     // Get current voltage in volts
     virtual float getVoltage() const = 0;

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "interface/Voltage.h"
+#include "interface/VoltageSet.h"
 #include <cstdint>
 #include <cstddef>
 #include <functional>
 
-class IDac : public IVoltage
+class IDac : public IVoltageSet
 {
     public:
 

@@ -30,9 +30,6 @@ class DacDriver : public IDac
         _dac->DHR12R1 = value; // Set the output value for channel 1
     }
 
-    float getVoltage() const override{}
-    void onVoltageChange(std::function<void(float)> callback) override{}
-
     private:
 
     DAC_TypeDef *_dac;
