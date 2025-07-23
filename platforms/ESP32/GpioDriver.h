@@ -10,12 +10,6 @@
 
 class GpioDriver : public IGpio
 {
-
-    private:
-
-    uint32_t _pin;
-    std::optional<std::function<void(void)>> _callback = nullptr;
-
     public:
 
     enum class Mode: uint32_t
@@ -33,11 +27,10 @@ class GpioDriver : public IGpio
     };
 
 
-    GpioDriver(uint32_t pin, std::optional<std::function<void(void)>> callback)
-        : _pin(pin), _callback(callback)
+    GpioDriver(uint32_t pin)
+        : _pin(pin)
     {
-    };
-    ~GpioDriver() = default;
+    }
 
     void init(Mode mode, Pull pull, gpio_int_type_t intr_type)
     {
@@ -62,6 +55,11 @@ class GpioDriver : public IGpio
         }
     }
 
+    inline size_t getPin() override
+    {
+        return _pin;
+    }
+
     void write(bool state) override
     {
         gpio_set_level(static_cast<gpio_num_t>(_pin), state);
@@ -72,6 +70,13 @@ class GpioDriver : public IGpio
         return gpio_get_level(static_cast<gpio_num_t>(_pin));
     }
 
+    void callback(void (*cb)(uint32_t)) override
+    {
+        _cb = cb;
+    }
+    
+    private:
 
-
+    uint32_t _pin;
+    void (*_cb)(uint32_t) = nullptr;
 };
