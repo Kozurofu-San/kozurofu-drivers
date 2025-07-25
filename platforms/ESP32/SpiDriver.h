@@ -38,17 +38,17 @@ class SpiDevice
         };
 
         spi_bus_initialize(_spiDevice, &buscfg, SPI_DMA_CH_AUTO);
-        spi_bus_add_device(_spiDevice, &devcfg, _spi);
+        spi_bus_add_device(_spiDevice, &devcfg, &_spi);
     };
 
     spi_device_handle_t* getSpi()
     {
-        return _spi;
+        return &_spi;
     }
 
     private:
 
-    spi_device_handle_t* _spi;
+    spi_device_handle_t _spi {};
     spi_host_device_t _spiDevice;
 };
     

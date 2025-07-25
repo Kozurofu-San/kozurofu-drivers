@@ -11,4 +11,5 @@ class IVoltageSet
 
     // Set voltage in volts
     virtual void setVoltage(float voltage) = 0;
+    virtual void setRawVoltage(float voltage) = 0;
 };

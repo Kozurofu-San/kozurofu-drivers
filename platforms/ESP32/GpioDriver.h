@@ -28,7 +28,7 @@ class GpioDriver : public IGpio
 
 
     GpioDriver(uint32_t pin)
-        : _pin(pin)
+        : _pin(static_cast<gpio_num_t>(pin))
     {
     }
 
@@ -37,7 +37,7 @@ class GpioDriver : public IGpio
         gpio_config_t io_conf {
             .pin_bit_mask = 1ULL << _pin,
             .mode = static_cast<gpio_mode_t>(mode),
-            .pull_up_en = (pull == Pull::Up) ?  GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE,
+            .pull_up_en   = (pull == Pull::Up)   ? GPIO_PULLUP_ENABLE   : GPIO_PULLUP_DISABLE,
             .pull_down_en = (pull == Pull::Down) ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE,
             .intr_type = intr_type
         };
@@ -62,12 +62,12 @@ class GpioDriver : public IGpio
 
     void write(bool state) override
     {
-        gpio_set_level(static_cast<gpio_num_t>(_pin), state);
+        gpio_set_level(_pin, state);
     }
 
     bool read() override
     {
-        return gpio_get_level(static_cast<gpio_num_t>(_pin));
+        return gpio_get_level(_pin);
     }
 
     void callback(void (*cb)(uint32_t)) override
@@ -77,6 +77,6 @@ class GpioDriver : public IGpio
     
     private:
 
-    uint32_t _pin;
+    gpio_num_t _pin;
     void (*_cb)(uint32_t) = nullptr;
 };
