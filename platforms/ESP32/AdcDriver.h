@@ -25,20 +25,17 @@ class AdcDriver : public IAdc
 
     void init(adc_bitwidth_t width, adc_atten_t atten)
     {
-        //-------------ADC1 Init---------------//
         adc_oneshot_unit_init_cfg_t init_config = {
             .unit_id = _adc,
         };
         ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &_adc_oneshot));
 
-        //-------------ADC1 Config---------------//
         adc_oneshot_chan_cfg_t config = {
             .atten = atten,
             .bitwidth = ADC_BITWIDTH_DEFAULT,
         };
         ESP_ERROR_CHECK(adc_oneshot_config_channel(_adc_oneshot, _channel, &config));
 
-        //-------------ADC1 Calibration Init---------------//
         _calibrated = calibration_init(_adc, _channel, atten, &_cali_handle);
     }
 
@@ -118,7 +115,7 @@ class AdcDriver : public IAdc
     {
         int value;
         adc_oneshot_read(_adc_oneshot, _channel, &value);
-        return 0;
+        return value;
     }
 
     // Set callback for voltage change
