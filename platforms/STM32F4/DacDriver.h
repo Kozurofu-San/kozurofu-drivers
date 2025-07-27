@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Dac.h"
+#include "interface/VoltageSet.h"
 
 #include "stm32f4xx.h"
 #include <cstdint>
@@ -9,30 +9,104 @@
 namespace driver
 {
 
-class DacDriver : public IDac
+class DacDriver : public IVoltageSet
 {
     public:
 
-    DacDriver(DAC_TypeDef *dac)
-        : _dac(dac)
+    enum class TSel : uint8_t
     {
+        Timer6Trgo,
+        Timer8Trgo,
+        Timer7Trgo,
+        Timer5Trgo,
+        Timer2Trgo,
+        Timer4Trgo,
+        Exti9,
+        SwStart,
+    };
+
+    struct ChannelConfig
+    {
+        uint8_t channel;
+        uint16_t data = 0;
+    };
+
+    DacDriver(DAC_TypeDef *dac, ChannelConfig *channels, size_t channelCount)
+        : _dac(dac), _channels(channels), _channelCount(channelCount)
+    {
+        if (channelCount > 2)
+        {
+            while(true);
+        }
+
+        for (size_t i = 0; i < channelCount; ++i)
+        {
+            if (channels[i].channel > 2)
+            {
+                while(true);
+            }
+        }
     }
 
     void init()
     {
-        RCC->APB1ENR |= RCC_APB1ENR_DACEN; // Enable DAC clock
-        _dac->CR |= DAC_CR_EN1; // Enable DAC channel 1
+        // Clock
+        RCC->APB1ENR |= RCC_APB1ENR_DACEN;          // Enable DAC clock
+
+        // DAC
+        for (size_t i = 0; i < _channelCount; ++i)  // Enable DAC channels
+        {
+            if (channels[i].channel == 1)
+            {
+                _dac->CR |= DAC_CR_EN1;
+                _dac->CR &= ~DAC_CR_TSEL1;
+                _dac->CR |= static_cast<size_t> (TSel::SwStart) << DAC_CR_TSEL1_Pos;
+                _dac->CR |= DAC_CR_TEN1;
+                _dac->CR |= DAC_CR_BOFF1;
+                _dac->CR |= DAC_CR_EN1;
+                _dac->CR |= DAC_CR_MAMP1;
+            }
+            else if (channels[i].channel == 2)
+            {
+                _dac->CR |= DAC_CR_EN2;
+                _dac->CR &= ~DAC_CR_TSEL2;
+                _dac->CR |= static_cast<size_t> (TSel::SwStart) << DAC_CR_TSEL2_Pos;
+                _dac->CR |= DAC_CR_TEN2;
+                _dac->CR |= DAC_CR_BOFF2;
+                _dac->CR |= DAC_CR_EN2;
+                _dac->CR |= DAC_CR_MAMP2;
+            }
+        }
     }
 
-    void setVoltage(float voltage) override
+    void start() override
+    {
+        _dac->SWTRIGR = DAC_SWTRIGR_SWTRIG1 | DAC_SWTRIGR_SWTRIG2;
+    }
+
+    void setVoltage(uint32_t voltage, size_t channel) override
     {
         uint32_t value = static_cast<uint32_t>((voltage / 3.3f) * 4095); // Convert voltage to DAC value (12-bit resolution)
         _dac->DHR12R1 = value; // Set the output value for channel 1
     }
 
+    void setRawValue(uint32_t value, size_t channel) override
+    {
+        if (channel == 1)
+        {
+            _dac->DHR12R1 = value >> 4;
+        }
+        else if (channel == 1)
+        {
+            _dac->DHR12R2 = value >> 4;
+        }
+    }
+
     private:
 
     DAC_TypeDef *_dac;
+    ChannelConfig *_channels;
+    size_t _channelCount;
 };
 
 } // namespace driver

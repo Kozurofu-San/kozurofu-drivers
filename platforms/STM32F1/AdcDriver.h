@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Adc.h"
+#include "interface/VoltageGet.h"
 
 #include "stm32f1xx.h"
 #include <cstdint>
@@ -9,7 +9,7 @@
 namespace driver
 {
 
-class AdcDriver : public IAdc
+class AdcDriver : public IVoltageGet
 {
     public:
 
@@ -131,7 +131,7 @@ class AdcDriver : public IAdc
 
     }
 
-    void start()
+    void start() override
     {
         _adc->CR2 |= ADC_CR2_JSWSTART;          // Start conversion
         while (!(_adc->SR & ADC_SR_JEOC)) {}    // Wait for conversion to complete

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Adc.h"
+#include "interface/VoltageGet.h"
 
 #include "stm32f4xx.h"
 #include <cstdint>
@@ -9,7 +9,7 @@
 namespace driver
 {
 
-class AdcDriver : public IAdc
+class AdcDriver : public IVoltageGet
 {
     public:
 
@@ -25,10 +25,33 @@ class AdcDriver : public IAdc
         Cycles480,
     };
 
+    enum class ExtSel : uint8_t
+    {
+        Timer1Cc1,
+        Timer1Cc2,
+        Timer1Cc3,
+        Timer2Cc2,
+        Timer3Trgo,
+        Timer4Cc4,
+        Exti11Tim8Trgo,
+        SwStart,
+    };
+
+    enum class JExtSel : uint8_t
+    {
+        Timer1Trgo,
+        Timer1Cc4,
+        Timer2Trgo,
+        Timer2Cc1,
+        Timer2Cc4,
+        Timer4Trgo,
+        Exti15Tim8Cc4,
+        JSwStart,
+    };
+
     struct ChannelConfig
     {
         uint8_t channel;
-        AdcDriver::SampleTime sampleTime;
         int16_t offset;
         uint16_t data = 0;
     };
@@ -42,7 +65,6 @@ class AdcDriver : public IAdc
     {
         // Clock
         RCC->APB2ENR |= (_adc == ADC1) ? RCC_APB2ENR_ADC1EN : RCC_APB2ENR_ADC2EN;
-        RCC->CFGR |= RCC_CFGR_PPRE2_DIV16; // Set ADC clock to APB2 / 4
 
         // ADC
         if (_channelCount < 4)
@@ -63,12 +85,12 @@ class AdcDriver : public IAdc
                 if (_channels[i].channel < 10)
                 {
                     _adc->SMPR2 &= ~(0x7 << (_channels[i].channel * 3));
-                    _adc->SMPR2 |= static_cast<uint8_t>(_channels[i].sampleTime) << (_channels[i].channel * 3);
+                    _adc->SMPR2 |= static_cast<uint8_t>(SampleTime::Cycles15) << (_channels[i].channel * 3);
                 }
                 else
                 {
                     _adc->SMPR1 &= ~(0x7 << ((_channels[i].channel - 10) * 3));
-                    _adc->SMPR1 |= static_cast<uint8_t>(_channels[i].sampleTime) << ((_channels[i].channel - 10) * 3);
+                    _adc->SMPR1 |= static_cast<uint8_t>(SampleTime::Cycles15) << ((_channels[i].channel - 10) * 3);
                 }
             }
         }
@@ -81,7 +103,7 @@ class AdcDriver : public IAdc
         _adc->CR2 |= ADC_CR2_ADON; // Enable ADC
     }
 
-    void start()
+    void start() override
     {
         _adc->CR2 |= ADC_CR2_JSWSTART;          // Start conversion
         while (!(_adc->SR & ADC_SR_JEOC)) {}    // Wait for conversion to complete
@@ -95,7 +117,7 @@ class AdcDriver : public IAdc
 
     int32_t getVoltage(size_t channel) override
     {
-        return _channels[channel].data * 3300 / 4096;
+        return _channels[channel].data * 3300 / 65535;
     }
 
     int32_t getRawValue(size_t channel) override

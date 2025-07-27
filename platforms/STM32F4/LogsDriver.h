@@ -2,7 +2,7 @@
 
 #include "interface/Logs.h"
 
-#include <stm32f1xx.h>
+#include <stm32f4xx.h>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdint>
@@ -13,17 +13,32 @@ class LogsDriver : public ILogs
 
     static constexpr uint32_t StLinkV2MaxSpeed = 2250000;
 
+    LogsDriver()
+    {
+    }
+
+    /*
+    * Working config
+        CoreDebug->DEMCR    0x01000000
+        DBGMCU->CR          0x00000037
+        TPI->SPPR           0x00000002
+        TPI->ACPR           0x000000a7
+        ITM->LAR            0x00000000
+        ITM->TCR            0x0081000f
+        ITM->TPR            0x00000000
+        ITM->TER            0xffffffff
+        DWT->CTRL           0x4001061f
+        TPI->FFCR           0x00000100
+    */
+
     /*
     * @param  portMask: 0xFFFFFFFF to enable all ports
     * @param  cpuCoreFreqHz: CPU core frequency in Hz
     * @param  baudrate: SWO baudrate in Hz
     * @retval None
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
+    * Init OK
     */
-    LogsDriver()
-    {
-    }
-
     void init(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
     {
         uint32_t swoPrescaler = (cpuCoreFreqHz / baudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock

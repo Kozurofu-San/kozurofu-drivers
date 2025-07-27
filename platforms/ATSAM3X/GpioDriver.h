@@ -78,6 +78,18 @@ class GpioDriver : public IGpio
 
     }
 
+    
+
+    inline Pio* getPort()
+    {
+        return _port;
+    }
+
+    inline size_t getPin() override
+    {
+        return _pin;
+    }
+
     void write(bool state) override
     {
         state ? (_port->PIO_SODR = 1 << _pin) : (_port->PIO_CODR = 1 << _pin);

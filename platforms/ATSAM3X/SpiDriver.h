@@ -8,7 +8,7 @@
 namespace driver
 {
 
-class SpiDriver : public ISpi
+class SpiDevice
 {
     public:
 
@@ -36,7 +36,7 @@ class SpiDriver : public ISpi
         Bits16 = 0x80
     };
 
-    SpiDriver(Spi *spi)
+    SpiDevice(Spi *spi)
         : _spi(spi)
     {
     }
@@ -62,6 +62,30 @@ class SpiDriver : public ISpi
         _spi->SPI_CR = SPI_CR_SPIEN;
     };
 
+    Spi* getSpi()
+    {
+        return _spi;
+    }
+
+    private:
+
+    Spi* _spi;
+};
+    
+class SpiDriver : public ISpi
+{
+    public:
+
+    SpiDriver(SpiDevice &spi)
+        : _spi(spi.getSpi())
+    {
+    }
+
+    void init()
+    {
+
+    }
+
     void write(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; ++i)
@@ -82,6 +106,20 @@ class SpiDriver : public ISpi
         }
     };
     
+    
+    void sendCommand(uint32_t cmd) override
+    {
+
+    }
+    void sendData(uint32_t data) override
+    {
+
+    }
+    uint32_t readData() override
+    {
+        return 0;
+    }
+
     private:
 
     Spi *_spi;

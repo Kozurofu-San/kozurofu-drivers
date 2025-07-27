@@ -15,9 +15,10 @@ class GpioDriver : public IGpio
 
     enum class Mode: uint8_t
     {
+        Analog          = 0x3,
         Input           = 0x0,
-        OutputPushpull  = 0x2,
-        OutputOpendrain = 0x3
+        OutputPushpull  = 0x1,
+        OutputOpendrain = 0x5,
     };
 
     enum class Speed: uint8_t
@@ -25,14 +26,14 @@ class GpioDriver : public IGpio
         Low         = 0x0,
         Meduim      = 0x1,
         High        = 0x2,
-        VeryHigh    = 0x3
+        VeryHigh    = 0x3,
     };
 
     enum class Pull: uint8_t
     {
         None        = 0x0,
         Up          = 0x1,
-        Down        = 0x2
+        Down        = 0x2,
     };
 
     GpioDriver(GPIO_TypeDef *port, size_t pin)
@@ -83,9 +84,9 @@ class GpioDriver : public IGpio
 
         // Configure mode
         _port->MODER &= ~(0x3 << (_pin * 2));
-        _port->MODER |= (static_cast<uint8_t>(mode) >> 1) << (_pin * 2);
+        _port->MODER |= (static_cast<uint8_t>(mode) & 3) << (_pin * 2);
         _port->OTYPER &= ~(0x1 << _pin);
-        _port->OTYPER |= (static_cast<uint8_t>(mode) & 0x1) << _pin;
+        _port->OTYPER |= (static_cast<uint8_t>(mode) >> 2) << _pin;
         _port->OSPEEDR &= ~(0x3 << (_pin * 2));
         _port->OSPEEDR |= static_cast<uint8_t>(speed) << (_pin * 2);
         _port->PUPDR &= ~(0x3 << (_pin * 2));
@@ -161,11 +162,11 @@ class GpioDriver : public IGpio
                         (port == GPIOF) ? RCC_AHB1ENR_GPIOFEN : 0;
         
         // Mode
-        uint8_t m = (alternate != Alternate::None) ? 0x2 : static_cast<uint8_t>(mode) >> 1;
+        uint8_t m = (alternate != Alternate::None) ? 0x2 : static_cast<uint8_t>(mode) & 3;
         port->MODER &= ~(0x3 << (pin * 2));
         port->MODER |= m << (pin * 2);
         port->OTYPER &= ~(0x1 << pin);
-        port->OTYPER |= (static_cast<uint8_t>(mode) & 0x1) << pin;
+        port->OTYPER |= (static_cast<uint8_t>(mode) >> 2) << pin;
         port->OSPEEDR |= 0x3 << (pin * 2);
         port->PUPDR &= ~(0x3 << (pin * 2));
         port->PUPDR |= static_cast<uint8_t>(pull) << (pin * 2);
