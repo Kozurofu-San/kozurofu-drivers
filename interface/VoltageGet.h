@@ -9,6 +9,6 @@ class IVoltageGet
 
     virtual ~IVoltageGet() = default;
 
-    virtual float getVoltage(uint32_t channel) = 0;
-    virtual int32_t getRawValue(uint32_t channel) = 0;
+    virtual int32_t getVoltage(size_t channel) = 0;   // Voltage in mV
+    virtual int32_t getRawValue(size_t channel) = 0;  // Value in Q0.16. It takes [15:3] for 12-bit value
 };

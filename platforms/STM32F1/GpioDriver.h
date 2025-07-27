@@ -15,7 +15,8 @@ class GpioDriver : public IGpio
 
     enum class Mode: uint8_t
     {
-        Input = 0x0,
+        Analog = 0x0,
+        Input = 0x4,
         OutputPushpull = 0x3,
         OutputOpendrain = 0x7,
         AlternatePushpull = 0xB,
@@ -60,6 +61,21 @@ class GpioDriver : public IGpio
             _port->CRH &= ~(0xF << ((_pin - 8) * 4));
             _port->CRH |= conf << ((_pin - 8) * 4);
         }
+    }
+
+    inline void clearInterrupt()
+    {
+        EXTI->PR = 1 << _pin;
+    }
+
+    inline GPIO_TypeDef * getPort()
+    {
+        return _port;
+    }
+
+    inline size_t getPin() override
+    {
+        return _pin;
     }
 
     void write(bool state) override
@@ -114,10 +130,25 @@ class GpioDriver : public IGpio
         port->ODR = value;
     }
 
+    void callback(void (*cb)(uint32_t)) override
+    {
+        _cb = cb;
+    }
+    
+    void interrupt(uint32_t arg)
+    {
+        if (_cb != nullptr)
+        {
+            _cb(arg);
+        }
+    }
+    
     private:
 
     GPIO_TypeDef *_port;
     size_t _pin;
+    
+    void (*_cb)(uint32_t) = nullptr;
 };
 
 }

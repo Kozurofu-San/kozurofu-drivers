@@ -2,7 +2,7 @@
 
 #include "interface/Logs.h"
 
-#include <sam3x8e.h>
+#include <stm32f1xx.h>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdint>
@@ -20,14 +20,18 @@ class LogsDriver : public ILogs
     * @retval None
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     */
-    LogsDriver(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
+    LogsDriver()
     {
-        uint32_t SWOPrescaler = (cpuCoreFreqHz / baudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
+    }
+
+    void init(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
+    {
+        uint32_t swoPrescaler = (cpuCoreFreqHz / baudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
         
         CoreDebug->DEMCR = CoreDebug_DEMCR_TRCENA_Msk;      // Debug Exception and Monitor Control Register (DEMCR): enable trace in core debug
-        // DBGMCU->CR	= 0x00000027u;                          // DBGMCU_CR : TRACE_IOEN DBG_STANDBY DBG_STOP 	DBG_SLEEP
+        DBGMCU->CR	= 0x00000027u;                          // DBGMCU_CR : TRACE_IOEN DBG_STANDBY DBG_STOP 	DBG_SLEEP
         TPI->SPPR	= 0x00000002u;                          // Selected PIN Protocol Register: Select which protocol to use for trace output (2: SWO)
-        TPI->ACPR	= SWOPrescaler;                         // Async Clock Prescaler Register: Scale the baud rate of the asynchronous output
+        TPI->ACPR	= swoPrescaler;                         // Async Clock Prescaler Register: Scale the baud rate of the asynchronous output
         ITM->LAR	= 0xC5ACCE55u;                          // ITM Lock Access Register: C5ACCE55 enables more write access to Control Register 0xE00 :: 0xFFC
         ITM->TCR	= 0x0001000Du;                          // ITM Trace Control Register
         ITM->TPR	= ITM_TPR_PRIVMASK_Msk;                 // ITM Trace Privilege Register: All stimulus ports
@@ -36,16 +40,17 @@ class LogsDriver : public ILogs
         TPI->FFCR	= 0x00000100u;                          // Formatter and Flush Control Register
     }
 
-    void init()
-    {
-    }
-
     void LOGI(const char* message, ...) override
     {
         va_list args;
         va_start(args, message);
-        vsprintf(_buffer, message, args);
+        uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
+        if (len > sizeof(_buffer))
+        {
+            printString(2, ErrorMsg);
+            return;
+        }
         printString(0, _buffer);
     }
 
@@ -53,8 +58,13 @@ class LogsDriver : public ILogs
     {
         va_list args;
         va_start(args, message);
-        vsprintf(_buffer, message, args);
+        uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
+        if (len > sizeof(_buffer))
+        {
+            printString(2, ErrorMsg);
+            return;
+        }
         printString(1, _buffer);
     }
 
@@ -62,8 +72,13 @@ class LogsDriver : public ILogs
     {
         va_list args;
         va_start(args, message);
-        vsprintf(_buffer, message, args);
+        uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
+        if (len > sizeof(_buffer))
+        {
+            printString(2, ErrorMsg);
+            return;
+        }
         printString(2, _buffer);
     }
 
@@ -82,9 +97,9 @@ class LogsDriver : public ILogs
 
     private:
 
-    char _buffer[20];
+    char _buffer[40];
+    const char ErrorMsg[16] = "Buffer overflow";
 
-    
     uint32_t ITM_SendCharToChannel(uint32_t channel, uint32_t symbol)
     {
         if (((ITM->TCR & ITM_TCR_ITMENA_Msk) != 0UL) &&      /* ITM enabled */
@@ -99,7 +114,7 @@ class LogsDriver : public ILogs
         return (symbol);
     }
 
-    void printString(uint32_t channel, char *symbol)
+    void printString(uint32_t channel, const char *symbol)
     {
         while (*symbol != 0)
         {
