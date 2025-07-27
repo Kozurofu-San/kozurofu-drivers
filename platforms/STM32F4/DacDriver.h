@@ -56,7 +56,7 @@ class DacDriver : public IVoltageSet
         // DAC
         for (size_t i = 0; i < _channelCount; ++i)  // Enable DAC channels
         {
-            if (channels[i].channel == 1)
+            if (_channels[i].channel == 1)
             {
                 _dac->CR |= DAC_CR_EN1;
                 _dac->CR &= ~DAC_CR_TSEL1;
@@ -66,7 +66,7 @@ class DacDriver : public IVoltageSet
                 _dac->CR |= DAC_CR_EN1;
                 _dac->CR |= DAC_CR_MAMP1;
             }
-            else if (channels[i].channel == 2)
+            else if (_channels[i].channel == 2)
             {
                 _dac->CR |= DAC_CR_EN2;
                 _dac->CR &= ~DAC_CR_TSEL2;
@@ -96,7 +96,7 @@ class DacDriver : public IVoltageSet
         {
             _dac->DHR12R1 = value >> 4;
         }
-        else if (channel == 1)
+        else if (channel == 2)
         {
             _dac->DHR12R2 = value >> 4;
         }

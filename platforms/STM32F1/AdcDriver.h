@@ -145,7 +145,7 @@ class AdcDriver : public IVoltageGet
 
     int32_t getVoltage(size_t channel) override
     {
-        return _channels[channel].data * 3300 / 65536;
+        return _channels[channel].data * 3300 / 65535;
     }
 
     int32_t getRawValue(size_t channel) override
