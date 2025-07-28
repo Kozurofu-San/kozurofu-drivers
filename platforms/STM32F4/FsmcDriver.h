@@ -1,13 +1,13 @@
 #pragma once
 
-#include "interface/Fsmc.h"
+#include "interface/Communication.h"
 
 #include "stm32f4xx.h"
 
 namespace driver
 {
 
-class FsmcDriver: public IFsmc
+class FsmcDriver: public ICommunication
 {
     public:
 
@@ -64,33 +64,33 @@ class FsmcDriver: public IFsmc
 
     void write(uint8_t *data, size_t len) override
     {
-        // Not implemented
+        for (size_t i = 0; i < len; ++i)
+        {
+            while (!(*(volatile uint16_t*) _addrCmd & 0x8000)); // Wait until ready
+            *(volatile uint16_t*) _addrData = data[i];
+        }
     }
 
     void read(uint8_t *data, size_t len) override
     {
-        // Not implemented
+        for (size_t i = 0; i < len; ++i)
+        {
+            while (!(*(volatile uint16_t*) _addrCmd & 0x8000)); // Wait until ready
+            data[i] = *(volatile uint16_t*) _addrData;
+        }
     }
 
-    inline void sendCommand(uint32_t cmd)
+    inline void sendCommand(uint32_t cmd) override
     {
         *(volatile uint16_t*) _addrCmd = cmd;
-    }
-    inline void sendData(uint32_t data)
-    {
-        *(volatile uint16_t*) _addrData = data;
-    }
-    inline uint32_t readData()
-    {
-        return *(volatile uint16_t*) _addrData;
     }
 
     private:
 
     P _fsmc;
 
-    uint32_t _addrCmd  = 0;
-    uint32_t _addrData = 0;
+    uint32_t _addrCmd  = 0x60000000;
+    uint32_t _addrData = 0x60080000;
 };
 
 }

@@ -3,6 +3,7 @@
 #include "interface/Timer.h"
 
 #include "stm32f4xx.h"
+extern uint32_t SystemCoreClock;
 
 namespace driver
 {
@@ -17,12 +18,25 @@ class TimerDriver : public ITimer
         Pwm = 1,
     };
 
-    TimerDriver(TIM_TypeDef *timer, uint32_t frequency)
-        : _timer(timer), _frequency(frequency) {}
+    TimerDriver(TIM_TypeDef *timer)
+        : _timer(timer) {}
 
     void init(Mode mode)
     {
         // Clock
+        uint32_t busPrescalerPos = 
+            ( _timer == TIM1
+            | _timer == TIM8
+            | _timer == TIM9
+            | _timer == TIM10
+            | _timer == TIM11
+            ) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
+        uint32_t busPrescaler = (RCC->CFGR >> busPrescalerPos) & 0x7;
+        busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
+        uint32_t spiPrescaler = (_timer->CR1 & SPI_CR1_BR) >> SPI_CR1_BR_Pos;
+        spiPrescaler = 1 << (spiPrescaler + 1);
+        _frequency = SystemCoreClock / busPrescaler / spiPrescaler;
+
         RCC->AHB1ENR |= (_timer == TIM1 ) ? RCC_APB2ENR_TIM1EN  :
                         (_timer == TIM2 ) ? RCC_APB1ENR_TIM2EN  :
                         (_timer == TIM3 ) ? RCC_APB1ENR_TIM3EN  :

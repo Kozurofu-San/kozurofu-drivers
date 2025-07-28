@@ -13,7 +13,7 @@ class DacDriver : public IVoltageSet
 {
     public:
 
-    enum class TSel : uint8_t
+    enum class Trigger : uint8_t
     {
         Timer6Trgo,
         Timer8Trgo,
@@ -23,12 +23,12 @@ class DacDriver : public IVoltageSet
         Timer4Trgo,
         Exti9,
         SwStart,
+        None,
     };
 
     struct ChannelConfig
     {
         uint8_t channel;
-        uint16_t data = 0;
     };
 
     DacDriver(DAC_TypeDef *dac, ChannelConfig *channels, size_t channelCount)
@@ -48,7 +48,7 @@ class DacDriver : public IVoltageSet
         }
     }
 
-    void init()
+    void init(Trigger trigger)
     {
         // Clock
         RCC->APB1ENR |= RCC_APB1ENR_DACEN;          // Enable DAC clock
@@ -58,47 +58,77 @@ class DacDriver : public IVoltageSet
         {
             if (_channels[i].channel == 1)
             {
+                _dac->CR &= ~DAC_CR_EN1;
                 _dac->CR |= DAC_CR_EN1;
                 _dac->CR &= ~DAC_CR_TSEL1;
-                _dac->CR |= static_cast<size_t> (TSel::SwStart) << DAC_CR_TSEL1_Pos;
-                _dac->CR |= DAC_CR_TEN1;
+                _dac->CR |= static_cast<size_t> (trigger) << DAC_CR_TSEL1_Pos;
+                if (trigger != Trigger::None)
+                {
+                    _dac->CR |= DAC_CR_TEN1; // Enable trigger
+                }
+                else
+                {
+                    _dac->CR &= ~DAC_CR_TEN1; // Disable trigger
+                }
                 _dac->CR |= DAC_CR_BOFF1;
                 _dac->CR |= DAC_CR_EN1;
                 _dac->CR |= DAC_CR_MAMP1;
             }
             else if (_channels[i].channel == 2)
             {
+                _dac->CR &= ~DAC_CR_EN2;
                 _dac->CR |= DAC_CR_EN2;
                 _dac->CR &= ~DAC_CR_TSEL2;
-                _dac->CR |= static_cast<size_t> (TSel::SwStart) << DAC_CR_TSEL2_Pos;
-                _dac->CR |= DAC_CR_TEN2;
+                _dac->CR |= static_cast<size_t> (trigger) << DAC_CR_TSEL2_Pos;
+                if (trigger != Trigger::None)
+                {
+                    _dac->CR |= DAC_CR_TEN2; // Enable trigger
+                }
+                else
+                {
+                    _dac->CR &= ~DAC_CR_TEN2; // Disable trigger
+                }
                 _dac->CR |= DAC_CR_BOFF2;
                 _dac->CR |= DAC_CR_EN2;
                 _dac->CR |= DAC_CR_MAMP2;
             }
         }
+        
+        if (_channelCount == 2)
+        {
+            // Dual mode
+        }
     }
 
-    void start() override
+    inline void start() override
     {
         _dac->SWTRIGR = DAC_SWTRIGR_SWTRIG1 | DAC_SWTRIGR_SWTRIG2;
     }
 
     void setVoltage(uint32_t voltage, size_t channel) override
     {
-        uint32_t value = static_cast<uint32_t>((voltage / 3.3f) * 4095); // Convert voltage to DAC value (12-bit resolution)
-        _dac->DHR12R1 = value; // Set the output value for channel 1
+        uint32_t value = static_cast<uint32_t>((voltage * 4095) / 3000);
+        if (value > 4095) value = 4095;
+        
+        if (_channels[channel].channel == 1)
+        {
+            _dac->DHR12R1 = value;
+        }
+        else if (_channels[channel].channel == 2)
+        {
+            _dac->DHR12R2 = value;
+        }
     }
 
     void setRawValue(uint32_t value, size_t channel) override
     {
-        if (channel == 1)
+        if (_channels[channel].channel == 1)
         {
-            _dac->DHR12R1 = value >> 4;
+            _dac->DHR12L1 = value;
         }
-        else if (channel == 2)
+        else if (_channels[channel].channel == 2)
         {
-            _dac->DHR12R2 = value >> 4;
+            _dac->DHR12L2 = value;
         }
     }
 

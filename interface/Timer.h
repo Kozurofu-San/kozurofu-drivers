@@ -13,5 +13,4 @@ class ITimer
     virtual void reset() = 0;
     virtual void delay(uint32_t ms) = 0;
     virtual uint32_t now() = 0;
-    virtual void pwm(uint16_t pwm) = 0;
 };

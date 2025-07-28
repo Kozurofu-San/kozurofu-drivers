@@ -4,11 +4,12 @@
 #include "interface/Gpio.h"
 
 #include "stm32f4xx.h"
+extern uint32_t SystemCoreClock;
 
 namespace driver
 {
 
-class SpiDevice
+class SpiController
 {
     public:
 
@@ -48,11 +49,11 @@ class SpiDevice
         Div256 = 0x38
     };
 
-    SpiDevice(SPI_TypeDef *spi)
+    SpiController(SPI_TypeDef *spi)
         : _spi(spi)
     {
     }
-
+    
     void init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, BaudRatePrescaler baudRatePrescaler)
     {
         // Clock enable
@@ -69,7 +70,7 @@ class SpiDevice
             | SPI_CR1_SSM
             | SPI_CR1_SSI
         ;
-        _spi->CR2 = 0x0;
+        // _spi->CR2 = SPI_CR2_SSOE;
 
         // Enable SPI
         _spi->CR1 |= SPI_CR1_SPE;
@@ -82,95 +83,85 @@ class SpiDevice
 
     private:
 
-    SPI_TypeDef* _spi;
+    SPI_TypeDef *_spi;
 };
-    
+
 class SpiDriver : public ISpi
 {
     public:
 
-    SpiDriver(SpiDevice &spi)
+    SpiDriver(SpiController &spi)
         : _spi(spi.getSpi())
     {
     }
 
-    void init(IGpio* gpioCs = nullptr, uint8_t idleState = 1)
+    void init( GpioDriver *cs, bool idleState)
     {
-        _spi->CR1 &= ~SPI_CR1_SPE;
-        if (gpioCs)
-        {
-            _cs = gpioCs;
-            _spi->CR2 |= SPI_CR2_SSOE;  // Soft Chip Select
-        }
-        else
-        {
-            _spi->CR2 &= ~SPI_CR2_SSOE; // Hard Chip Select
-        }
-        _spi->CR1 |= SPI_CR1_SPE;
-
-        if (idleState)
-        {
-            _idleState = idleState;
-        }
-    };
+        _cs = cs;
+        _cs->write(!_idleState);
+        _idleState = idleState;
+    }
 
     void write(uint8_t *data, size_t len) override
     {
-        if (_cs)
-        {
-            _cs->write(!_idleState);
-        }
         for (size_t i = 0; i < len; ++i)
         {
             while (!(_spi->SR & SPI_SR_TXE));
             _spi->DR = data[i];
             while((_spi->SR & SPI_SR_BSY));
         }
-        if (_cs)
-        {
-            _cs->write(_idleState);
-        }
     };
 
     void read(uint8_t *data, size_t len) override
+    {
+        for (size_t i = 0; i < len; ++i)
+        {
+            while (!(_spi->SR & SPI_SR_TXE));
+            _spi->DR = 0x00;
+            while (!(_spi->SR & SPI_SR_RXNE));
+            data[i] = _spi->DR;
+        }
+    };
+
+    void sendCommand(uint32_t cmd) override
+    {
+        while (!(_spi->SR & SPI_SR_TXE));
+        _spi->DR = cmd;
+        // while((_spi->SR & SPI_SR_BSY));
+    }
+
+    void enable() override
     {
         if (_cs)
         {
             _cs->write(!_idleState);
         }
-        for (size_t i = 0; i < len; ++i)
-        {
-            while (!(_spi->SR & SPI_SR_TXE));
-            _spi->DR = 0xFF;
-            while (!(_spi->SR & SPI_SR_RXNE));
-            data[i] = _spi->DR;
-        }
+    }
+
+    void disable() override
+    {
         if (_cs)
         {
             _cs->write(_idleState);
         }
-    };
-
-    void sendCommand(uint32_t cmd)
-    {
-        // Not implemented
-    }
-    inline void sendData(uint32_t data)
-    {
-        // Not implemented
-    }
-    inline uint32_t readData()
-    {
-        return 0;   // Not implemented
     }
 
-    
+    uint32_t getBaudrate() const override
+    {
+        uint32_t busPrescalerPos = (_spi == SPI1) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
+        uint32_t busPrescaler = (RCC->CFGR >> busPrescalerPos) & 0x7;
+        busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
+        uint32_t spiPrescaler = (_spi->CR1 & SPI_CR1_BR) >> SPI_CR1_BR_Pos;
+        spiPrescaler = 1 << (spiPrescaler + 1);
+        return SystemCoreClock / busPrescaler / spiPrescaler;
+    }
+
     private:
 
     SPI_TypeDef* _spi;
-    IGpio* _cs = nullptr;
+    GpioDriver *_cs;
+    bool _idleState; // CS state when idle, true - high, false - low
 
-    uint8_t _idleState = 1;
 };
 
 }
