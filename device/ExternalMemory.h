@@ -19,6 +19,10 @@ class ExternalMemoryDriver : public IMemory
 
     void init()
     {
+        uint64_t id = 0;
+        readCmd(ExternalMemory::JedecId             , reinterpret_cast<uint8_t*>(&id), 4);
+        readCmd(ExternalMemory::ManufacturerDeviceId, reinterpret_cast<uint8_t*>(&id), 8);
+        readCmd(ExternalMemory::ReadUniqueId        , reinterpret_cast<uint8_t*>(&buffer), 12);
         _p.enable();
         _p.sendCommand(ExternalMemory::JedecId);
         _p.read(buffer, 4);
@@ -39,6 +43,14 @@ class ExternalMemoryDriver : public IMemory
     }
 
     private:
+
+    void readCmd(uint8_t cmd, uint8_t *data, size_t len)
+    {
+        _p.enable();
+        _p.sendCommand(cmd);
+        _p.read(data, len);
+        _p.disable();
+    }
 
     ICommunication &_p;
     ITimer &_timer;
