@@ -35,7 +35,7 @@ class TimerDriver : public ITimer
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
         uint32_t spiPrescaler = (_timer->CR1 & SPI_CR1_BR) >> SPI_CR1_BR_Pos;
         spiPrescaler = 1 << (spiPrescaler + 1);
-        _frequency = SystemCoreClock / busPrescaler / spiPrescaler;
+        _speed = SystemCoreClock / busPrescaler / spiPrescaler;
 
         RCC->AHB1ENR |= (_timer == TIM1 ) ? RCC_APB2ENR_TIM1EN  :
                         (_timer == TIM2 ) ? RCC_APB1ENR_TIM2EN  :
@@ -97,15 +97,16 @@ class TimerDriver : public ITimer
     {
         return _ms;
     }
-    void pwm(uint16_t pwm) override
-    {}
+    uint32_t getSpeed() override
+    {
+        return _speed;
+    }
     
     private:
 
     TIM_TypeDef *_timer;
-    uint32_t _frequency;
     uint32_t _ms = 0;
-    
+    uint32_t _speed = 0;
 };
 
 }

@@ -65,6 +65,11 @@ class TimerFreertos : public ITimer
     {
         return 0;
     }
+
+    inline uint32_t getSpeed() override
+    {
+        return configTICK_RATE_HZ;
+    }
     
     private:
     

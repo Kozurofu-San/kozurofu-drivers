@@ -18,5 +18,5 @@ class ICommunication
     virtual void enable()  = 0;
     virtual void disable() = 0;
 
-    virtual uint32_t getBaudrate() const = 0;
+    virtual uint32_t getSpeed() const = 0;
 };
