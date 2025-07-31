@@ -86,13 +86,13 @@ class SpiController : public ICommunication
 
     void write(uint8_t *data, size_t len) override
     {
-        uint8_t a = 0;
+        // uint8_t a = 0;
         for (size_t i = 0; i < len; ++i)
         {
             while (!(_spi->SR & SPI_SR_TXE));
             _spi->DR = data[i];
             while (!(_spi->SR & SPI_SR_RXNE));
-            a = _spi->DR; // Read data to clear RXNE flag
+            (void) _spi->DR; // Read data to clear RXNE flag
         }
     };
 

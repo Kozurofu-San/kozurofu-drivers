@@ -58,6 +58,7 @@ class TimerFreertos : public ITimer
                 while(!(SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk));
             }
             SysTick->CTRL &= ~SysTick_CTRL_ENABLE_Msk;
+                SysTick->VAL = 0;
         #endif
         }
     }

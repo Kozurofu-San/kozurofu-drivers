@@ -66,7 +66,6 @@ class FsmcDriver: public ICommunication
     {
         for (size_t i = 0; i < len; ++i)
         {
-            while (!(*(volatile uint16_t*) _addrCmd & 0x8000)); // Wait until ready
             *(volatile uint16_t*) _addrData = data[i];
         }
     }
@@ -75,7 +74,6 @@ class FsmcDriver: public ICommunication
     {
         for (size_t i = 0; i < len; ++i)
         {
-            while (!(*(volatile uint16_t*) _addrCmd & 0x8000)); // Wait until ready
             data[i] = *(volatile uint16_t*) _addrData;
         }
     }
@@ -83,6 +81,22 @@ class FsmcDriver: public ICommunication
     inline void sendCommand(uint32_t cmd) override
     {
         *(volatile uint16_t*) _addrCmd = cmd;
+    }
+
+    uint32_t getSpeed() const override
+    {
+        // FSMC does not have a speed, return 0
+        return 0;
+    }
+
+    void enable() override
+    {
+        // FSMC does not have an enable, do nothing
+    }
+
+    void disable() override
+    {
+        // FSMC does not have a disable, do nothing
     }
 
     private:

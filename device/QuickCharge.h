@@ -24,7 +24,7 @@ class QuickCharge
     void init()
     {
         // Start Quick Charge
-        _usbDp.setVoltage(3.3f);
+        // _usbDp.setVoltage(3300);
         _timer.delay(1500);
     }
 
@@ -34,20 +34,20 @@ class QuickCharge
         switch (voltage)
         {
             case Voltage::V5_0:
-                _usbDm.setVoltage(0.0f);
-                _usbDp.setVoltage(0.6f);
+                // _usbDm.setVoltage(0.0f);
+                // _usbDp.setVoltage(0.6f);
                 break;
             case Voltage::V9_0:
-                _usbDm.setVoltage(0.6f);
-                _usbDp.setVoltage(3.3f);
+                // _usbDm.setVoltage(0.6f);
+                // _usbDp.setVoltage(3.3f);
                 break;
             case Voltage::V12_0:
-                _usbDm.setVoltage(0.6f);
-                _usbDp.setVoltage(0.6f);
+                // _usbDm.setVoltage(0.6f);
+                // _usbDp.setVoltage(0.6f);
                 break;
             case Voltage::V20_0:
-                _usbDm.setVoltage(3.3f);
-                _usbDp.setVoltage(3.3f);
+                // _usbDm.setVoltage(3.3f);
+                // _usbDp.setVoltage(3.3f);
                 break;
         }
 

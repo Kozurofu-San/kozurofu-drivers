@@ -12,7 +12,7 @@ class ExternalMemoryDriver : public IMemory
 {
     public:
 
-    static constexpr uint32_t MaxSpeed = 133'000'000; // 133 MHz for W25Q16
+    static constexpr uint32_t MaxSpeed = 133000000; // 133 MHz for W25Q16
 
     ExternalMemoryDriver(ICommunication &p, ITimer &timer)
         : _p(p), _timer(timer)
@@ -26,20 +26,20 @@ class ExternalMemoryDriver : public IMemory
         {
             return; // Speed is too high for this memory
         }
-        readCmd(ExternalMemory::Instruction::JedecId, buffer, 4);
-        uint8_t manufacturerId = buffer[0];
-        uint8_t type = buffer[1];
-        uint8_t capacity = buffer[2];
-        readCmd(ExternalMemory::Instruction::ReadUniqueId, buffer, 12);
-        uint64_t uniqueId = 
-            static_cast<uint64_t>(buffer[5]) << 40 |
-            static_cast<uint64_t>(buffer[6]) << 32 |
-            static_cast<uint64_t>(buffer[7]) << 24 |
-            static_cast<uint64_t>(buffer[8]) << 16 |
-            static_cast<uint64_t>(buffer[9]) << 8  |
-            static_cast<uint64_t>(buffer[10]);
-        readCmd(ExternalMemory::Instruction::EnableReset, buffer, 1);
-        readCmd(ExternalMemory::Instruction::ResetDevice, buffer, 1);
+        readCmd(ExternalMemory::Instruction::JedecId, _buffer, 4);
+        _manufacturerId = _buffer[0];
+        _type = _buffer[1];
+        _capacity = _buffer[2];
+        readCmd(ExternalMemory::Instruction::ReadUniqueId, _buffer, 12);
+        _uniqueId = 
+            static_cast<uint64_t>(_buffer[5]) << 40 |
+            static_cast<uint64_t>(_buffer[6]) << 32 |
+            static_cast<uint64_t>(_buffer[7]) << 24 |
+            static_cast<uint64_t>(_buffer[8]) << 16 |
+            static_cast<uint64_t>(_buffer[9]) << 8  |
+            static_cast<uint64_t>(_buffer[10]);
+        readCmd(ExternalMemory::Instruction::EnableReset, _buffer, 1);
+        readCmd(ExternalMemory::Instruction::ResetDevice, _buffer, 1);
         _timer.delay(100);
     }
 
@@ -47,7 +47,7 @@ class ExternalMemoryDriver : public IMemory
     {
         uint8_t addressBytes = ExternalMemory::HighCap ? 4 : 3;
 
-        readCmd(ExternalMemory::Instruction::WriteEnable, buffer, 0);
+        readCmd(ExternalMemory::Instruction::WriteEnable, _buffer, 0);
         _p.enable();
         _p.sendCommand(ExternalMemory::Instruction::PageProgram);
         _p.write((uint8_t*)&address, addressBytes);
@@ -56,9 +56,9 @@ class ExternalMemoryDriver : public IMemory
         
         do
         {
-            readCmd(ExternalMemory::Instruction::ReadStatusRegister1, buffer, 1);
-        } while (buffer[0] & ExternalMemory::Status::Busy);
-        readCmd(ExternalMemory::Instruction::WriteDisable, buffer, 0);
+            readCmd(ExternalMemory::Instruction::ReadStatusRegister1, _buffer, 1);
+        } while (_buffer[0] & ExternalMemory::Status::Busy);
+        readCmd(ExternalMemory::Instruction::WriteDisable, _buffer, 0);
 
     }
 
@@ -76,16 +76,16 @@ class ExternalMemoryDriver : public IMemory
 
     void erase() override
     {
-        readCmd(ExternalMemory::Instruction::WriteEnable, buffer, 0);
+        readCmd(ExternalMemory::Instruction::WriteEnable, _buffer, 0);
 
         _p.enable();
         _p.sendCommand(ExternalMemory::Instruction::ChipErase);
         _p.disable();
         do
         {
-            readCmd(ExternalMemory::Instruction::ReadStatusRegister1, buffer, 1);
-        } while (buffer[0] & ExternalMemory::Status::Busy);
-        readCmd(ExternalMemory::Instruction::WriteDisable, buffer, 0);
+            readCmd(ExternalMemory::Instruction::ReadStatusRegister1, _buffer, 1);
+        } while (_buffer[0] & ExternalMemory::Status::Busy);
+        readCmd(ExternalMemory::Instruction::WriteDisable, _buffer, 0);
     }
 
     private:
@@ -101,5 +101,10 @@ class ExternalMemoryDriver : public IMemory
     ICommunication &_p;
     ITimer &_timer;
 
-    uint8_t buffer[20];
+    uint8_t _buffer[20];
+
+    uint8_t _manufacturerId = 0;
+    uint8_t _type = 0;
+    uint8_t _capacity = 0;
+    uint64_t _uniqueId = 0;
 };

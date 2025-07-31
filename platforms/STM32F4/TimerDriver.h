@@ -25,11 +25,11 @@ class TimerDriver : public ITimer
     {
         // Clock
         uint32_t busPrescalerPos = 
-            ( _timer == TIM1
-            | _timer == TIM8
-            | _timer == TIM9
-            | _timer == TIM10
-            | _timer == TIM11
+            ( ( _timer == TIM1  )
+            | ( _timer == TIM8  )
+            | ( _timer == TIM9  )
+            | ( _timer == TIM10 )
+            | ( _timer == TIM11 )
             ) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
         uint32_t busPrescaler = (RCC->CFGR >> busPrescalerPos) & 0x7;
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
@@ -57,7 +57,7 @@ class TimerDriver : public ITimer
         if (mode == Mode::Normal)
         {
             _timer->CR1 = TIM_CR1_ARPE; // Auto reload
-            _timer->PSC = (_frequency / 1000) - 1;  // 1 ms
+            _timer->PSC = (_speed / 1000) - 1;  // 1 ms
             _timer->SR = 0;
 
             uint32_t irq = (_timer == TIM1 ) ? TIM1_TRG_COM_TIM11_IRQn  :
