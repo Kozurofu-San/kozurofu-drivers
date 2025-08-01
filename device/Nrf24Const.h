@@ -81,14 +81,4 @@ public:
     static constexpr uint8_t    CmdReuseTxPl      = 0xE3;  // Reuse TX payload
     static constexpr uint8_t    CmdNop            = 0xFF;  // No operation
 
-    // Метод проверки работоспособности чипа
-    static bool IsChipAlive(uint8_t setupAw, uint8_t rfCh, uint8_t status)
-    {
-        // Проверка значений по умолчанию после сброса
-        const bool widthOk = (setupAw & 0x03) == SetupAw::Aw5Bytes;
-        const bool channelOk = (rfCh & 0x7F) == 0x02;  // Default channel 2
-        const bool statusOk = (status & 0x80) == 0;     // Bit 7 always 0
-        
-        return widthOk && channelOk && statusOk;
-    }
 };

@@ -12,7 +12,7 @@
 namespace driver
 {
 
-class Ili9341Driver: IDisplay
+class Ili9341Driver: public IDisplay
 {
     public:
 
@@ -36,35 +36,45 @@ class Ili9341Driver: IDisplay
         writeCmd(Ili9341::Rst, nullptr, 0);
         _timer.delay(100);
         writeCmd(Ili9341::DisplayOff, nullptr, 0);
-        writeCmd(Ili9341::PowerControlA,            (uint8_t[]){0x39, 0x2C, 0x00, 0x34, 0x02}, 5);
-        writeCmd(Ili9341::PowerControlB,            (uint8_t[]){0x00, 0x83, 0x30}, 3);
-        writeCmd(Ili9341::DriverTimingControlA,     (uint8_t[]){0x85, 0x01, 0x79}, 3);
-        writeCmd(Ili9341::DriverTimingControlB,     (uint8_t[]){0x00, 0x00}, 2);
-        writeCmd(Ili9341::PowerOnSequenceControl,   (uint8_t[]){0x64, 0x03, 0x12, 0x81}, 4);
-        writeCmd(Ili9341::PumpRatioControl,         (uint8_t[]){0x20}, 1);
-        writeCmd(Ili9341::PowerControl1,            (uint8_t[]){0x26}, 1);
-        writeCmd(Ili9341::PowerControl2,            (uint8_t[]){0x11}, 1);
-        writeCmd(Ili9341::VcomControl1,             (uint8_t[]){0x35, 0x3E}, 2);
-        writeCmd(Ili9341::VcomControl2,             (uint8_t[]){0xBE}, 1);
-        writeCmd(Ili9341::PixelFormatSet,           (uint8_t[]){0x55}, 1);
-        writeCmd(Ili9341::FrameControlNormal,       (uint8_t[]){0x00, 0x1B}, 2);
-        writeCmd(Ili9341::FunctionControl,          (uint8_t[]){0x0A, 0x82, 0x27, 0x00}, 4);
-        writeCmd(Ili9341::Enable3G,                 (uint8_t[]){0x08}, 1);
-        writeCmd(Ili9341::GammaSet,                 (uint8_t[]){0x01}, 1);
-        writeCmd(Ili9341::PositiveGammaCorrection,  (uint8_t[]){0x1F, 0x1A, 0x18, 0x0A, 0x0F, 0x06, 0x45, 0x87, 
-                                                                0x32, 0x0A, 0x07, 0x02, 0x07, 0x05, 0x00}, 15);
-        writeCmd(Ili9341::NegativeGammaCorrection,  (uint8_t[]){0x00, 0x25, 0x27, 0x05, 0x10, 0x09, 0x3A, 0x78,
-                                                                0x4D, 0x05, 0x18, 0x0D, 0x38, 0x3A, 0x1F}, 15);
-        writeCmd(Ili9341::EntryModeSet,             (uint8_t[]){0x07}, 1);
+        writeCmd(Ili9341::PowerControlA,            std::array<uint8_t, 5>{0x39, 0x2C, 0x00, 0x34, 0x02}.data(), 5);
+        writeCmd(Ili9341::PowerControlB,            std::array<uint8_t, 3>{0x00, 0x83, 0x30}.data(), 3);
+        writeCmd(Ili9341::DriverTimingControlA,     std::array<uint8_t, 3>{0x85, 0x01, 0x79}.data(), 3);
+        writeCmd(Ili9341::DriverTimingControlB,     std::array<uint8_t, 2>{0x00, 0x00}.data(), 2);
+        writeCmd(Ili9341::PowerOnSequenceControl,   std::array<uint8_t, 4>{0x64, 0x03, 0x12, 0x81}.data(), 4);
+        writeCmd(Ili9341::PumpRatioControl,         std::array<uint8_t, 1>{0x20}.data(), 1);
+        writeCmd(Ili9341::PowerControl1,            std::array<uint8_t, 1>{0x26}.data(), 1);
+        writeCmd(Ili9341::PowerControl2,            std::array<uint8_t, 1>{0x11}.data(), 1);
+        writeCmd(Ili9341::VcomControl1,             std::array<uint8_t, 2>{0x35, 0x3E}.data(), 2);
+        writeCmd(Ili9341::VcomControl2,             std::array<uint8_t, 1>{0xBE}.data(), 1);
+        writeCmd(Ili9341::PixelFormatSet,           std::array<uint8_t, 1>{0x55}.data(), 1);
+        writeCmd(Ili9341::FrameControlNormal,       std::array<uint8_t, 2>{0x00, 0x1B}.data(), 2);
+        writeCmd(Ili9341::FunctionControl,          std::array<uint8_t, 4>{0x0A, 0x82, 0x27, 0x00}.data(), 4);
+        writeCmd(Ili9341::Enable3G,                 std::array<uint8_t, 1>{0x08}.data(), 1);
+        writeCmd(Ili9341::GammaSet,                 std::array<uint8_t, 1>{0x01}.data(), 1);
+        writeCmd(Ili9341::PositiveGammaCorrection,  std::array<uint8_t, 15>{0x1F, 0x1A, 0x18, 0x0A, 0x0F, 0x06, 0x45, 0x87, 
+                                                                0x32, 0x0A, 0x07, 0x02, 0x07, 0x05, 0x00}.data(), 15);
+        writeCmd(Ili9341::NegativeGammaCorrection,  std::array<uint8_t, 15>{0x00, 0x25, 0x27, 0x05, 0x10, 0x09, 0x3A, 0x78,
+                                                                0x4D, 0x05, 0x18, 0x0D, 0x38, 0x3A, 0x1F}.data(), 15);
+        writeCmd(Ili9341::EntryModeSet,             std::array<uint8_t, 1>{0x07}.data(), 1);
         writeCmd(Ili9341::SleepOut, nullptr, 0);
         _timer.delay(100);
         writeCmd(Ili9341::DisplayOn, nullptr, 0);
         _timer.delay(100);
     }
 
-    void setPixel(uint32_t x, uint32_t y, uint32_t color)
+    void setPixel(uint32_t x, uint32_t y, uint32_t color) override
     {
+        writeCmd(Ili9341::ColumnAddressSet, reinterpret_cast<uint8_t*> (&x), 2);
+        writeCmd(Ili9341::ColumnAddressSet, reinterpret_cast<uint8_t*> (&x), 2);
+        writeCmd(Ili9341::PageAddressSet,   reinterpret_cast<uint8_t*> (&y), 2);
+        writeCmd(Ili9341::PageAddressSet,   reinterpret_cast<uint8_t*> (&y), 2);
+        writeCmd(Ili9341::MemoryWrite,      reinterpret_cast<uint8_t*> (&color), 2);
+    }
 
+    void setArea(uint32_t x0x1, uint32_t y0y1)
+    {
+        writeCmd(Ili9341::ColumnAddressSet, reinterpret_cast<uint8_t*> (&x0x1), 4);
+        writeCmd(Ili9341::PageAddressSet,   reinterpret_cast<uint8_t*> (&y0y1), 4);
     }
 
     enum class Orientation : uint8_t

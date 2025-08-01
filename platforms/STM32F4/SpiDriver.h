@@ -86,7 +86,6 @@ class SpiController : public ICommunication
 
     void write(uint8_t *data, size_t len) override
     {
-        // uint8_t a = 0;
         for (size_t i = 0; i < len; ++i)
         {
             while (!(_spi->SR & SPI_SR_TXE));

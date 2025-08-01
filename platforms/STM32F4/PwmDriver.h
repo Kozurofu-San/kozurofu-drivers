@@ -29,9 +29,6 @@ class PwmDriver : public IPwm
         _tim->CCR1 = value; // Set the output value for channel 1
     }
 
-    float getVoltage() const override{}
-    void onVoltageChange(std::function<void(float)> callback) override{}
-
     private:
 
     TIM_TypeDef *_tim;
