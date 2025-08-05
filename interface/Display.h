@@ -11,4 +11,5 @@ class IDisplay
 
     virtual void setPixel(uint32_t x, uint32_t y, uint32_t color) = 0;
     virtual void setArea (uint32_t x, uint32_t y) = 0;
+    virtual bool isInit() = 0;
 };

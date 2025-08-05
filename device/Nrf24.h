@@ -30,6 +30,8 @@ class Nrf24Driver
         readCmd(Nrf24::SetupAw, _buffer, 1);
         readCmd(Nrf24::RfCh,    _buffer, 1);
         readCmd(Nrf24::Status,  _buffer, 1);
+
+        _isInit = true;
     }
 
     void write(uint8_t *data, size_t len)
@@ -38,6 +40,11 @@ class Nrf24Driver
 
     void read (uint8_t *data, size_t len)
     {
+    }
+
+    bool isInit()// override
+    {
+        return _isInit;
     }
 
     private:
@@ -59,4 +66,6 @@ class Nrf24Driver
     uint8_t _type = 0;
     uint8_t _capacity = 0;
     uint64_t _uniqueId = 0;
+
+    bool _isInit = false;
 };

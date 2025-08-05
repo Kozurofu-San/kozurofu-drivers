@@ -3,6 +3,7 @@
 #include "interface/Communication.h"
 
 #include "stm32f4xx.h"
+extern uint32_t SystemCoreClock;
 
 namespace driver
 {
@@ -25,13 +26,15 @@ class FsmcDriver: public ICommunication
     {
     }
 
-    void init()
+    bool init()
     {
         RCC->AHB3ENR |= RCC_AHB3ENR_FSMCEN;
         if (_fsmc == P::Bank1)
         {
             _addrCmd  = 0x60000000;   // Bank 1
             _addrData = 0x60080000;   // A18 -> 18+1 bit
+
+            _speed = SystemCoreClock;
 
             FSMC_Bank1E->BWTR[0] = 0x0FFFFFFF;
             FSMC_Bank1->BTCR[0 + 0]	            // BCR1
@@ -60,6 +63,9 @@ class FsmcDriver: public ICommunication
                 | 0  << FSMC_BTR1_ACCMOD_Pos    // Access mode 0 = A, 1 = B, 2 = C, 3 = D Use w/EXTMOD bit
             ;
         }
+        
+        _isInit = true;
+        return true;
     }
 
     void write(uint8_t *data, size_t len) override
@@ -86,7 +92,7 @@ class FsmcDriver: public ICommunication
     uint32_t getSpeed() const override
     {
         // FSMC does not have a speed, return 0
-        return 0;
+        return _speed;
     }
 
     void enable() override
@@ -99,12 +105,20 @@ class FsmcDriver: public ICommunication
         // FSMC does not have a disable, do nothing
     }
 
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     P _fsmc;
 
     uint32_t _addrCmd  = 0x60000000;
     uint32_t _addrData = 0x60080000;
+    
+    uint32_t _speed = 0;
+    bool _isInit = false;
 };
 
 }

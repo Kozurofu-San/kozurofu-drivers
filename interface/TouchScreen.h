@@ -21,4 +21,5 @@ class ITouchScreen
     virtual uint32_t getCoordinates() = 0;
     virtual bool isPressed() = 0;
     virtual void calibrate(CalibrationData *calibrationData) = 0;
+    virtual bool isInit() = 0;
 };

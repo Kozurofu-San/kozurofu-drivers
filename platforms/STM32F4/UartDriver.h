@@ -24,7 +24,7 @@ class UartDriver : public ICommunication
     {
     }
     
-    void init(uint32_t baudRate, Oversampling oversampling)
+    bool init(uint32_t baudRate, Oversampling oversampling)
     {
         // Clock enable
         if      (_uart == USART1) RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
@@ -53,6 +53,9 @@ class UartDriver : public ICommunication
         _uart->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE; // Enable transmitter and receiver
         _uart->CR2 = 0;
         _uart->CR3 = 0;
+        
+        _isInit = true;
+        return true;
     };
 
     void write(uint8_t *data, size_t len) override
@@ -91,10 +94,17 @@ class UartDriver : public ICommunication
     {
     }
 
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     USART_TypeDef *_uart;
     uint32_t _speed; // Speed in Hz
+    
+    bool _isInit = false;
 };
 
 }

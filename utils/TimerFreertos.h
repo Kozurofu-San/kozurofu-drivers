@@ -22,7 +22,7 @@ class TimerFreertos : public ITimer
 
     TimerFreertos() = default;
 
-    void init(TimerHandle_t *timer = nullptr)
+    bool init(TimerHandle_t *timer = nullptr)
     {
     #ifndef ESP32
         SysTick->LOAD = (SystemCoreClock / 1000) - 1;   // 1 ms
@@ -30,6 +30,9 @@ class TimerFreertos : public ITimer
         SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk;     // AHB clock
     #endif
         _timer = timer;
+
+        _isInit = true;
+        return false;
     }
 
     
@@ -72,9 +75,15 @@ class TimerFreertos : public ITimer
         return configTICK_RATE_HZ;
     }
     
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
     
     TimerHandle_t *_timer;
+    bool _isInit = false;
 };
 
 }

@@ -19,4 +19,5 @@ class ICommunication
     virtual void disable() = 0;
 
     virtual uint32_t getSpeed() const = 0;
+    virtual bool isInit() = 0;
 };

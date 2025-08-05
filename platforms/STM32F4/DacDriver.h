@@ -2,9 +2,12 @@
 
 #include "interface/VoltageSet.h"
 
-#include "stm32f4xx.h"
 #include <cstdint>
 #include <cstddef>
+#include <cassert>
+
+#include "stm32f4xx.h"
+extern uint32_t SystemCoreClock;
 
 namespace driver
 {
@@ -34,21 +37,14 @@ class DacDriver : public IVoltageSet
     DacDriver(DAC_TypeDef *dac, ChannelConfig *channels, size_t channelCount)
         : _dac(dac), _channels(channels), _channelCount(channelCount)
     {
-        if (channelCount > 2)
-        {
-            while(true);
-        }
-
+        assert(channelCount <= 2);
         for (size_t i = 0; i < channelCount; ++i)
         {
-            if (channels[i].channel > 2)
-            {
-                while(true);
-            }
+            assert(channels[i].channel <= 2);
         }
     }
 
-    void init(Trigger trigger)
+    bool init(Trigger trigger)
     {
         // Clock
         RCC->APB1ENR |= RCC_APB1ENR_DACEN;          // Enable DAC clock
@@ -98,6 +94,9 @@ class DacDriver : public IVoltageSet
         {
             // Dual mode
         }
+
+        _isInit = true;
+        return true;
     }
 
     inline void start() override
@@ -132,11 +131,18 @@ class DacDriver : public IVoltageSet
         }
     }
 
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     DAC_TypeDef *_dac;
     ChannelConfig *_channels;
     size_t _channelCount;
+    
+    bool _isInit = false;
 };
 
 } // namespace driver

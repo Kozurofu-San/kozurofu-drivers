@@ -20,11 +20,11 @@ class ExternalMemoryDriver : public IMemory
     }
     ~ExternalMemoryDriver() = default;
 
-    void init()
+    bool init()
     {
         if (_p.getSpeed() > MaxSpeed or _p.getSpeed() == 0)
         {
-            return; // Speed is too high for this memory
+            return false; // Speed is too high for this memory
         }
         readCmd(ExternalMemory::Instruction::JedecId, _buffer, 4);
         _manufacturerId = _buffer[0];
@@ -41,6 +41,9 @@ class ExternalMemoryDriver : public IMemory
         readCmd(ExternalMemory::Instruction::EnableReset, _buffer, 1);
         readCmd(ExternalMemory::Instruction::ResetDevice, _buffer, 1);
         _timer.delay(100);
+
+        _isInit = true;
+        return true;
     }
 
     void write(uint8_t *data, uint32_t address, size_t len) override
@@ -88,6 +91,11 @@ class ExternalMemoryDriver : public IMemory
         readCmd(ExternalMemory::Instruction::WriteDisable, _buffer, 0);
     }
 
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     void readCmd(uint8_t cmd, uint8_t *data, size_t len)
@@ -107,4 +115,6 @@ class ExternalMemoryDriver : public IMemory
     uint8_t _type = 0;
     uint8_t _capacity = 0;
     uint64_t _uniqueId = 0;
+
+    bool _isInit = false;
 };

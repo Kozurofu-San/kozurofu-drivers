@@ -2,9 +2,11 @@
 
 #include "interface/Gpio.h"
 
-#include "stm32f4xx.h"
 #include <cstdint>
 #include <cstddef>
+
+#include "stm32f4xx.h"
+extern uint32_t SystemCoreClock;
 
 namespace driver
 {
@@ -68,7 +70,7 @@ class GpioDriver : public IGpio
         Dcmi                = 13,
     };
 
-    void init(Mode mode, Speed speed, Pull pull, Interrupt interrupt = Interrupt::None)
+    bool init(Mode mode, Speed speed, Pull pull, Interrupt interrupt = Interrupt::None)
     {
         // Clock enable
         uint32_t rccPort = 0;
@@ -95,7 +97,7 @@ class GpioDriver : public IGpio
         // Interrupts
         if (interrupt == Interrupt::None)
         {
-            return;
+            return true;
         }
         uint32_t portNumber = ((uint32_t) _port - AHB1PERIPH_BASE) >> 10;
         uint8_t syscfgNumber = _pin >> 2;
@@ -122,7 +124,9 @@ class GpioDriver : public IGpio
 
         NVIC_SetPriority(static_cast<IRQn_Type>(irqn), 5 + 1);    // configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1
         NVIC_EnableIRQ(static_cast<IRQn_Type>(irqn));
-
+        
+        _isInit = true;
+        return true;
     }
 
     inline void clearInterrupt()
@@ -203,12 +207,18 @@ class GpioDriver : public IGpio
         }
     }
     
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     GPIO_TypeDef *_port;
     size_t _pin;
     
     void (*_cb)(uint32_t) = nullptr;
+    bool _isInit = false;
 };
 
 }

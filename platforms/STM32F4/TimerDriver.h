@@ -21,7 +21,7 @@ class TimerDriver : public ITimer
     TimerDriver(TIM_TypeDef *timer)
         : _timer(timer) {}
 
-    void init(Mode mode)
+    bool init(Mode mode)
     {
         // Clock
         uint32_t busPrescalerPos = 
@@ -36,21 +36,27 @@ class TimerDriver : public ITimer
         uint32_t spiPrescaler = (_timer->CR1 & SPI_CR1_BR) >> SPI_CR1_BR_Pos;
         spiPrescaler = 1 << (spiPrescaler + 1);
         _speed = SystemCoreClock / busPrescaler / spiPrescaler;
+        if (_speed == 0)
+        {
+            return false;
+        }
 
-        RCC->AHB1ENR |= (_timer == TIM1 ) ? RCC_APB2ENR_TIM1EN  :
-                        (_timer == TIM2 ) ? RCC_APB1ENR_TIM2EN  :
+        RCC->AHB1ENR |= (_timer == TIM2 ) ? RCC_APB1ENR_TIM2EN  :
                         (_timer == TIM3 ) ? RCC_APB1ENR_TIM3EN  :
                         (_timer == TIM4 ) ? RCC_APB1ENR_TIM4EN  :
                         (_timer == TIM5 ) ? RCC_APB1ENR_TIM5EN  :
                         (_timer == TIM6 ) ? RCC_APB1ENR_TIM6EN  :
                         (_timer == TIM7 ) ? RCC_APB1ENR_TIM7EN  :
+                        (_timer == TIM12) ? RCC_APB1ENR_TIM12EN :
+                        (_timer == TIM13) ? RCC_APB1ENR_TIM13EN :
+                        (_timer == TIM14) ? RCC_APB1ENR_TIM14EN :
+                        0;
+        
+        RCC->AHB2ENR |= (_timer == TIM1 ) ? RCC_APB2ENR_TIM1EN  :
                         (_timer == TIM8 ) ? RCC_APB2ENR_TIM8EN  :
                         (_timer == TIM9 ) ? RCC_APB2ENR_TIM9EN  :
                         (_timer == TIM10) ? RCC_APB2ENR_TIM10EN :
                         (_timer == TIM11) ? RCC_APB2ENR_TIM11EN :
-                        (_timer == TIM12) ? RCC_APB1ENR_TIM12EN :
-                        (_timer == TIM13) ? RCC_APB1ENR_TIM13EN :
-                        (_timer == TIM14) ? RCC_APB1ENR_TIM14EN :
                         0;
         
         // Config
@@ -78,6 +84,9 @@ class TimerDriver : public ITimer
             NVIC_SetPriority(static_cast<IRQn_Type>(irq), 5 + 1);
             NVIC_EnableIRQ(static_cast<IRQn_Type>(irq));
         }
+
+        _isInit = true;
+        return true;
     }
 
     
@@ -102,11 +111,18 @@ class TimerDriver : public ITimer
         return _speed;
     }
     
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     TIM_TypeDef *_timer;
     uint32_t _ms = 0;
     uint32_t _speed = 0;
+
+    bool _isInit = false;
 };
 
 }

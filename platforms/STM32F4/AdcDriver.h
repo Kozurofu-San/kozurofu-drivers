@@ -2,9 +2,11 @@
 
 #include "interface/VoltageGet.h"
 
-#include "stm32f4xx.h"
 #include <cstdint>
 #include <cstddef>
+
+#include "stm32f4xx.h"
+extern uint32_t SystemCoreClock;
 
 namespace driver
 {
@@ -61,7 +63,7 @@ class AdcDriver : public IVoltageGet
     {
     }
 
-    void init()
+    bool init()
     {
         // Clock
         RCC->APB2ENR |= (_adc == ADC1) ? RCC_APB2ENR_ADC1EN : RCC_APB2ENR_ADC2EN;
@@ -101,12 +103,15 @@ class AdcDriver : public IVoltageGet
 
         _adc->CR1 |= ADC_CR1_SCAN; // Enable scan mode
         _adc->CR2 |= ADC_CR2_ADON; // Enable ADC
+
+        _isInit = true;
+        return true;
     }
 
     void start() override
     {
         _adc->CR2 |= ADC_CR2_JSWSTART;          // Start conversion
-        while (!(_adc->SR & ADC_SR_JEOC)) {}    // Wait for conversion to complete
+        while (!(_adc->SR & ADC_SR_JEOC));      // Wait for conversion to complete
         _adc->SR &= ~ADC_SR_JEOC;               // Clear end of conversion flag
         volatile uint32_t *ptr = &_adc->JDR1;
         for (size_t i = 0; i < _channelCount; ++i)
@@ -125,11 +130,18 @@ class AdcDriver : public IVoltageGet
         return _channels[channel].data;
     }
 
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     ADC_TypeDef *_adc;
     ChannelConfig *_channels;
     size_t _channelCount;
+    
+    bool _isInit = false;
 };
 
 }

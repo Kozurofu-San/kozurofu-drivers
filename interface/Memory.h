@@ -13,4 +13,5 @@ class IMemory
     virtual void write(uint8_t *data, uint32_t address, size_t len) = 0;
     virtual void read (uint8_t *data, uint32_t address, size_t len) = 0;
     virtual void erase() = 0;
+    virtual bool isInit() = 0;
 };

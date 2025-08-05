@@ -41,6 +41,7 @@ class Xpt2046Driver: public ITouchScreen
             return false; // Speed is too high for this touch controller
         }
 
+        _isInit = true;
         return true; // Initialization successful
     }
 
@@ -70,6 +71,11 @@ class Xpt2046Driver: public ITouchScreen
 
     }
 
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     ICommunication &_p;
@@ -81,6 +87,7 @@ class Xpt2046Driver: public ITouchScreen
     uint32_t _sizeY;
 
     CalibrationData *_calibrationData;
+    bool _isInit = false;
 };
 
 }

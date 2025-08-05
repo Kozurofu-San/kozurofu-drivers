@@ -19,7 +19,7 @@ class Ili9341Driver: public IDisplay
     Ili9341Driver(uint32_t x, uint32_t y, ICommunication &p, ITimer &timer, IGpio *backlight = nullptr)
         : _p(p), _timer(timer), _backlight(backlight) {_sizeX = x; _sizeY = y;}
 
-    void init()
+    bool init()
     {
         if (_backlight)
         {
@@ -60,6 +60,9 @@ class Ili9341Driver: public IDisplay
         _timer.delay(100);
         writeCmd(Ili9341::DisplayOn, nullptr, 0);
         _timer.delay(100);
+
+        _isInit = true;
+        return true;
     }
 
     void setPixel(uint32_t x, uint32_t y, uint32_t color) override
@@ -101,6 +104,11 @@ class Ili9341Driver: public IDisplay
         }
     }
 
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     void readCmd(uint8_t cmd, uint8_t *data, size_t len)
@@ -132,6 +140,8 @@ class Ili9341Driver: public IDisplay
     uint8_t _driverVersion = 0;
     uint8_t _driverId = 0;
     uint32_t _id = 0;
+
+    bool _isInit = false;
 };
 
 }

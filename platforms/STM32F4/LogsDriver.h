@@ -39,8 +39,9 @@ class LogsDriver : public ILogs
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     * Init OK
     */
-    void init(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
+    bool init(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
     {
+        #ifdef LOG
         uint32_t swoPrescaler = (cpuCoreFreqHz / baudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
         
         CoreDebug->DEMCR = CoreDebug_DEMCR_TRCENA_Msk;      // Debug Exception and Monitor Control Register (DEMCR): enable trace in core debug
@@ -53,10 +54,15 @@ class LogsDriver : public ILogs
         ITM->TER	= portMask;                             // ITM Trace Enable Register: Enabled tracing on stimulus ports. One bit per stimulus port.
         DWT->CTRL	= 0x400003FEu;                          // Data Watchpoint and Trace Register
         TPI->FFCR	= 0x00000100u;                          // Formatter and Flush Control Register
+        #endif
+
+        _isInit = true;
+        return true;
     }
 
     void LOGI(const char* message, ...) override
     {
+        #ifdef LOG
         va_list args;
         va_start(args, message);
         uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
@@ -67,10 +73,12 @@ class LogsDriver : public ILogs
             return;
         }
         printString(0, _buffer);
+        #endif
     }
 
     void LOGW(const char* message, ...) override
     {
+        #ifdef LOG
         va_list args;
         va_start(args, message);
         uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
@@ -81,10 +89,12 @@ class LogsDriver : public ILogs
             return;
         }
         printString(1, _buffer);
+        #endif
     }
 
     void LOGE(const char* message, ...) override
     {
+        #ifdef LOG
         va_list args;
         va_start(args, message);
         uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
@@ -95,10 +105,12 @@ class LogsDriver : public ILogs
             return;
         }
         printString(2, _buffer);
+        #endif
     }
 
     void LOGV(uint32_t channel, int32_t value) override
     {
+        #ifdef LOG
         if (((ITM->TCR & ITM_TCR_ITMENA_Msk) != 0UL) &&      /* ITM enabled */
             ((ITM->TER & (1UL << channel)  ) != 0UL)   )     /* ITM Port enabled */
         {
@@ -108,12 +120,15 @@ class LogsDriver : public ILogs
             }
             ITM->PORT[channel].u32 = value;
         }
+        #endif
     }
 
     private:
 
     char _buffer[40];
-    const char ErrorMsg[16] = "Buffer overflow";
+    static constexpr char ErrorMsg[] = "Buffer overflow";
+    
+    bool _isInit = false;
 
     uint32_t ITM_SendCharToChannel(uint32_t channel, uint32_t symbol)
     {

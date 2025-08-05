@@ -54,7 +54,7 @@ class SpiController : public ICommunication
     {
     }
     
-    void init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, BaudRatePrescaler baudRatePrescaler)
+    bool init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, BaudRatePrescaler baudRatePrescaler)
     {
         // Clock enable
         if (_spi == SPI1) RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
@@ -79,9 +79,16 @@ class SpiController : public ICommunication
         uint32_t spiPrescaler = (_spi->CR1 & SPI_CR1_BR) >> SPI_CR1_BR_Pos;
         spiPrescaler = 1 << (spiPrescaler + 1);
         _speed = SystemCoreClock / busPrescaler / spiPrescaler;
+        if (_speed == 0)
+        {
+            return false;
+        }
 
         // Enable SPI
         _spi->CR1 |= SPI_CR1_SPE;
+
+        _isInit = true;
+        return true;
     };
 
     void write(uint8_t *data, size_t len) override
@@ -132,10 +139,17 @@ class SpiController : public ICommunication
     {
     }
 
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     SPI_TypeDef *_spi;
     uint32_t _speed; // Speed in Hz
+    
+    bool _isInit = false;
 };
 
 class SpiDriver : public ICommunication
@@ -196,12 +210,16 @@ class SpiDriver : public ICommunication
         return _spi.getSpeed();
     }
 
+    bool isInit() override
+    {
+        return _spi.isInit();
+    }
+
     private:
 
     SpiController &_spi;
     GpioDriver *_cs;
     bool _idleState; // CS state when idle, true - high, false - low
-
 };
 
 }

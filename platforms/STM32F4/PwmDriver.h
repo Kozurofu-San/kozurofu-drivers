@@ -21,6 +21,8 @@ class PwmDriver : public IPwm
         _tim->CR1 |= TIM_CR1_CEN; // Enable the timer
         _tim->CCMR1 |= TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2; // Set PWM mode 1
         _tim->CCER |= TIM_CCER_CC1E; // Enable output for channel 1
+
+        _isInit = true;
     }
 
     void setVoltage(float voltage) override
@@ -29,10 +31,17 @@ class PwmDriver : public IPwm
         _tim->CCR1 = value; // Set the output value for channel 1
     }
 
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     TIM_TypeDef *_tim;
     uint32_t _channel;
+    
+    bool _isInit = false;
 };
 
 } // namespace driver
