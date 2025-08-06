@@ -32,7 +32,7 @@ class TimerFreertos : public ITimer
         _timer = timer;
 
         _isInit = true;
-        return false;
+        return _isInit;
     }
 
     
@@ -67,9 +67,22 @@ class TimerFreertos : public ITimer
     }
     inline uint32_t now() override
     {
-        return 0;
+        return xTaskGetTickCount();
     }
 
+    void callback(void (*cb)(uint32_t)) override
+    {
+        _cb = cb;
+    }
+    
+    void interrupt()
+    {
+        if (_cb != nullptr)
+        {
+            _cb(0);
+        }
+    }
+    
     inline uint32_t getSpeed() override
     {
         return configTICK_RATE_HZ;
@@ -84,6 +97,8 @@ class TimerFreertos : public ITimer
     
     TimerHandle_t *_timer;
     bool _isInit = false;
+
+    void (*_cb)(uint32_t) = nullptr;
 };
 
 }

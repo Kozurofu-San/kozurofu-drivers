@@ -14,6 +14,7 @@ class ITimer
     virtual void delay(uint32_t ms) = 0;
     virtual uint32_t now() = 0;
 
+    virtual void callback(void (*cb)(uint32_t)) = 0;
     virtual uint32_t getSpeed() = 0;
     virtual bool isInit() = 0;
 };

@@ -97,6 +97,7 @@ class GpioDriver : public IGpio
         // Interrupts
         if (interrupt == Interrupt::None)
         {
+            _isInit = true;
             return true;
         }
         uint32_t portNumber = ((uint32_t) _port - AHB1PERIPH_BASE) >> 10;

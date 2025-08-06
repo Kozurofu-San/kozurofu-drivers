@@ -8,11 +8,15 @@
 #include <cstdint>
 #include <functional>
 
+namespace driver
+{
+
 class ExternalMemoryDriver : public IMemory
 {
     public:
 
     static constexpr uint32_t MaxSpeed = 133000000; // 133 MHz for W25Q16
+    static constexpr uint8_t Manufacturer = 0xEF;
 
     ExternalMemoryDriver(ICommunication &p, ITimer &timer)
         : _p(p), _timer(timer)
@@ -22,10 +26,18 @@ class ExternalMemoryDriver : public IMemory
 
     bool init()
     {
+        // Init check
+        if (!_p.isInit() or !_timer.isInit())
+        {
+            return false;
+        }
+
+        // Speed check
         if (_p.getSpeed() > MaxSpeed or _p.getSpeed() == 0)
         {
             return false; // Speed is too high for this memory
         }
+
         readCmd(ExternalMemory::Instruction::JedecId, _buffer, 4);
         _manufacturerId = _buffer[0];
         _type = _buffer[1];
@@ -42,8 +54,12 @@ class ExternalMemoryDriver : public IMemory
         readCmd(ExternalMemory::Instruction::ResetDevice, _buffer, 1);
         _timer.delay(100);
 
-        _isInit = true;
-        return true;
+        if (_manufacturerId == Manufacturer)
+        {
+            _isInit = true;
+        }
+        
+        return _isInit;
     }
 
     void write(uint8_t *data, uint32_t address, size_t len) override
@@ -118,3 +134,4 @@ class ExternalMemoryDriver : public IMemory
 
     bool _isInit = false;
 };
+}

@@ -8,6 +8,9 @@
 #include "interface/Communication.h"
 
 #include "stm32f4xx.h"
+#include <type_traits>
+#include <array>
+#include <cstdint>
 
 namespace driver
 {
@@ -16,21 +19,38 @@ class Ili9341Driver: public IDisplay
 {
     public:
 
-    Ili9341Driver(uint32_t x, uint32_t y, ICommunication &p, ITimer &timer, IGpio *backlight = nullptr)
-        : _p(p), _timer(timer), _backlight(backlight) {_sizeX = x; _sizeY = y;}
+    static constexpr uint32_t MaxSpeed = 10000000;
+    static constexpr uint32_t Id = 0x419300;
 
-    bool init()
+    Ili9341Driver(ICommunication &p, ITimer &timer, IGpio *backlight = nullptr)
+        : _p(p), _timer(timer), _backlight(backlight) {}
+
+    bool init(uint32_t x, uint32_t y)
     {
+        // Init check
+        if (!_p.isInit() && !_timer.isInit())
+        {
+            return false;
+        }
+
+        // Backlight
         if (_backlight)
         {
             _backlight->write(1);
         }
 
+        _sizeX = x; _sizeY = y;
+
         // Get ID
         readCmd(Ili9341::ReadId1, &_manufacturerId, 1);
         readCmd(Ili9341::ReadId2, &_driverVersion, 1);
         readCmd(Ili9341::ReadId3, &_driverId, 1);
-        readCmd(Ili9341::ReadId4, (uint8_t*)&_id, 3);
+        readCmd(Ili9341::ReadId4, reinterpret_cast<uint8_t*>(&_id), 3);
+
+        if (_id != Id)
+        {
+            return false;
+        }
 
         // Init display
         writeCmd(Ili9341::Rst, nullptr, 0);
@@ -65,13 +85,9 @@ class Ili9341Driver: public IDisplay
         return true;
     }
 
-    void setPixel(uint32_t x, uint32_t y, uint32_t color) override
+    void fillArea(uint8_t  *color, size_t len) override
     {
-        writeCmd(Ili9341::ColumnAddressSet, reinterpret_cast<uint8_t*> (&x), 2);
-        writeCmd(Ili9341::ColumnAddressSet, reinterpret_cast<uint8_t*> (&x), 2);
-        writeCmd(Ili9341::PageAddressSet,   reinterpret_cast<uint8_t*> (&y), 2);
-        writeCmd(Ili9341::PageAddressSet,   reinterpret_cast<uint8_t*> (&y), 2);
-        writeCmd(Ili9341::MemoryWrite,      reinterpret_cast<uint8_t*> (&color), 2);
+        writeCmd(Ili9341::MemoryWrite, color, len, 2);
     }
 
     void setArea(uint32_t x0x1, uint32_t y0y1)
@@ -111,20 +127,25 @@ class Ili9341Driver: public IDisplay
 
     private:
 
-    void readCmd(uint8_t cmd, uint8_t *data, size_t len)
+    template<typename Base, typename T>
+    inline bool instanceof(const T*) {
+        return std::is_base_of<Base, T>::value;
+    }
+
+    void readCmd(uint8_t cmd, uint8_t *data, size_t len, size_t bytes = 1)
     {
         _p.enable();
         _p.sendCommand(cmd);
         _p.read(data, 1);
-        _p.read(data, len);
+        _p.read(data, len, bytes);
         _p.disable();
     }
 
-    void writeCmd(uint8_t cmd, uint8_t *data, size_t len)
+    void writeCmd(uint8_t cmd, uint8_t *data, size_t len, size_t bytes = 1)
     {
         _p.enable();
         _p.sendCommand(cmd);
-        _p.write(data, len);
+        _p.write(data, len, bytes);
         _p.disable();
     }
 

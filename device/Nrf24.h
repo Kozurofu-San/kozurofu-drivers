@@ -7,6 +7,9 @@
 #include <cstdint>
 #include <functional>
 
+namespace driver
+{
+
 class Nrf24Driver
 {
     public:
@@ -19,19 +22,30 @@ class Nrf24Driver
     }
     ~Nrf24Driver() = default;
 
-    void init()
+    bool init()
     {
-        if (_p.getSpeed() > MaxSpeed or _p.getSpeed() == 0)
+        // Init check
+        if (!_p.isInit() or !_timer.isInit())
         {
-            return; // Speed is too high for this memory
+            return false;
         }
 
-
-        readCmd(Nrf24::SetupAw, _buffer, 1);
-        readCmd(Nrf24::RfCh,    _buffer, 1);
-        readCmd(Nrf24::Status,  _buffer, 1);
+        // Speed check
+        if (_p.getSpeed() > MaxSpeed or _p.getSpeed() == 0)
+        {
+            return false; // Speed is too high for this memory
+        }
 
         _isInit = true;
+
+        readCmd(Nrf24::SetupAw, _buffer, 1);
+        _isInit &= _buffer[0] == 0x3;
+        readCmd(Nrf24::RfCh,    _buffer, 1);
+        _isInit &= _buffer[0] == 0x2;
+        readCmd(Nrf24::Status,  _buffer, 1);
+        _isInit &= _buffer[0] == 0xE;
+
+        return _isInit;
     }
 
     void write(uint8_t *data, size_t len)
@@ -69,3 +83,5 @@ class Nrf24Driver
 
     bool _isInit = false;
 };
+
+}

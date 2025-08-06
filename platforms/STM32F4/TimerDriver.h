@@ -21,7 +21,7 @@ class TimerDriver : public ITimer
     TimerDriver(TIM_TypeDef *timer)
         : _timer(timer) {}
 
-    bool init(Mode mode)
+    bool init(Mode mode, uint32_t period)
     {
         // Clock
         uint32_t busPrescalerPos = 
@@ -33,15 +33,14 @@ class TimerDriver : public ITimer
             ) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
         uint32_t busPrescaler = (RCC->CFGR >> busPrescalerPos) & 0x7;
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
-        uint32_t spiPrescaler = (_timer->CR1 & SPI_CR1_BR) >> SPI_CR1_BR_Pos;
-        spiPrescaler = 1 << (spiPrescaler + 1);
-        _speed = SystemCoreClock / busPrescaler / spiPrescaler;
+        _speed = SystemCoreClock / busPrescaler;
+        
         if (_speed == 0)
         {
             return false;
         }
 
-        RCC->AHB1ENR |= (_timer == TIM2 ) ? RCC_APB1ENR_TIM2EN  :
+        RCC->APB1ENR |= (_timer == TIM2 ) ? RCC_APB1ENR_TIM2EN  :
                         (_timer == TIM3 ) ? RCC_APB1ENR_TIM3EN  :
                         (_timer == TIM4 ) ? RCC_APB1ENR_TIM4EN  :
                         (_timer == TIM5 ) ? RCC_APB1ENR_TIM5EN  :
@@ -52,7 +51,7 @@ class TimerDriver : public ITimer
                         (_timer == TIM14) ? RCC_APB1ENR_TIM14EN :
                         0;
         
-        RCC->AHB2ENR |= (_timer == TIM1 ) ? RCC_APB2ENR_TIM1EN  :
+        RCC->APB2ENR |= (_timer == TIM1 ) ? RCC_APB2ENR_TIM1EN  :
                         (_timer == TIM8 ) ? RCC_APB2ENR_TIM8EN  :
                         (_timer == TIM9 ) ? RCC_APB2ENR_TIM9EN  :
                         (_timer == TIM10) ? RCC_APB2ENR_TIM10EN :
@@ -64,6 +63,8 @@ class TimerDriver : public ITimer
         {
             _timer->CR1 = TIM_CR1_ARPE; // Auto reload
             _timer->PSC = (_speed / 1000) - 1;  // 1 ms
+            _timer->DIER = TIM_DIER_UIE;
+            _timer->ARR = period;
             _timer->SR = 0;
 
             uint32_t irq = (_timer == TIM1 ) ? TIM1_TRG_COM_TIM11_IRQn  :
@@ -89,23 +90,45 @@ class TimerDriver : public ITimer
         return true;
     }
 
-    
-    void start() override
+    inline void clearInterrupt()
     {
-
+        _timer->SR = 0;
     }
-    void stop() override
+
+    inline void start() override
     {
-
+        _timer->CR1 |= TIM_CR1_CEN;
     }
+
+    inline void stop() override
+    {
+        _timer->CR1 &= ~TIM_CR1_CEN;
+    }
+
     void reset() override
     {}
+
     void delay(uint32_t ms) override
     {}
+
     inline uint32_t now() override
     {
         return _ms;
     }
+    
+    void callback(void (*cb)(uint32_t)) override
+    {
+        _cb = cb;
+    }
+    
+    void interrupt()
+    {
+        if (_cb != nullptr)
+        {
+            _cb(0);
+        }
+    }
+    
     uint32_t getSpeed() override
     {
         return _speed;
@@ -123,6 +146,7 @@ class TimerDriver : public ITimer
     uint32_t _speed = 0;
 
     bool _isInit = false;
+    void (*_cb)(uint32_t) = nullptr;
 };
 
 }

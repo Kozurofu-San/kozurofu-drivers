@@ -26,6 +26,7 @@ class FsmcDriver: public ICommunication
     {
     }
 
+    
     bool init()
     {
         RCC->AHB3ENR |= RCC_AHB3ENR_FSMCEN;
@@ -68,25 +69,48 @@ class FsmcDriver: public ICommunication
         return true;
     }
 
-    void write(uint8_t *data, size_t len) override
+    void write(uint8_t *data, size_t len, size_t bytes = 1) override
     {
-        for (size_t i = 0; i < len; ++i)
+        if (bytes == 1)
         {
-            *(volatile uint16_t*) _addrData = data[i];
+            for (size_t i = 0; i < len; ++i)
+            {
+                *(volatile uint16_t*) _addrData = data[i];
+            }
+        }
+        else if (bytes == 2)
+        {
+            uint16_t *ptr = reinterpret_cast<uint16_t*>(data);
+            for (size_t i = 0; i < len / 2; ++i)
+            {
+                *(volatile uint16_t*) _addrData = ptr[i];
+            }
         }
     }
 
-    void read(uint8_t *data, size_t len) override
+    void read(uint8_t *data, size_t len, size_t bytes = 1) override
     {
-        for (size_t i = 0; i < len; ++i)
+        if (bytes == 1)
         {
-            data[i] = *(volatile uint16_t*) _addrData;
+            for (size_t i = 0; i < len; ++i)
+            {
+                data[i] = *(volatile uint16_t*) _addrData;
+            }
+        }
+        else if (bytes == 2)
+        {
+            uint16_t *ptr = reinterpret_cast<uint16_t*>(data);
+            for (size_t i = 0; i < len / 2; ++i)
+            {
+                ptr[i] = *(volatile uint16_t*) _addrData;
+            }
         }
     }
 
-    inline void sendCommand(uint32_t cmd) override
+    inline uint32_t sendCommand(uint32_t cmd) override
     {
         *(volatile uint16_t*) _addrCmd = cmd;
+        return cmd;
     }
 
     uint32_t getSpeed() const override

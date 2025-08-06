@@ -91,7 +91,7 @@ class SpiController : public ICommunication
         return true;
     };
 
-    void write(uint8_t *data, size_t len) override
+    void write(uint8_t *data, size_t len, size_t bytes = 1) override
     {
         for (size_t i = 0; i < len; ++i)
         {
@@ -102,7 +102,7 @@ class SpiController : public ICommunication
         }
     };
 
-    void read(uint8_t *data, size_t len) override
+    void read(uint8_t *data, size_t len, size_t bytes = 1) override
     {
         for (size_t i = 0; i < len; ++i)
         {
@@ -113,12 +113,12 @@ class SpiController : public ICommunication
         }
     };
 
-    void sendCommand(uint32_t cmd) override
+    uint32_t sendCommand(uint32_t cmd) override
     {
         while (!(_spi->SR & SPI_SR_TXE));
         _spi->DR = cmd;
         while (!(_spi->SR & SPI_SR_RXNE));
-        cmd = _spi->DR; // Read data to clear RXNE flag
+        return _spi->DR; // Read data to clear RXNE flag
     }
 
     SPI_TypeDef* getSpi()
@@ -148,7 +148,7 @@ class SpiController : public ICommunication
 
     SPI_TypeDef *_spi;
     uint32_t _speed; // Speed in Hz
-    
+
     bool _isInit = false;
 };
 
@@ -167,26 +167,27 @@ class SpiDriver : public ICommunication
     {
     }
 
-    void init( GpioDriver *cs, IdleState idleState)
+    bool init( GpioDriver *cs, IdleState idleState)
     {
         _cs = cs;
         _cs->write(!_idleState);
         _idleState = static_cast<bool>(idleState);
+        return _spi.isInit();
     }
 
-    inline void write(uint8_t *data, size_t len) override
+    inline void write(uint8_t *data, size_t len, size_t bytes = 1) override
     {
         _spi.write(data, len);
     };
 
-    inline void read(uint8_t *data, size_t len) override
+    inline void read(uint8_t *data, size_t len, size_t bytes = 1) override
     {
         _spi.read(data, len);
     };
 
-    inline void sendCommand(uint32_t cmd) override
+    inline uint32_t sendCommand(uint32_t cmd) override
     {
-        _spi.sendCommand(cmd);
+        return _spi.sendCommand(cmd);
     }
 
     void enable() override

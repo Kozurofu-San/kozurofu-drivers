@@ -13,6 +13,13 @@ class LogsDriver : public ILogs
 
     static constexpr uint32_t StLinkV2MaxSpeed = 2250000;
 
+    enum class MsgType
+    {
+        I,
+        W,
+        E
+    };
+
     LogsDriver()
     {
     }
@@ -39,11 +46,10 @@ class LogsDriver : public ILogs
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     * Init OK
     */
-    bool init(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
+    void init(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
     {
         #ifdef LOG
         uint32_t swoPrescaler = (cpuCoreFreqHz / baudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
-        
         CoreDebug->DEMCR = CoreDebug_DEMCR_TRCENA_Msk;      // Debug Exception and Monitor Control Register (DEMCR): enable trace in core debug
         DBGMCU->CR	= 0x00000027u;                          // DBGMCU_CR : TRACE_IOEN DBG_STANDBY DBG_STOP 	DBG_SLEEP
         TPI->SPPR	= 0x00000002u;                          // Selected PIN Protocol Register: Select which protocol to use for trace output (2: SWO)
@@ -55,9 +61,6 @@ class LogsDriver : public ILogs
         DWT->CTRL	= 0x400003FEu;                          // Data Watchpoint and Trace Register
         TPI->FFCR	= 0x00000100u;                          // Formatter and Flush Control Register
         #endif
-
-        _isInit = true;
-        return true;
     }
 
     void LOGI(const char* message, ...) override
@@ -67,12 +70,12 @@ class LogsDriver : public ILogs
         va_start(args, message);
         uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
+        printString(static_cast<uint8_t>(MsgType::I), _buffer);
         if (len > sizeof(_buffer))
         {
-            printString(2, ErrorMsg);
+            printString(static_cast<uint8_t>(MsgType::E), ErrorMsg);
             return;
         }
-        printString(0, _buffer);
         #endif
     }
 
@@ -83,12 +86,12 @@ class LogsDriver : public ILogs
         va_start(args, message);
         uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
+        printString(static_cast<uint8_t>(MsgType::W), _buffer);
         if (len > sizeof(_buffer))
         {
-            printString(2, ErrorMsg);
+            printString(static_cast<uint8_t>(MsgType::E), ErrorMsg);
             return;
         }
-        printString(1, _buffer);
         #endif
     }
 
@@ -99,12 +102,12 @@ class LogsDriver : public ILogs
         va_start(args, message);
         uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
+        printString(static_cast<uint8_t>(MsgType::E), _buffer);
         if (len > sizeof(_buffer))
         {
-            printString(2, ErrorMsg);
+            printString(static_cast<uint8_t>(MsgType::E), ErrorMsg);
             return;
         }
-        printString(2, _buffer);
         #endif
     }
 
@@ -128,8 +131,6 @@ class LogsDriver : public ILogs
     char _buffer[40];
     static constexpr char ErrorMsg[] = "Buffer overflow";
     
-    bool _isInit = false;
-
     uint32_t ITM_SendCharToChannel(uint32_t channel, uint32_t symbol)
     {
         if (((ITM->TCR & ITM_TCR_ITMENA_Msk) != 0UL) &&      /* ITM enabled */
