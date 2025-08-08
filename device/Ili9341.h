@@ -66,6 +66,7 @@ class Ili9341Driver: public IDisplay
         writeCmd(Ili9341::PowerControl2,            std::array<uint8_t, 1>{0x11}.data(), 1);
         writeCmd(Ili9341::VcomControl1,             std::array<uint8_t, 2>{0x35, 0x3E}.data(), 2);
         writeCmd(Ili9341::VcomControl2,             std::array<uint8_t, 1>{0xBE}.data(), 1);
+        orientation(Orientation::HorizontalNormal);
         writeCmd(Ili9341::PixelFormatSet,           std::array<uint8_t, 1>{0x55}.data(), 1);
         writeCmd(Ili9341::FrameControlNormal,       std::array<uint8_t, 2>{0x00, 0x1B}.data(), 2);
         writeCmd(Ili9341::FunctionControl,          std::array<uint8_t, 4>{0x0A, 0x82, 0x27, 0x00}.data(), 4);

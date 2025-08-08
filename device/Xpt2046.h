@@ -70,7 +70,7 @@ class Xpt2046Driver: public ITouchScreen
 
     bool isPressed() override
     {
-        return _irq.read();
+        return !_irq.read();
     }
 
     void calibrate(CalibrationData *calibrationData) override

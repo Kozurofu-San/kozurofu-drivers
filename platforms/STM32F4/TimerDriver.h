@@ -109,7 +109,21 @@ class TimerDriver : public ITimer
     {}
 
     void delay(uint32_t ms) override
-    {}
+    {
+        if (_timer->CR1 & TIM_CR1_CEN)
+        {
+            uint32_t start = _ms;
+            while (_ms - start < ms);
+        }
+        else
+        {
+            _timer->CR1 |= TIM_CR1_CEN;
+            _timer->DIER = 0;
+            
+            _timer->DIER = TIM_DIER_UIE;
+            _timer->CR1 &= ~TIM_CR1_CEN;
+        }
+    }
 
     inline uint32_t now() override
     {
@@ -123,6 +137,7 @@ class TimerDriver : public ITimer
     
     void interrupt()
     {
+        _ms++;
         if (_cb != nullptr)
         {
             _cb(0);

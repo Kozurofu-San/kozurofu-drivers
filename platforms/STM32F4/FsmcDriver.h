@@ -81,7 +81,7 @@ class FsmcDriver: public ICommunication
         else if (bytes == 2)
         {
             uint16_t *ptr = reinterpret_cast<uint16_t*>(data);
-            for (size_t i = 0; i < len / 2; ++i)
+            for (size_t i = 0; i < len; ++i)
             {
                 *(volatile uint16_t*) _addrData = ptr[i];
             }
