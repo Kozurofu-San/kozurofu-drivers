@@ -9,10 +9,10 @@ class ITouchScreen
 
     struct CalibrationData
     {
-        int32_t xBias;
         int32_t xScale;
-        int32_t yBias;
+        int32_t xBias;
         int32_t yScale;
+        int32_t yBias;
     };
     
 

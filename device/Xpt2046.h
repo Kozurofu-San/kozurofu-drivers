@@ -60,9 +60,18 @@ class Xpt2046Driver: public ITouchScreen
         uint32_t y = readCmd(Control::Start | Control::Y);
 
         if (_calibrationData)
-        {
-            x = (_calibrationData->xBias + x) * _calibrationData->xScale / 1000;
-            y = (_calibrationData->yBias + y) * _calibrationData->yScale / 1000;
+        {   // int to Q16.16     x = a * x^ + b
+
+            x <<= 4;
+            x /= _calibrationData->xScale;
+            x += _calibrationData->xBias;
+            
+            y <<= 4;
+            y /= _calibrationData->yScale;
+            y += _calibrationData->yBias;
+
+            // Q16.16 to int
+            return ((x<<12)&0xFFFF0000)|(y>>4);
         }
 
         return (x << 16) | y;
@@ -75,7 +84,7 @@ class Xpt2046Driver: public ITouchScreen
 
     void calibrate(CalibrationData *calibrationData) override
     {
-
+        _calibrationData = calibrationData;
     }
 
     bool isInit() override
@@ -93,18 +102,24 @@ class Xpt2046Driver: public ITouchScreen
     uint32_t _sizeX;
     uint32_t _sizeY;
 
-    CalibrationData *_calibrationData;
+    CalibrationData *_calibrationData = nullptr;
     bool _isInit = false;
 
     uint32_t readCmd(uint8_t cmd)
     {
+        uint32_t value = 0;
+        uint16_t ret = 0;
         _p.enable();
         _p.sendCommand(cmd);
-        _p.read(_buffer, 2);
-        uint32_t ret = _buffer[0] << 8;
-        ret |= _buffer[1];
+        for (size_t i = 0; i < 16; ++i)
+        {
+            _p.read(_buffer, 2);
+            ret = _buffer[0] << 8;
+            ret |= _buffer[1];
+            value += ret;
+        }
         _p.disable();
-        return ret >> 4;
+        return value;
     }
 };
 
