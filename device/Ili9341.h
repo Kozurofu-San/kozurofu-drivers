@@ -91,10 +91,18 @@ class Ili9341Driver: public IDisplay
         writeCmd(Ili9341::MemoryWrite, color, len, 2);
     }
 
-    void setArea(uint32_t x0x1, uint32_t y0y1)
+    void setArea(uint32_t x1, uint32_t x2, uint32_t y1, uint32_t y2)
     {
-        writeCmd(Ili9341::ColumnAddressSet, reinterpret_cast<uint8_t*> (&x0x1), 4);
-        writeCmd(Ili9341::PageAddressSet,   reinterpret_cast<uint8_t*> (&y0y1), 4);
+        _buffer[0] = x1 >> 8;
+        _buffer[1] = x1 & 0XFF;
+        _buffer[2] = x2 >> 8;
+        _buffer[3] = x2 & 0XFF;
+        writeCmd(Ili9341::ColumnAddressSet, _buffer, 4);
+        _buffer[0] = y1 >> 8;
+        _buffer[1] = y1 & 0XFF;
+        _buffer[2] = y2 >> 8;
+        _buffer[3] = y2 & 0XFF;
+        writeCmd(Ili9341::PageAddressSet, _buffer, 4);
     }
 
     enum class Orientation : uint8_t
