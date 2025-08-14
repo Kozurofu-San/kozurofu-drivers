@@ -3,6 +3,8 @@
 #include "interface/Communication.h"
 #include "interface/Gpio.h"
 
+#include "DmaDriver.h"
+
 #include "stm32f4xx.h"
 extern uint32_t SystemCoreClock;
 
@@ -57,8 +59,19 @@ class SpiController : public ICommunication
     bool init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, BaudRatePrescaler baudRatePrescaler)
     {
         // Clock enable
-        if (_spi == SPI1) RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
-        else if (_spi == SPI2) RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
+        if (_spi == SPI1)
+        {
+            RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
+        }
+        else if (_spi == SPI2)
+        {
+            RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
+        }
+
+        else if (_spi == SPI3)
+        {
+            RCC->APB1ENR |= RCC_APB1ENR_SPI3EN;
+        }
 
         // Configure mode
         _spi->CR1 &= ~SPI_CR1_SPE;
@@ -91,25 +104,135 @@ class SpiController : public ICommunication
         return true;
     };
 
+    void setDma(DMA_Stream_TypeDef *dmaRx, size_t dmaRxChannel, DMA_Stream_TypeDef *dmaTx, size_t dmaTxChannel)
+    {
+        _dmaRx = dmaRx;
+        _dmaTx = dmaTx;
+        _dmaRxChannel = dmaRxChannel;
+        _dmaTxChannel = dmaTxChannel;
+
+        DMA_TypeDef *dma = nullptr;
+
+        // Clock DMA
+        if (_spi == SPI1)
+        {
+            RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN;
+            dma = DMA2;
+        }
+        else
+        {
+            RCC->AHB1ENR |= RCC_AHB1ENR_DMA1EN;
+            dma = DMA1;
+        }
+
+        // Config
+        _spi->CR1 &= ~SPI_CR1_SPE;              // Turn off SPI
+        if (_dmaRx)
+        {
+            if (_dmaRxChannel < 4)
+            {
+                _dmaRxInterruptReg = (uint32_t*)&dma->LISR;
+            }
+            else
+            {
+                _dmaRxInterruptReg = (uint32_t*)&dma->HISR;
+            }
+            _dmaRx->CR &= ~DMA_SxCR_EN;         // Turn off DMA stream
+            while (_dmaRx->CR & DMA_SxCR_EN);   // Wait for off
+            _dmaRx->PAR = (uint32_t)&_spi->DR;
+            _spi->CR2 |= SPI_CR2_RXDMAEN;
+        }
+        if (_dmaTx)
+        {
+            if (_dmaTxChannel < 4)
+            {
+                _dmaTxInterruptReg = (uint32_t*)&dma->LISR;
+            }
+            else
+            {
+                _dmaTxInterruptReg = (uint32_t*)&dma->HISR;
+            }
+            _dmaTx->CR &= ~DMA_SxCR_EN;         // Turn off DMA stream
+            while (_dmaTx->CR & DMA_SxCR_EN);   // Wait for off
+            _dmaTx->PAR = (uint32_t)&_spi->DR;
+            _spi->CR2 |= SPI_CR2_TXDMAEN;
+        }
+        _spi->CR1 |= SPI_CR1_SPE;              // Turn on SPI
+    }
+
     void write(uint8_t *data, size_t len, size_t bytes = 1) override
     {
-        for (size_t i = 0; i < len; ++i)
+        if (_dmaTx)
         {
-            while (!(_spi->SR & SPI_SR_TXE));
-            _spi->DR = data[i];
-            while (!(_spi->SR & SPI_SR_RXNE));
-            (void) _spi->DR; // Read data to clear RXNE flag
+            while(*_dmaTxInterruptReg & 1 << DmaInterruptFlag[_dmaTxChannel]);
+            _dmaTx->CR &= ~DMA_SxCR_EN;
+            while (_dmaTx->CR & DMA_SxCR_EN);
+            _dmaTx->M0AR = reinterpret_cast<uint32_t>(data);
+            _dmaTx->NDTR = len;
+            _dmaTx->CR = (_dmaTxChannel << DMA_SxCR_CHSEL_Pos)
+                | DMA_SxCR_MINC                 // Address increment
+                | (bytes >> 1) << DMA_SxCR_MINC_Pos
+                | DMA_SxCR_TCIE                 // Interrupt
+                | static_cast<uint32_t>(DmaDriver::Direction::MemoryToPeripheral)
+                ;
+            _dmaTx->CR |= DMA_SxCR_EN;
+        }
+        else
+        {
+            for (size_t i = 0; i < len; ++i)
+            {
+                while (!(_spi->SR & SPI_SR_TXE));
+                _spi->DR = data[i];
+                while (!(_spi->SR & SPI_SR_RXNE));
+                (void) _spi->DR; // Read data to clear RXNE flag
+            }
         }
     };
 
     void read(uint8_t *data, size_t len, size_t bytes = 1) override
     {
-        for (size_t i = 0; i < len; ++i)
+        if (_dmaRx && _dmaTx)
         {
-            while (!(_spi->SR & SPI_SR_TXE));
-            _spi->DR = 0x00;
-            while (!(_spi->SR & SPI_SR_RXNE));
-            data[i] = _spi->DR;
+            // DMA RX
+            _dmaRx->CR &= ~DMA_SxCR_EN;
+            while (_dmaRx->CR & DMA_SxCR_EN);
+            _dmaRx->M0AR = reinterpret_cast<uint32_t>(data);
+            _dmaRx->NDTR = len;
+            _dmaRx->CR = (_dmaRxChannel << DMA_SxCR_CHSEL_Pos)
+                | DMA_SxCR_MINC                 // Address increment
+                | (bytes >> 1) << DMA_SxCR_MINC_Pos
+                | DMA_SxCR_TCIE                 // Interrupt
+                | static_cast<uint32_t>(DmaDriver::Direction::PeripheralToMemory)
+                ;
+            _dmaRx->CR |= DMA_SxCR_EN;
+
+            // DMA TX
+            static uint8_t dummy = 0;
+            while(*_dmaTxInterruptReg & (1 << DmaInterruptFlag[_dmaTxChannel]));
+            _dmaTx->CR &= ~DMA_SxCR_EN;
+            while (_dmaTx->CR & DMA_SxCR_EN);
+            _dmaTx->M0AR = reinterpret_cast<uint32_t>(&dummy);
+            _dmaTx->NDTR = len;
+            _dmaTx->CR = (_dmaTxChannel << DMA_SxCR_CHSEL_Pos)
+                | DMA_SxCR_MINC                 // Address increment
+                | (bytes >> 1) << DMA_SxCR_MINC_Pos
+                | DMA_SxCR_TCIE                 // Interrupt
+                | static_cast<uint32_t>(DmaDriver::Direction::MemoryToPeripheral)
+                ;
+            _dmaTx->CR |= DMA_SxCR_EN;
+
+            while(*_dmaRxInterruptReg & (1 << DmaInterruptFlag[0]));  // Wait for revieving ends
+
+        }
+        else
+        {
+            for (size_t i = 0; i < len; ++i)
+            {
+                while (!(_spi->SR & SPI_SR_TXE));
+                _spi->DR = 0x00;
+                while (!(_spi->SR & SPI_SR_RXNE));
+                data[i] = _spi->DR;
+            }
         }
     };
 
@@ -146,7 +269,24 @@ class SpiController : public ICommunication
 
     private:
 
+    static constexpr uint8_t DmaInterruptFlag[8] = {
+        DMA_LIFCR_CTCIF3_Pos,
+        DMA_LIFCR_CTCIF2_Pos, 
+        DMA_LIFCR_CTCIF1_Pos,
+        DMA_LIFCR_CTCIF0_Pos, 
+        DMA_LIFCR_CTCIF3_Pos,
+        DMA_LIFCR_CTCIF2_Pos,
+        DMA_LIFCR_CTCIF1_Pos,
+        DMA_LIFCR_CTCIF0_Pos
+    };
+
     SPI_TypeDef *_spi;
+    DMA_Stream_TypeDef *_dmaRx = nullptr;
+    size_t _dmaRxChannel = 0;
+    uint32_t *_dmaRxInterruptReg = nullptr;
+    DMA_Stream_TypeDef *_dmaTx = nullptr;
+    size_t _dmaTxChannel = 0;
+    uint32_t *_dmaTxInterruptReg = nullptr;
     uint32_t _speed; // Speed in Hz
 
     bool _isInit = false;
