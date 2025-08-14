@@ -2,6 +2,8 @@
 
 #include "interface/Communication.h"
 
+#include "DmaDriver.h"
+
 #include "stm32f4xx.h"
 extern uint32_t SystemCoreClock;
 
@@ -69,21 +71,77 @@ class FsmcDriver: public ICommunication
         return true;
     }
 
+    bool setDma(DMA_Stream_TypeDef *dma)
+    {
+        _dma = dma;
+
+        if (_dma)
+        {
+            if (DmaDriver::getDma(_dma) == DMA1)
+            {
+                RCC->AHB1ENR |= RCC_AHB1ENR_DMA1EN;
+            }
+            else if (DmaDriver::getDma(_dma) == DMA2)
+            {
+                RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN;
+            }
+            else
+            {
+                return false;
+            }
+
+            _dmaInterruptFlag = 1 << DmaDriver::InterruptFlag[DmaDriver::getStreamNumber(_dma)];
+            _dmaStatusReg = DmaDriver::getStatusReg(_dma);
+            _dmaClearReg = DmaDriver::getClearReg(_dma);
+
+            
+            _dma->CR &= ~DMA_SxCR_EN;
+            while (_dma->CR & DMA_SxCR_EN);
+            _dma->M0AR = reinterpret_cast<uint32_t>(_addrData);
+
+        }
+        else
+        {
+            return false;
+        }
+        return true;
+    }
+
     void write(uint8_t *data, size_t len, size_t bytes = 1) override
     {
-        if (bytes == 1)
+        if ((_dma != nullptr) & (len > 0) & (bytes > 1))
         {
-            for (size_t i = 0; i < len; ++i)
-            {
-                *(volatile uint16_t*) _addrData = data[i];
-            }
+            // while (!(*_dmaStatusReg & _dmaInterruptFlag));
+            *_dmaClearReg = _dmaInterruptFlag;
+            _dma->CR &= ~DMA_SxCR_EN;
+            while (_dma->CR & DMA_SxCR_EN);
+            _dma->PAR = reinterpret_cast<uint32_t>(data);
+            _dma->NDTR = len;
+            _dma->CR = (0 << DMA_SxCR_CHSEL_Pos)
+                | DMA_SxCR_PINC
+                | (bytes >> 1) << DMA_SxCR_MSIZE_Pos
+                | (bytes >> 1) << DMA_SxCR_PSIZE_Pos
+                | DMA_SxCR_TCIE                 // Interrupt
+                | static_cast<uint32_t>(DmaDriver::Direction::MemoryToMemory)
+                ;
+            _dma->CR |= DMA_SxCR_EN;
         }
-        else if (bytes == 2)
+        else
         {
-            uint16_t *ptr = reinterpret_cast<uint16_t*>(data);
-            for (size_t i = 0; i < len; ++i)
+            if (bytes == 1)
             {
-                *(volatile uint16_t*) _addrData = ptr[i];
+                for (size_t i = 0; i < len; ++i)
+                {
+                    *(volatile uint16_t*) _addrData = data[i];
+                }
+            }
+            else if (bytes == 2)
+            {
+                uint16_t *ptr = reinterpret_cast<uint16_t*>(data);
+                for (size_t i = 0; i < len; ++i)
+                {
+                    *(volatile uint16_t*) _addrData = ptr[i];
+                }
             }
         }
     }
@@ -141,6 +199,12 @@ class FsmcDriver: public ICommunication
     uint32_t _addrCmd  = 0x60000000;
     uint32_t _addrData = 0x60080000;
     
+    DMA_Stream_TypeDef  *_dma = nullptr;
+    uint32_t            *_dmaStatusReg = nullptr;
+    uint32_t            *_dmaClearReg = nullptr;
+    uint32_t            _dmaInterruptFlag = 0;
+
+
     uint32_t _speed = 0;
     bool _isInit = false;
 };
