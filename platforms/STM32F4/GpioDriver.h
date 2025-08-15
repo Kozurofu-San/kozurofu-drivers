@@ -66,7 +66,7 @@ class GpioDriver : public IGpio
         Can1_2_Tim12_13_14  = 9,
         OtgFs_Hs            = 10,
         Eth                 = 11,
-        Fsmc_OtgFs          = 12,
+        Fsmc_Sdio_OtgFs     = 12,
         Dcmi                = 13,
     };
 
