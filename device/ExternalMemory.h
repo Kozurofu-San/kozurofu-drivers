@@ -93,6 +93,16 @@ class ExternalMemoryDriver : public IMemory
         
     }
 
+    bool writeBlock(const uint8_t *data, uint32_t sector, uint32_t len) override
+    {
+        return true; // Not implemented
+    }
+
+    bool readBlock(uint8_t *data, uint32_t sector, uint32_t len) override
+    {
+        return true; // Not implemented
+    }
+
     void erase() override
     {
         readCmd(ExternalMemory::Instruction::WriteEnable, _buffer, 0);
