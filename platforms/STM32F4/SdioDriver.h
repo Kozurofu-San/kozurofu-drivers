@@ -1,9 +1,16 @@
 #pragma once
 
 #include "interface/Memory.h"
+#include "interface/Timer.h"
 
 #include "stm32f4xx.h"
 extern uint32_t SystemCoreClock;
+
+#define SDMMC_VOLTAGE_WINDOW_SD                       0x80100000U
+#define SDMMC_HIGH_CAPACITY                           0x40000000U
+#define SDMMC_STD_CAPACITY                            0x00000000U
+#define SDMMC_CHECK_PATTERN                           0x000001AAU
+#define SD_SWITCH_1_8V_CAPACITY                       0x01000000U
 
 namespace driver
 {
@@ -39,6 +46,7 @@ class SdioDriver : public IMemory
         SendCid             = 10,
         StopTransmission    = 12,
         SendStatus          = 13,
+        BlockLength         = 16,
         ReadSingleBlock     = 17,
         ReadMultipleBlock   = 18,
         WriteBlock          = 24,
@@ -48,8 +56,8 @@ class SdioDriver : public IMemory
         AppCmd              = 55,
     };
 
-    SdioDriver(SDIO_TypeDef *sdio)
-        : _sdio(sdio)
+    SdioDriver(SDIO_TypeDef *sdio, ITimer &timer)
+        : _sdio(sdio), _timer(timer)
     {}
 
     bool init(Bits bits)
@@ -61,30 +69,40 @@ class SdioDriver : public IMemory
         uint32_t busPrescaler = (RCC->CFGR >> RCC_CFGR_PPRE2_Pos) & 0x7;
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
         uint32_t clkPrescaler = SystemCoreClock / busPrescaler / configFrequency;
+        if (clkPrescaler < 2)
+        {
+            clkPrescaler = 2; // Minimum value
+        }
+        else if (clkPrescaler > 255)
+        {
+            clkPrescaler = 255; // Maximum value
+        }
         _speed = SystemCoreClock / busPrescaler / clkPrescaler;
-        _sdio->CLKCR = clkPrescaler << SDIO_CLKCR_CLKDIV_Pos
+        _sdio->CLKCR = 0x76 << SDIO_CLKCR_CLKDIV_Pos
             | 0 << SDIO_CLKCR_PWRSAV_Pos
             | 0 << SDIO_CLKCR_BYPASS_Pos
             | 0 << SDIO_CLKCR_WIDBUS_Pos
             | 0 << SDIO_CLKCR_NEGEDGE_Pos
-            | 1 << SDIO_CLKCR_HWFC_EN_Pos
+            | 0 << SDIO_CLKCR_HWFC_EN_Pos
             ;
 
-        _sdio->POWER = Power::On;
+        _sdio->POWER = SDIO_POWER_PWRCTRL;
         _sdio->CLKCR |= SDIO_CLKCR_CLKEN;
+        _timer.delay(2);
 
         command(Cmd::GoIdleState, 0, Response::None);
-        command(Cmd::IoRwDirect, (1UL << 31) | (0UL << 28) | (0UL << 27) | (0x06UL << 9) | 0x08, Response::Short);
+        // command(Cmd::IoRwDirect, (1UL << 31) | (0UL << 28) | (0UL << 27) | (0x06UL << 9) | 0x08, Response::Short);
         if (command(Cmd::SendIfConf, 0x1AA, Response::Short) != 0x1AA)
         {
             return false;
         }
+        // SD V2.x
 
         uint32_t ret = 0;
         do
         {
             ret = command(Cmd::AppCmd, 0, Response::Short);
-            ret = command(Cmd::SdAppOpCond, 0x40FF8000, Response::Short);
+            ret = command(Cmd::SdAppOpCond, SDMMC_VOLTAGE_WINDOW_SD | SDMMC_HIGH_CAPACITY | SD_SWITCH_1_8V_CAPACITY, Response::Short);
         } while (!(ret & (1 << 31)));
 
         command(Cmd::AllSendCid, 0, Response::Long);
@@ -134,12 +152,6 @@ class SdioDriver : public IMemory
             _sdio->CLKCR &= ~SDIO_CLKCR_WIDBUS;
             _sdio->CLKCR |= 1 << SDIO_CLKCR_WIDBUS_Pos;     // 4 bits
             command(Cmd::SetBusWidth, 2, Response::Short);
-        }
-        else
-        {
-            _sdio->CLKCR &= ~SDIO_CLKCR_WIDBUS;
-            _sdio->CLKCR |= 0 << SDIO_CLKCR_WIDBUS_Pos;     // 1 bit
-            command(Cmd::SetBusWidth, 0, Response::Short);
         }
         // command(Cmd::AppCmd, _rca, Response::Short);
         // command(Cmd::SetBusWidth, 2, Response::Short);  // 4 bits
@@ -246,7 +258,7 @@ class SdioDriver : public IMemory
         
         command((count == 1) ? Cmd::WriteBlock : Cmd::WriteMultipleBlock, sector, Response::Short);
         while (!(_sdio->STA & (SDIO_STA_CMDREND | SDIO_STA_CTIMEOUT)));
-        if (_sdio->STA & SDIO_STA_CTIMEOUT) return false;
+        // if (_sdio->STA & SDIO_STA_CTIMEOUT) return false;
         _sdio->ICR = SDIO_ICR_CMDRENDC | SDIO_ICR_CMDSENTC;
 
         uint32_t *buffer32 = (uint32_t*)buffer;
@@ -256,11 +268,12 @@ class SdioDriver : public IMemory
 
         while (cnt--)
         {
-            while (!(_sdio->STA & (SDIO_STA_TXFIFOHE | SDIO_STA_DTIMEOUT | SDIO_STA_DCRCFAIL | SDIO_STA_TXUNDERR)));
-            if (SDIO->STA & (SDIO_STA_DTIMEOUT | SDIO_STA_DCRCFAIL | SDIO_STA_TXUNDERR))
-            {
-                return false;
-            }
+                while (!(_sdio->STA & SDIO_STA_TXFIFOHE));
+            // while (!(_sdio->STA & (SDIO_STA_TXFIFOHE | SDIO_STA_DTIMEOUT | SDIO_STA_DCRCFAIL | SDIO_STA_TXUNDERR)));
+            // if (SDIO->STA & (SDIO_STA_DTIMEOUT | SDIO_STA_DCRCFAIL | SDIO_STA_TXUNDERR))
+            // {
+            //     return false;
+            // }
             _sdio->FIFO = *buffer32++;
         }
 
@@ -289,7 +302,7 @@ class SdioDriver : public IMemory
     uint32_t getSectorCount()
     {
 
-        return _sectorCount / 1000;
+        return _sectorCount;
     }
 
     uint32_t getSectorSize()
@@ -307,11 +320,11 @@ class SdioDriver : public IMemory
             | SDIO_CMD_CPSMEN;      // CPSM enable
         if (resp == Response::None)
         {
-            while (!(_sdio->STA & (SDIO_STA_CMDSENT | SDIO_STA_CTIMEOUT)));  // Wait
+            while (!(_sdio->STA & SDIO_STA_CMDSENT));  // Wait
         }
         else
         {
-            while (!(_sdio->STA & (SDIO_STA_CMDREND | SDIO_STA_CTIMEOUT | SDIO_STA_CCRCFAIL)));  // Wait
+            while (!(_sdio->STA & (SDIO_STA_CMDREND | SDIO_STA_CCRCFAIL)));  // Wait
         }
         if (_sdio->STA & SDIO_STA_CCRCFAIL)
         {
@@ -335,6 +348,7 @@ class SdioDriver : public IMemory
     private:
 
     SDIO_TypeDef *_sdio;
+    ITimer &_timer;
     uint32_t _speed = 0;
 
     static constexpr uint32_t configFrequency = 100000;     // 100 KHz
