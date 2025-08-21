@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Pwm.h"
+#include "interface/VoltageSet.h"
 
 #include "stm32f4xx.h"
 #include <cstdint>
@@ -9,7 +9,7 @@
 namespace driver
 {
 
-class PwmDriver : public IPwm
+class PwmDriver : public IVoltageSet
 {
     public:
 

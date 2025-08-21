@@ -41,7 +41,8 @@ class ExternalMemoryDriver : public IMemory
         readCmd(ExternalMemory::Instruction::JedecId, _buffer, 4);
         _manufacturerId = _buffer[0];
         _type = _buffer[1];
-        _capacity = _buffer[2];
+        _sectorCount = _buffer[2];
+        _sectorCount = (1 << _sectorCount) / SectorSize;
         readCmd(ExternalMemory::Instruction::ReadUniqueId, _buffer, 12);
         _uniqueId = 
             static_cast<uint64_t>(_buffer[5]) << 40 |
@@ -117,9 +118,35 @@ class ExternalMemoryDriver : public IMemory
         readCmd(ExternalMemory::Instruction::WriteDisable, _buffer, 0);
     }
 
+    void eraseSector(uint32_t sector)
+    {
+        readCmd(ExternalMemory::Instruction::WriteEnable, _buffer, 0);
+
+        _p.enable();
+        _p.sendCommand(ExternalMemory::Instruction::SectorErase4Kb);
+        _p.disable();
+        do
+        {
+            readCmd(ExternalMemory::Instruction::ReadStatusRegister1, _buffer, 1);
+        } while (_buffer[0] & ExternalMemory::Status::Busy);
+        readCmd(ExternalMemory::Instruction::WriteDisable, _buffer, 0);
+    }
+
     bool isInit() override
     {
         return _isInit;
+    }
+    
+    uint32_t getSectorCount() override
+    {
+
+        return _sectorCount;
+    }
+
+    uint32_t getSectorSize() override
+    {
+
+        return SectorSize;
     }
 
     private:
@@ -139,9 +166,12 @@ class ExternalMemoryDriver : public IMemory
 
     uint8_t _manufacturerId = 0;
     uint8_t _type = 0;
-    uint8_t _capacity = 0;
     uint64_t _uniqueId = 0;
 
     bool _isInit = false;
+    static constexpr uint16_t SectorSize = 512;
+    uint32_t _sectorCount = 0;
+
+    uint8_t cash[4096];
 };
 }

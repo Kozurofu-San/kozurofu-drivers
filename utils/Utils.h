@@ -6,17 +6,30 @@ class Utils
 {
     public:
 
-    static uint64_t binToBcd(uint_32_t bin)
+    static uint32_t binToBcd(uint32_t bin)
     {
-        uint64_t bcd = 0;
-        size_t cnt = 32;
+        uint32_t bcd = 0;
+        uint8_t cnt = 32;
         for (; cnt--; )
         {
             bcd |= (bin % 10) << (32 - 4);
             bin /= 10;
-            bcd >> 4;
+            bcd >>= 4;
         }
         return bcd;
+    }
+
+    static uint32_t bcdToBin(uint32_t bcd)
+    {
+        uint32_t bin = 0;
+        uint32_t mul = 1;
+        while (bcd)
+        {
+            bin += (bcd & 0xF) * mul;
+            mul *= 10;
+            bcd >>= 4;
+        }
+        return bin;
     }
 
     static void evenOddToHalf(int16_t p[], size_t len)

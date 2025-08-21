@@ -64,20 +64,13 @@ class SdioDriver : public IMemory
     {
         // Clock
         RCC->APB2ENR |= RCC_APB2ENR_SDIOEN;
+        _speed = HSE_VALUE
+            * ((RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> RCC_PLLCFGR_PLLN_Pos)
+            / ((RCC->PLLCFGR & RCC_PLLCFGR_PLLM) >> RCC_PLLCFGR_PLLM_Pos)
+            / ((RCC->PLLCFGR & RCC_PLLCFGR_PLLQ) >> RCC_PLLCFGR_PLLQ_Pos)
+            ;
 
         // Config
-        uint32_t busPrescaler = (RCC->CFGR >> RCC_CFGR_PPRE2_Pos) & 0x7;
-        busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
-        uint32_t clkPrescaler = SystemCoreClock / busPrescaler / configFrequency;
-        if (clkPrescaler < 2)
-        {
-            clkPrescaler = 2; // Minimum value
-        }
-        else if (clkPrescaler > 255)
-        {
-            clkPrescaler = 255; // Maximum value
-        }
-        _speed = SystemCoreClock / busPrescaler / clkPrescaler;
         _sdio->CLKCR = 0x76 << SDIO_CLKCR_CLKDIV_Pos
             | 0 << SDIO_CLKCR_PWRSAV_Pos
             | 0 << SDIO_CLKCR_BYPASS_Pos
@@ -101,7 +94,7 @@ class SdioDriver : public IMemory
         uint32_t ret = 0;
         do
         {
-            ret = command(Cmd::AppCmd, 0, Response::Short);
+            ret = command(Cmd::AppCmd, 0, Response::Short);     // 0x477
             ret = command(Cmd::SdAppOpCond, SDMMC_VOLTAGE_WINDOW_SD | SDMMC_HIGH_CAPACITY | SD_SWITCH_1_8V_CAPACITY, Response::Short);
         } while (!(ret & (1 << 31)));
 
@@ -114,7 +107,7 @@ class SdioDriver : public IMemory
         };
 
         _rca = command(Cmd::SetRelativeAddr, 0, Response::Short);
-        _rca &= 0xFFFF0000;
+        _rca &= 0xFFFF0000;     // 0x21310000
 
         command(Cmd::SendCid, _rca, Response::Long);
         uint32_t cidCard[4] = {
@@ -149,51 +142,56 @@ class SdioDriver : public IMemory
         // Set bus width 1 -> 4 bits
         if (bits == Bits::b4)
         {
+            command(Cmd::AppCmd, _rca, Response::Short);
+            command(Cmd::SetBusWidth, 2, Response::Short);
             _sdio->CLKCR &= ~SDIO_CLKCR_WIDBUS;
             _sdio->CLKCR |= 1 << SDIO_CLKCR_WIDBUS_Pos;     // 4 bits
-            command(Cmd::SetBusWidth, 2, Response::Short);
         }
         // command(Cmd::AppCmd, _rca, Response::Short);
         // command(Cmd::SetBusWidth, 2, Response::Short);  // 4 bits
         // _sdio->CLKCR &= ~SDIO_CLKCR_WIDBUS;
         // _sdio->CLKCR |= 1 << SDIO_CLKCR_WIDBUS_Pos;     // 4 bits
 
-        // Check if SD card supports High speed mode
-        _sdio->DTIMER = 0xFFFFFFFF;
-        _sdio->DLEN = 64;
-        _sdio->DCTRL =
-            6 << SDIO_DCTRL_DBLOCKSIZE_Pos
-            | SDIO_DCTRL_DTDIR
-            | SDIO_DCTRL_DTEN;
-        ret = command(Cmd::AppCmd, 0, Response::Short);
-        command(Cmd::SwitchFunc, 0x00FFFFF1, Response::Short);
-        uint8_t switchStatus[64];
-        for (size_t i = 0; i < 64 / 4; ++i)
-        {
-            while(!(_sdio->STA & SDIO_STA_RXDAVL));
-            ((uint32_t*)switchStatus)[i] = _sdio->FIFO;
-        }
-        if ((switchStatus[13] & 0xF) != 0x1)
-        {
-            // Set HS mode
-            // _sdio->DTIMER = 0xFFFFFFFF;
-            // _sdio->DLEN = 64;
-            // _sdio->DCTRL =
-            //     6 << SDIO_DCTRL_DBLOCKSIZE_Pos
-            //     | SDIO_DCTRL_DTDIR
-            //     | SDIO_DCTRL_DTEN;
-            // ret = command(Cmd::AppCmd, 0, Response::Short);
-            // command(Cmd::SwitchFunc, 0x80FFFFF1, Response::Short);
-            // for (size_t i = 0; i < 64 / 4; ++i)
-            // {
-            //     while(!(_sdio->STA & SDIO_STA_RXDAVL));
-            //     ((uint32_t*)switchStatus)[i] = _sdio->FIFO;
-            // }
-            // _sdio->CLKCR &= ~SDIO_CLKCR_CLKDIV;     // Max SDIO speed
-            // _sdio->CLKCR |= 5 << SDIO_CLKCR_CLKDIV_Pos;
-        }
+        // command(Cmd::BlockLength, SectorSize, Response::Short); // Block len
 
-        _speed = SystemCoreClock / busPrescaler / (((_sdio->CLKCR & SDIO_CLKCR_CLKDIV) >> SDIO_CLKCR_CLKDIV_Pos) + 2);
+        // Check if SD card supports High speed mode
+        // _sdio->DTIMER = 0xFFFFFFFF;
+        // _sdio->DLEN = 64;
+        // _sdio->DCTRL =
+        //     6 << SDIO_DCTRL_DBLOCKSIZE_Pos
+        //     | SDIO_DCTRL_DTDIR
+        //     | SDIO_DCTRL_DTEN;
+        // ret = command(Cmd::AppCmd, 0, Response::Short);
+        // command(Cmd::SwitchFunc, 0x00FFFFF1, Response::Short);
+        // uint8_t switchStatus[64];
+        // for (size_t i = 0; i < 64 / 4; ++i)
+        // {
+        //     while(!(_sdio->STA & SDIO_STA_RXDAVL));
+        //     ((uint32_t*)switchStatus)[i] = _sdio->FIFO;
+        // }
+        // if ((switchStatus[13] & 0xF) != 0x1)
+        // {
+        //     // Set HS mode
+        //     // _sdio->DTIMER = 0xFFFFFFFF;
+        //     // _sdio->DLEN = 64;
+        //     // _sdio->DCTRL =
+        //     //     6 << SDIO_DCTRL_DBLOCKSIZE_Pos
+        //     //     | SDIO_DCTRL_DTDIR
+        //     //     | SDIO_DCTRL_DTEN;
+        //     // ret = command(Cmd::AppCmd, 0, Response::Short);
+        //     // command(Cmd::SwitchFunc, 0x80FFFFF1, Response::Short);
+        //     // for (size_t i = 0; i < 64 / 4; ++i)
+        //     // {
+        //     //     while(!(_sdio->STA & SDIO_STA_RXDAVL));
+        //     //     ((uint32_t*)switchStatus)[i] = _sdio->FIFO;
+        //     // }
+        //     _sdio->CLKCR &= ~SDIO_CLKCR_CLKDIV;     // Max SDIO speed
+        //     // _sdio->CLKCR |= 5 << SDIO_CLKCR_CLKDIV_Pos;
+        // }
+
+        _sdio->CLKCR &= ~SDIO_CLKCR_CLKDIV;     // Max SDIO speed
+
+        _speed /= (((_sdio->CLKCR & SDIO_CLKCR_CLKDIV) >> SDIO_CLKCR_CLKDIV_Pos) + 2);
 
         return true;
     }
@@ -219,30 +217,31 @@ class SdioDriver : public IMemory
         _sdio->DTIMER = 0xFFFFFFFF;
         _sdio->DLEN = SectorSize * len;
         _sdio->DCTRL = 9 << SDIO_DCTRL_DBLOCKSIZE_Pos
-            | SDIO_DCTRL_DTDIR;
+            | SDIO_DCTRL_DTDIR | SDIO_DCTRL_DTEN;
         
         command((len == 1) ? Cmd::ReadSingleBlock : Cmd::ReadMultipleBlock, sector, Response::Short);
-        while (!(_sdio->STA & (SDIO_STA_CMDREND | SDIO_STA_CTIMEOUT)));
-        if (_sdio->STA & SDIO_STA_CTIMEOUT) return false;
-        _sdio->ICR = SDIO_ICR_CMDRENDC | SDIO_ICR_CMDSENTC;
+        if (_sdio->STA & SDIO_STA_RXOVERR)
+        {
+            _sdio->ICR = SDIO_STA_RXOVERR;
+        }
 
         uint32_t *data32 = (uint32_t*)data;
         uint32_t cnt = len * SectorSize / 4;
 
-        _sdio->DCTRL |= SDIO_DCTRL_DTEN;
+        _sdio->DCTRL;
 
         while (cnt--)
         {
-            while (!(_sdio->STA & SDIO_STA_RXDAVL));
+            while (!(_sdio->STA & (SDIO_STA_RXDAVL | SDIO_STA_RXFIFOHF)));
             *data32++ = _sdio->FIFO;
         }
 
         while (!(_sdio->STA & SDIO_STA_DATAEND));
 
-        if (len > 1)
-        {
-            command(Cmd::StopTransmission, 0, Response::Short);
-        }
+        // if (len > 1)
+        // {
+        //     command(Cmd::StopTransmission, 0, Response::Short);
+        // }
 
         _sdio->ICR  = 0xFFFFFFFF;
 
@@ -254,7 +253,7 @@ class SdioDriver : public IMemory
         // Transmission length
         _sdio->DTIMER = 0xFFFFFFFF;
         _sdio->DLEN = SectorSize * count;
-        _sdio->DCTRL = 9 << SDIO_DCTRL_DBLOCKSIZE_Pos;
+        _sdio->DCTRL = 9 << SDIO_DCTRL_DBLOCKSIZE_Pos | SDIO_DCTRL_DTEN;
         
         command((count == 1) ? Cmd::WriteBlock : Cmd::WriteMultipleBlock, sector, Response::Short);
         while (!(_sdio->STA & (SDIO_STA_CMDREND | SDIO_STA_CTIMEOUT)));
@@ -264,7 +263,7 @@ class SdioDriver : public IMemory
         uint32_t *buffer32 = (uint32_t*)buffer;
         uint32_t cnt = count * SectorSize / 4;
 
-        _sdio->DCTRL |= SDIO_DCTRL_DTEN;
+        _sdio->DCTRL;
 
         while (cnt--)
         {
@@ -279,10 +278,10 @@ class SdioDriver : public IMemory
 
         while (!(_sdio->STA & SDIO_STA_DATAEND));
 
-        if (count > 1)
-        {
-            command(Cmd::StopTransmission, 0, Response::Short);
-        }
+        // if (count > 1)
+        // {
+        //     command(Cmd::StopTransmission, 0, Response::Short);
+        // }
 
         _sdio->ICR  = 0xFFFFFFFF;
 
@@ -299,13 +298,13 @@ class SdioDriver : public IMemory
         return true;
     }
 
-    uint32_t getSectorCount()
+    uint32_t getSectorCount() override
     {
 
         return _sectorCount;
     }
 
-    uint32_t getSectorSize()
+    uint32_t getSectorSize() override
     {
 
         return SectorSize;
@@ -330,6 +329,11 @@ class SdioDriver : public IMemory
         {
             _sdio->ICR = SDIO_ICR_CCRCFAILC;
         }
+        // if (_sdio->STA & SDIO_STA_CTIMEOUT)
+        // {
+        //     _sdio->ICR = SDIO_STA_CTIMEOUT;
+        // }
+        _sdio->ICR = SDIO_STA_CMDREND;
         return _sdio->RESP1;
     }
 
@@ -354,16 +358,8 @@ class SdioDriver : public IMemory
     static constexpr uint32_t configFrequency = 100000;     // 100 KHz
     inline static constexpr uint8_t timeVector[16] = {0, 10, 12, 13, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80};
     static constexpr uint16_t SectorSize = 512;
-    uint32_t _rca = 0;
     uint32_t _sectorCount = 0;
-
-    class Power
-    {
-        public:
-
-        static constexpr uint32_t On  = 3 << SDIO_POWER_PWRCTRL_Pos;
-        static constexpr uint32_t Off = 0 << SDIO_POWER_PWRCTRL_Pos;
-    };
-
+    uint32_t _rca = 0;
+    
 };
 }

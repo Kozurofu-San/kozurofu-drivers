@@ -58,6 +58,11 @@ class UartDriver : public ICommunication
         return true;
     };
 
+    bool setDma()
+    {
+        return true;
+    }
+
     void write(uint8_t *data, size_t len, size_t bytes = 1) override
     {
         for (size_t i = 0; i < len; ++i)

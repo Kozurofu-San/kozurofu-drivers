@@ -16,4 +16,6 @@ class IMemory
     virtual bool readBlock (uint8_t *data, uint32_t sector, uint32_t len) = 0;
     virtual void erase() = 0;
     virtual bool isInit() = 0;
+    virtual uint32_t getSectorCount() = 0;
+    virtual uint32_t getSectorSize() = 0;
 };
