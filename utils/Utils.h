@@ -9,12 +9,12 @@ class Utils
     static uint32_t binToBcd(uint32_t bin)
     {
         uint32_t bcd = 0;
-        uint8_t cnt = 32;
-        for (; cnt--; )
+        uint32_t shift = 0;
+        while (bin)
         {
-            bcd |= (bin % 10) << (32 - 4);
+            bcd |= (bin % 10) << (shift * 4);
             bin /= 10;
-            bcd >>= 4;
+            shift++;
         }
         return bcd;
     }
@@ -30,6 +30,23 @@ class Utils
             bcd >>= 4;
         }
         return bin;
+    }
+
+    static uint32_t binToBcdSimple(uint16_t bin)
+    {
+        uint32_t bcd = 0;
+        for (int i = 0; i < 16; i++) {
+            for (int shift = 0; shift < 5; shift++)
+            {
+                if (((bcd >> (shift * 4)) & 0xF) > 4)
+                {
+                    bcd += (3 << (shift * 4));
+                }
+            }
+            bcd <<= 1;
+            bcd |= (bin >> (15 - i)) & 1;
+        }
+        return bcd;
     }
 
     static void evenOddToHalf(int16_t p[], size_t len)

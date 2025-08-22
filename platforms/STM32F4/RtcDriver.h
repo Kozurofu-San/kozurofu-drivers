@@ -69,19 +69,20 @@ class RtcDriver: public IDateTime
         }
 
         // Interrupts. EXTI17 - RTC IRQ
-        EXTI->PR =    EXTI_PR_PR17;
-        EXTI->IMR |=  EXTI_IMR_MR17;
-        EXTI->EMR &= ~EXTI_EMR_MR17;
-        EXTI->RTSR |= EXTI_RTSR_TR17;	
-        NVIC_SetPriority(RTC_Alarm_IRQn, 40);
-        // NVIC_EnableIRQ  (RTC_Alarm_IRQn);
-        _rtc->ISR &= ~RTC_ISR_ALRAF;
-        _rtc->ISR &= ~RTC_ISR_ALRBF;
+        // EXTI->PR =    EXTI_PR_PR17;
+        // EXTI->IMR |=  EXTI_IMR_MR17;
+        // EXTI->EMR &= ~EXTI_EMR_MR17;
+        // EXTI->RTSR |= EXTI_RTSR_TR17;	
+        // NVIC_SetPriority(RTC_Alarm_IRQn, 40);
+        // // NVIC_EnableIRQ  (RTC_Alarm_IRQn);
+        // _rtc->ISR &= ~RTC_ISR_ALRAF;
+        // _rtc->ISR &= ~RTC_ISR_ALRBF;
 
+        _isInit = true;
         return true;
     }
 
-    void setTime(DateTime *dateTime) override
+    void setTime(struct tm *t) override
     {
         _rtc->WPR = 0xCA;	// Read protection
         _rtc->WPR = 0x53;
@@ -91,39 +92,40 @@ class RtcDriver: public IDateTime
                99 << RTC_PRER_PREDIV_A_Pos
             | 399 << RTC_PRER_PREDIV_S_Pos;
         _rtc->TR =
-            Utils::binToBcd( dateTime->hour ) << RTC_TR_HU_Pos  |
-            Utils::binToBcd( dateTime->min  ) << RTC_TR_MNU_Pos |
-            Utils::binToBcd( dateTime->sec  ) << RTC_TR_SU_Pos  ;
+            Utils::binToBcd ( t->tm_hour ) << RTC_TR_HU_Pos  |
+            Utils::binToBcd ( t->tm_min  ) << RTC_TR_MNU_Pos |
+            Utils::binToBcd ( t->tm_sec  ) << RTC_TR_SU_Pos  ;
         _rtc->DR =
-            Utils::binToBcd( dateTime->year  ) << RTC_DR_YU_Pos  |
-            Utils::binToBcd( static_cast<uint32_t>(dateTime->week)) << RTC_DR_WDU_Pos |
-            Utils::binToBcd( dateTime->month ) << RTC_DR_MU_Pos  |
-            Utils::binToBcd( dateTime->date  ) << RTC_DR_DU_Pos  ;
+            Utils::binToBcd ( t->tm_year ) << RTC_DR_YU_Pos  |
+            Utils::binToBcd ( t->tm_wday ) << RTC_DR_WDU_Pos |
+            Utils::binToBcd ( t->tm_mon  ) << RTC_DR_MU_Pos  |
+            Utils::binToBcd ( t->tm_mday ) << RTC_DR_DU_Pos  ;
         _rtc->ISR &= ~RTC_ISR_INIT;
         _rtc->WPR = 0xFF;
     }
 
-    void getTime(DateTime *dateTime) override
+    time_t now() override
     {
-        dateTime->sec   = Utils::bcdToBin ((_rtc->TR & RTC_TR_ST  & RTC_TR_SU)  >> RTC_TR_SU_Pos);
-        dateTime->min   = Utils::bcdToBin ((_rtc->TR & RTC_TR_MNT & RTC_TR_MNU) >> RTC_TR_MNU_Pos);
-        dateTime->hour  = Utils::bcdToBin ((_rtc->TR & RTC_TR_HT  & RTC_TR_HU)  >> RTC_TR_HU_Pos);
-        dateTime->date  = Utils::bcdToBin ((_rtc->DR & RTC_DR_DT  & RTC_DR_DU)  >> RTC_DR_DU_Pos);
-        dateTime->month = Utils::bcdToBin ((_rtc->DR & RTC_DR_MT  & RTC_DR_MU)  >> RTC_DR_MU_Pos);
-        dateTime->year  = Utils::bcdToBin ((_rtc->DR & RTC_DR_YT  & RTC_DR_YU)  >> RTC_DR_YU_Pos);
-        dateTime->week = static_cast<Week>(
-                          Utils::bcdToBin ((_rtc->DR & RTC_DR_WDU) >> RTC_DR_WDU_Pos));
+        struct tm t;
+        t.tm_sec  = Utils::bcdToBin ((_rtc->TR & (RTC_TR_ST  | RTC_TR_SU )) >> RTC_TR_SU_Pos );
+        t.tm_min  = Utils::bcdToBin ((_rtc->TR & (RTC_TR_MNT | RTC_TR_MNU)) >> RTC_TR_MNU_Pos);
+        t.tm_hour = Utils::bcdToBin ((_rtc->TR & (RTC_TR_HT  | RTC_TR_HU )) >> RTC_TR_HU_Pos );
+        t.tm_mday = Utils::bcdToBin ((_rtc->DR & (RTC_DR_DT  | RTC_DR_DU )) >> RTC_DR_DU_Pos );
+        t.tm_mon  = Utils::bcdToBin ((_rtc->DR & (RTC_DR_MT  | RTC_DR_MU )) >> RTC_DR_MU_Pos );
+        t.tm_year = Utils::bcdToBin ((_rtc->DR & (RTC_DR_YT  | RTC_DR_YU )) >> RTC_DR_YU_Pos );
+
+        return mktime(&t);
     }
 
-    uint32_t getSpeed() const override
+    inline uint32_t getSpeed() const override
     {
         return _speed;
     }
 
-    // bool isInit() override
-    // {
-    //     return _isInit;
-    // }
+    inline bool isInit() override
+    {
+        return _isInit;
+    }
 
     private:
 
