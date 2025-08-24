@@ -211,7 +211,6 @@ class SpiController : public ICommunication
                 | DMA_SxCR_TCIE                 // Interrupt
                 | static_cast<uint32_t>(DmaDriver::Direction::PeripheralToMemory)
                 ;
-            _dmaRx->CR |= DMA_SxCR_EN;
 
             // DMA TX
             static uint8_t dummy = 0;
@@ -226,10 +225,16 @@ class SpiController : public ICommunication
                 | DMA_SxCR_TCIE                 // Interrupt
                 | static_cast<uint32_t>(DmaDriver::Direction::MemoryToPeripheral)
                 ;
+            _dmaRx->CR |= DMA_SxCR_EN;
             _dmaTx->CR |= DMA_SxCR_EN;
 
-            // while(!(*_dmaTxStatusReg & _dmaTxInterruptFlag));
+            while (!(_spi->SR & SPI_SR_BSY));
+            while(!(*_dmaTxStatusReg & _dmaTxInterruptFlag));
             while(!(*_dmaRxStatusReg & _dmaRxInterruptFlag));  // Wait for revieving ends
+            _dmaTx->CR &= ~DMA_SxCR_EN;
+            _dmaRx->CR &= ~DMA_SxCR_EN;
+            (void)SPI1->DR;
+            (void)SPI1->SR;
             *_dmaRxClearReg = _dmaRxInterruptFlag;
             *_dmaTxClearReg = _dmaTxInterruptFlag;
         }
