@@ -99,42 +99,33 @@ class SdioDriver : public IMemory
         } while (!(ret & (1 << 31)));
 
         command(Cmd::AllSendCid, 0, Response::Long);
-        uint32_t cidAll[4] = {
-            _sdio->RESP1,
-            _sdio->RESP2,
-            _sdio->RESP3,
-            _sdio->RESP4
-        };
 
         _rca = command(Cmd::SetRelativeAddr, 0, Response::Short);
         _rca &= 0xFFFF0000;     // 0x21310000
 
         command(Cmd::SendCid, _rca, Response::Long);
-        uint32_t cidCard[4] = {
-            _sdio->RESP1,
-            _sdio->RESP2,
-            _sdio->RESP3,
-            _sdio->RESP4
-        };
+        _cid[0] = _sdio->RESP1;
+        _cid[1] = _sdio->RESP2;
+        _cid[2] = _sdio->RESP3;
+        _cid[3] = _sdio->RESP4;
 
         command(Cmd::SendCsd, _rca, Response::Long);
-        uint32_t csd[4] = {
-            _sdio->RESP1,
-            _sdio->RESP2,
-            _sdio->RESP3,
-            _sdio->RESP4
-        };
+        _csd[0] = _sdio->RESP1;
+        _csd[1] = _sdio->RESP2;
+        _csd[2] = _sdio->RESP3;
+        _csd[3] = _sdio->RESP4;
 
-        uint32_t transferRateUnit = csd[0] & 0x7;
+        uint32_t transferRateUnit = _csd[0] & 0x7;
         uint32_t kbits = 10;
         for (size_t i = 0; i < transferRateUnit; ++i)
         {
             kbits *= 10;
         }
-        uint32_t timeValue = (csd[0] >> 3) & 0xF;
+        uint32_t timeValue = (_csd[0] >> 3) & 0xF;
         uint32_t speedSd = timeVector[timeValue] * kbits * 1000;
+        printf("SD speed: %u bps\n", (unsigned int)speedSd);
 
-        _sectorCount = ((csd[1] & 0x3F) << 16) | ((csd[2] >> 16) & 0xFFFF);
+        _sectorCount = ((_csd[1] & 0x3F) << 16) | ((_csd[2] >> 16) & 0xFFFF);
         _sectorCount = (_sectorCount + 1) * 1024;
 
         command(Cmd::SelectDeselectCard, _rca, Response::Short);
@@ -147,48 +138,6 @@ class SdioDriver : public IMemory
             _sdio->CLKCR &= ~SDIO_CLKCR_WIDBUS;
             _sdio->CLKCR |= 1 << SDIO_CLKCR_WIDBUS_Pos;     // 4 bits
         }
-        // command(Cmd::AppCmd, _rca, Response::Short);
-        // command(Cmd::SetBusWidth, 2, Response::Short);  // 4 bits
-        // _sdio->CLKCR &= ~SDIO_CLKCR_WIDBUS;
-        // _sdio->CLKCR |= 1 << SDIO_CLKCR_WIDBUS_Pos;     // 4 bits
-
-        // command(Cmd::BlockLength, SectorSize, Response::Short); // Block len
-
-        // Check if SD card supports High speed mode
-        // _sdio->DTIMER = 0xFFFFFFFF;
-        // _sdio->DLEN = 64;
-        // _sdio->DCTRL =
-        //     6 << SDIO_DCTRL_DBLOCKSIZE_Pos
-        //     | SDIO_DCTRL_DTDIR
-        //     | SDIO_DCTRL_DTEN;
-        // ret = command(Cmd::AppCmd, 0, Response::Short);
-        // command(Cmd::SwitchFunc, 0x00FFFFF1, Response::Short);
-        // uint8_t switchStatus[64];
-        // for (size_t i = 0; i < 64 / 4; ++i)
-        // {
-        //     while(!(_sdio->STA & SDIO_STA_RXDAVL));
-        //     ((uint32_t*)switchStatus)[i] = _sdio->FIFO;
-        // }
-        // if ((switchStatus[13] & 0xF) != 0x1)
-        // {
-        //     // Set HS mode
-        //     // _sdio->DTIMER = 0xFFFFFFFF;
-        //     // _sdio->DLEN = 64;
-        //     // _sdio->DCTRL =
-        //     //     6 << SDIO_DCTRL_DBLOCKSIZE_Pos
-        //     //     | SDIO_DCTRL_DTDIR
-        //     //     | SDIO_DCTRL_DTEN;
-        //     // ret = command(Cmd::AppCmd, 0, Response::Short);
-        //     // command(Cmd::SwitchFunc, 0x80FFFFF1, Response::Short);
-        //     // for (size_t i = 0; i < 64 / 4; ++i)
-        //     // {
-        //     //     while(!(_sdio->STA & SDIO_STA_RXDAVL));
-        //     //     ((uint32_t*)switchStatus)[i] = _sdio->FIFO;
-        //     // }
-        //     _sdio->CLKCR &= ~SDIO_CLKCR_CLKDIV;     // Max SDIO speed
-        //     // _sdio->CLKCR |= 5 << SDIO_CLKCR_CLKDIV_Pos;
-        // }
-
         _sdio->CLKCR &= ~SDIO_CLKCR_CLKDIV;     // Max SDIO speed
 
         _speed /= (((_sdio->CLKCR & SDIO_CLKCR_CLKDIV) >> SDIO_CLKCR_CLKDIV_Pos) + 2);
@@ -238,11 +187,6 @@ class SdioDriver : public IMemory
 
         while (!(_sdio->STA & SDIO_STA_DATAEND));
 
-        // if (len > 1)
-        // {
-        //     command(Cmd::StopTransmission, 0, Response::Short);
-        // }
-
         _sdio->ICR  = 0xFFFFFFFF;
 
         return true;
@@ -257,7 +201,7 @@ class SdioDriver : public IMemory
         
         command((count == 1) ? Cmd::WriteBlock : Cmd::WriteMultipleBlock, sector, Response::Short);
         while (!(_sdio->STA & (SDIO_STA_CMDREND | SDIO_STA_CTIMEOUT)));
-        // if (_sdio->STA & SDIO_STA_CTIMEOUT) return false;
+
         _sdio->ICR = SDIO_ICR_CMDRENDC | SDIO_ICR_CMDSENTC;
 
         uint32_t *buffer32 = (uint32_t*)buffer;
@@ -267,21 +211,11 @@ class SdioDriver : public IMemory
 
         while (cnt--)
         {
-                while (!(_sdio->STA & SDIO_STA_TXFIFOHE));
-            // while (!(_sdio->STA & (SDIO_STA_TXFIFOHE | SDIO_STA_DTIMEOUT | SDIO_STA_DCRCFAIL | SDIO_STA_TXUNDERR)));
-            // if (SDIO->STA & (SDIO_STA_DTIMEOUT | SDIO_STA_DCRCFAIL | SDIO_STA_TXUNDERR))
-            // {
-            //     return false;
-            // }
+            while (!(_sdio->STA & SDIO_STA_TXFIFOHE));
             _sdio->FIFO = *buffer32++;
         }
 
         while (!(_sdio->STA & SDIO_STA_DATAEND));
-
-        // if (count > 1)
-        // {
-        //     command(Cmd::StopTransmission, 0, Response::Short);
-        // }
 
         _sdio->ICR  = 0xFFFFFFFF;
 
@@ -329,14 +263,9 @@ class SdioDriver : public IMemory
         {
             _sdio->ICR = SDIO_ICR_CCRCFAILC;
         }
-        // if (_sdio->STA & SDIO_STA_CTIMEOUT)
-        // {
-        //     _sdio->ICR = SDIO_STA_CTIMEOUT;
-        // }
         _sdio->ICR = SDIO_STA_CMDREND;
         return _sdio->RESP1;
     }
-
     
     SDIO_TypeDef* getSdio()
     {
@@ -347,7 +276,6 @@ class SdioDriver : public IMemory
     {
         return _speed;
     }
-
 
     private:
 
@@ -360,6 +288,7 @@ class SdioDriver : public IMemory
     static constexpr uint16_t SectorSize = 512;
     uint32_t _sectorCount = 0;
     uint32_t _rca = 0;
-    
+    uint32_t _cid[4] = {0};
+    uint32_t _csd[4] = {0};
 };
 }
