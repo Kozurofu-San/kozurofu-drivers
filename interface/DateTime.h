@@ -12,6 +12,7 @@ class IDateTime
     virtual time_t now() = 0;
     virtual void setTime(struct tm *t) = 0;
     
+    virtual void callback(void (*cb)(uint32_t)) = 0;
     virtual uint32_t getSpeed() const = 0;
     virtual bool isInit() = 0;
 };

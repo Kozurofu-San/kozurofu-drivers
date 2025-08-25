@@ -43,40 +43,46 @@ class RtcDriver: public IDateTime
             else
             {
             	RCC->CSR |= RCC_CSR_LSION;		// LSI
-            	while(!(RCC->CSR&RCC_CSR_LSIRDY));
+            	while(!(RCC->CSR & RCC_CSR_LSIRDY));
             	RCC->APB1ENR |= RCC_APB1ENR_PWREN;
             	PWR->CR |= PWR_CR_DBP;
-            	RCC->BDCR |= 2<<RCC_BDCR_RTCSEL_Pos;
+            	RCC->BDCR |= 2 << RCC_BDCR_RTCSEL_Pos;
 
                 _speed = LSI_VALUE;
             }
             
             _rtc->WPR = 0xCA;	//Open access to RTC
             _rtc->WPR = 0x53;	//Open access to RTC
-            _rtc->CR &= ~RTC_CR_ALRAE;
-            while(!(_rtc->ISR & RTC_ISR_ALRAWF));	
-            _rtc->ALRMAR |= RTC_ALRMAR_MSK1 | RTC_ALRMAR_MSK2 | RTC_ALRMAR_MSK3 | RTC_ALRMAR_MSK4;	//Alarm every 1 second
-            _rtc->ALRMAR |= RTC_ALRMAR_SU_0;	// 1 second in BCD format	
+            RTC->ISR |= RTC_ISR_INIT;   //Enter initialization mode
+            _rtc->CR = 0;
+
+            while(!(_rtc->ISR & RTC_ISR_ALRAWF));   // Wait until it is allowed to modify RTC_ALRMAR
+            _rtc->ALRMAR = RTC_ALRMAR_MSK1 | RTC_ALRMAR_MSK2 | RTC_ALRMAR_MSK3 | RTC_ALRMAR_MSK4;	//Alarm every 1 second
+            // _rtc->ALRMAR |= RTC_ALRMAR_SU_0;	// 1 second in BCD format	
             _rtc->CR |= RTC_CR_ALRAE;
             _rtc->CR |= RTC_CR_ALRAIE;
-            _rtc->ALRMBR |= RTC_ALRMBR_MSK1 | RTC_ALRMBR_MSK2 | RTC_ALRMBR_MSK3 | RTC_ALRMBR_MSK4;	//Alarm every 1 day
-            _rtc->ALRMBR |= RTC_ALRMBR_DU_0;	// 1 day in BCD format	
-            _rtc->CR |= RTC_CR_ALRBE;
-            _rtc->CR |= RTC_CR_ALRBIE;
+            
+            // while(!(_rtc->ISR & RTC_ISR_ALRBWF));   // Wait until it is allowed to modify RTC_ALRMBR
+            // _rtc->ALRMBR |= RTC_ALRMBR_MSK1 | RTC_ALRMBR_MSK2 | RTC_ALRMBR_MSK3 | RTC_ALRMBR_MSK4;	//Alarm every 1 day
+            // _rtc->ALRMBR |= RTC_ALRMBR_DU_0;	// 1 day in BCD format	
+            // _rtc->CR |= RTC_CR_ALRBE;
+            // _rtc->CR |= RTC_CR_ALRBIE;
+
+            RTC->ISR &= ~RTC_ISR_INIT;
             _rtc->WPR = 0xFF;	//Close access to RTC  
 
 	        RCC->BDCR |= RCC_BDCR_RTCEN;
         }
 
         // Interrupts. EXTI17 - RTC IRQ
-        // EXTI->PR =    EXTI_PR_PR17;
-        // EXTI->IMR |=  EXTI_IMR_MR17;
-        // EXTI->EMR &= ~EXTI_EMR_MR17;
-        // EXTI->RTSR |= EXTI_RTSR_TR17;	
-        // NVIC_SetPriority(RTC_Alarm_IRQn, 40);
-        // // NVIC_EnableIRQ  (RTC_Alarm_IRQn);
-        // _rtc->ISR &= ~RTC_ISR_ALRAF;
-        // _rtc->ISR &= ~RTC_ISR_ALRBF;
+        EXTI->PR =    EXTI_PR_PR17;
+        EXTI->IMR |=  EXTI_IMR_MR17;
+        EXTI->EMR &= ~EXTI_EMR_MR17;
+        EXTI->RTSR |= EXTI_RTSR_TR17;
+        NVIC_SetPriority(RTC_Alarm_IRQn, 40);
+        NVIC_EnableIRQ  (RTC_Alarm_IRQn);
+        _rtc->ISR &= ~RTC_ISR_ALRAF;
+        _rtc->ISR &= ~RTC_ISR_ALRBF;
 
         _isInit = true;
         return true;
@@ -116,6 +122,28 @@ class RtcDriver: public IDateTime
 
         return mktime(&t);
     }
+    
+    void callback(void (*cb)(uint32_t)) override
+    {
+        _cb = cb;
+    }
+    
+    void interrupt()
+    {
+        EXTI->PR = EXTI_RTSR_TR17;
+        if (_rtc->ISR & RTC_ISR_ALRAF)
+        {
+            if (_cb != nullptr)
+            {
+                _cb(now());
+            }
+            _rtc->ISR &= ~RTC_ISR_ALRAF;
+        }
+        else if (_rtc->ISR & RTC_ISR_ALRBF)
+        {
+            _rtc->ISR &= ~RTC_ISR_ALRBF;
+        }
+    }
 
     inline uint32_t getSpeed() const override
     {
@@ -132,6 +160,8 @@ class RtcDriver: public IDateTime
     RTC_TypeDef *_rtc;
     uint32_t _speed = 0;
     bool _isInit = false;
+
+    void (*_cb)(uint32_t) = nullptr;
 };
 
 }
