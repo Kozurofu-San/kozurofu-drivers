@@ -213,12 +213,6 @@ class UsbDriver
     
     uint32_t read(uint16_t length)  // CDC loopback echo
     {
-        // uint8_t *data = EndPoint[Ep1].rxBufferPtr;
-        // for (uint32_t i = 0; i < length; i++)
-        // {
-        //     data[i] = data[i] + 1;
-        // }
-        
         write(EndPoint[Ep1].rxBufferPtr, length);
         return length;
     }
@@ -270,15 +264,11 @@ class UsbDriver
     static constexpr uint8_t ConfigStringLength             = 22;
     static constexpr uint8_t CdcLineCodingLength            = 7;
 
-    static constexpr uint16_t FlushFifoTimeout  = 2000;
-    static constexpr uint16_t DtxfStsTimeout    = 1024;
     static constexpr uint16_t RxFifoSize        = 36;
     static constexpr uint16_t TxEp0FifoSize     = 16;
     static constexpr uint16_t TxEp1FifoSize     = 320-(RxFifoSize+TxEp0FifoSize);
     static constexpr uint16_t TxEp2FifoSize     = 0;
     static constexpr uint16_t TxEp3FifoSize     = 0;
-    static constexpr uint16_t Ep1DtfXstsSize    = TxEp1FifoSize;
-    static constexpr uint16_t Ep1MinDtfXstsLvl  = 16;
     static constexpr uint16_t MaxCdcEp0TxSiz    = 64;
     static constexpr uint16_t MaxCdcEp1TxSiz    = 256;
     static constexpr uint8_t DoeptTransferSize  = 0x40;
@@ -312,7 +302,7 @@ class UsbDriver
     static constexpr uint8_t StsSetupUpdt   = 6;
 
     static constexpr uint16_t RxBufferEp0Size = 8;
-    static constexpr uint16_t RxBufferEp1Size = 2*128;
+    static constexpr uint16_t RxBufferEp1Size = 64;
 
     typedef enum
     {
@@ -352,7 +342,6 @@ class UsbDriver
         0x00	/* 0x08 */
     };
     
-
     typedef struct EndPointStruct
     {
         uint16_t statusRx;
@@ -382,40 +371,19 @@ class UsbDriver
 
     uint32_t device_state = DEVICE_STATE_DEFAULT; /* Device state */
 
-    uint32_t sendZlp(uint8_t EPnum)
+    void sendZlp(uint8_t EPnum)
     {
         epIn(EPnum)->DIEPTSIZ = 1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos   // One Packet
             | 0 << USB_OTG_DIEPTSIZ_XFRSIZ_Pos;          // Zero Length
         epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA;
     
+        epOut(EPnum)->DOEPCTL |= (USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA);
         while (epIn(EPnum)->DIEPTSIZ);  // Make sure zlp is gone
     
-        epOut(EPnum)->DOEPCTL |= (USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA);
         device_state &= ~DEVICE_STATE_TX_PR;
     
         EndPoint[EPnum].statusTx = EpReady;
         epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
-    
-        if (isEpStuck(EPnum) == EpOk)
-        {
-            return EpOk;
-        }
-        else return EpFailed;
-    }
-    
-    void togglRxEpStatus(uint8_t EPnum, uint8_t param)
-    {
-        if (EndPoint[EPnum].statusRx == param) return;
-        EndPoint[EPnum].statusRx = param;      // Toggle status
-    
-        if (param == EpReady)
-        {
-            epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;
-        }
-        else
-        {
-            epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
-        }
     }
     
     void readFifo(uint8_t dfifo, uint16_t len)
@@ -435,7 +403,7 @@ class UsbDriver
         for (uint32_t i = 0; i < block_cnt; i++)
         {
             *ptr++ = *fifo(0);
-            printf(" r%08X", *ptr);
+            // printf(" r%08X", (unsigned int)*ptr);
         }
     
         if (dfifo > 0)
@@ -456,7 +424,7 @@ class UsbDriver
         uint32_t *ptr = reinterpret_cast<uint32_t *>(src);
         for (uint32_t i = 0; (i < block_cnt) ; i++)
         {
-            printf(" w%08X", *ptr);
+            // printf(" w%08X", (unsigned int)*ptr);
             *fifo(dfifo) = *ptr++;
         }
 
@@ -478,11 +446,8 @@ class UsbDriver
         {
             if(EndPoint[EPnum].statusTx == EpZlp)
             {			
-                if(sendZlp(EPnum) == EpOk)
-                {
-                    return EpOk;
-                }
-                else return EpFailed;
+                sendZlp(EPnum);
+                return EpOk;
             }
             epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;	
             device_state &= ~DEVICE_STATE_TX_PR;			
@@ -491,24 +456,11 @@ class UsbDriver
             return EpOk;
         }
     
-        uint16_t max_tx_sz = (EPnum==0) ? MaxCdcEp0TxSiz : MaxCdcEp1TxSiz; // Max transfer size considering TX FIFO size
+        uint16_t max_tx_sz = (EPnum == 0) ? MaxCdcEp0TxSiz : MaxCdcEp1TxSiz; // Max transfer size considering TX FIFO size
 
-        uint32_t len;
-        uint32_t residue;
-        uint32_t pct_cnt;
-            
-        if (EndPoint[EPnum].txCounter < CdcMaxPacketSize)
-        {       /* if FIFO size is 64 bytes, but transaction is 67 bytes (DevDescriptor) transaction will be split into two parts: 1 - with 64 bytes length and 2 - with 3 bytes length */
-            len = EndPoint[EPnum].txCounter;
-            residue = 0;
-            pct_cnt = 1;
-        }
-        else
-        {
-            len = (EndPoint[EPnum].txCounter > max_tx_sz) ? max_tx_sz : EndPoint[EPnum].txCounter; 
-            residue = (len % CdcMaxPacketSize) ? 1 : 0;
-            pct_cnt = len / CdcMaxPacketSize + residue;
-        }
+        uint32_t len = (EndPoint[EPnum].txCounter > max_tx_sz) ? max_tx_sz : EndPoint[EPnum].txCounter;
+        uint32_t residue = (len % CdcMaxPacketSize) ? 1 : 0;
+        uint32_t pct_cnt = len / CdcMaxPacketSize + residue;
 
         EndPoint[EPnum].statusTx = EpBusy;      // Set Busy flag
 
@@ -517,48 +469,12 @@ class UsbDriver
         epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA;
         
         writeFifo(EPnum, EndPoint[EPnum].txBufferPtr, len);
-        {
-            // if ((EPnum == Ep1) && (isEpStuck(Ep1) == EpFailed))       // Recovery Routine EP IN
-            // {
-            //     epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_EPDIS | USB_OTG_DIEPCTL_SNAK;
-            //     epIn(EPnum)->DIEPTSIZ = 0;
-            // }
-            // epIn(EPnum)->DIEPTSIZ = pct_cnt << USB_OTG_DIEPTSIZ_PKTCNT_Pos
-            //     | len << USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
-            // epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA;
-            
-            // if ((EPnum == Ep1) && (epIn(EPnum)->DTXFSTS >= Ep1MinDtfXstsLvl))  // Check Fifo Free Space
-            // {
-            //     // flushTxFifo(Ep1, FlushFifoTimeout);
-            //     uint32_t count = 0;
-            //     _usb->GRSTCTL = USB_OTG_GRSTCTL_TXFFLSH | (1 << USB_OTG_GRSTCTL_TXFNUM_Pos);
-            //     do
-            //     {
-            //         if (++count > FlushFifoTimeout)
-            //         {
-            //             break;
-            //         }
-            //     }
-            //     while (_usb->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH);
-            
-            //    return EpOk;
 
-            // }
-        }
-
-        if (EndPoint[EPnum].txCounter >= CdcMaxPacketSize)
+        if (!EndPoint[EPnum].txCounter && !residue)  // Was this packet of MaxSize the last one in the queue ? Is ZLP required?
         {
-            if (!EndPoint[EPnum].txCounter && !residue)  // Was this packet of MaxSize the last one in the queue ? Is ZLP required?
-            {
-                EndPoint[EPnum].statusTx = EpZlp;        // Change EP TX status to ZLP, thereafter ZLP will be sent in sequential function call
-                while (isEpStuck(EPnum) != EpOk);
-                sendZlp(EPnum);
-                return EpOk;
-            }
-        }
-        else
-        {
-            device_state &= ~DEVICE_STATE_TX_PR;		
+            EndPoint[EPnum].statusTx = EpZlp;        // Change EP TX status to ZLP, thereafter ZLP will be sent in sequential function call
+            device_state &= ~DEVICE_STATE_TX_PR;
+            return EpOk;
         }
 
         epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;  // Finish transmission
@@ -592,12 +508,7 @@ class UsbDriver
         
         else    // ZLP
         {
-            epIn(EPnum)->DIEPTSIZ = 0;
-            epIn(EPnum)->DIEPTSIZ = 1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos    // One Packet
-                | 0 << USB_OTG_DIEPTSIZ_XFRSIZ_Pos;	                    //  Size 0
-            epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA;
-        
-            epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;
+            sendZlp(EPnum);
             return EpOk;
         }
     }
@@ -639,7 +550,7 @@ class UsbDriver
         _dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;                            // Before Enumeration set address 0
     
         epIn(Ep1)->DIEPCTL =
-            USB_OTG_DIEPCTL_SNAK    |
+            USB_OTG_DIEPCTL_SNAK    |   // Set NAK
             USB_OTG_DIEPCTL_TXFNUM_0|   // TX Number 1
             USB_OTG_DIEPCTL_EPTYP_1 |   // Eptype 10 means Bulk
             USB_OTG_DIEPCTL_USBAEP  |   // Set Endpoint active
@@ -652,8 +563,8 @@ class UsbDriver
             USB_OTG_DOEPCTL_USBAEP  |   // Set Endpoint active
             CdcMaxPacketSize;           // CHK MPSIZ The application must program this field with the maximum packet size for the current logical endpoint. This value is in bytes
     	
-        epOut(Ep1)->DOEPTSIZ = DoeptTransferPct << USB_OTG_DOEPTSIZ_PKTCNT_Pos   // RM quote: Indicates the total number of USB packets that constitute the Transfer Size amount of data for this endpoint. This field is decremented every time a packet (maximum size or short packet) is written to the RxFIFO
-            | DoeptTransferSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos;                // Transfer size. If you set transfer size = max. packet, the core will interrupt the application at the end of each packet
+        epOut(Ep1)->DOEPTSIZ = DoeptTransferPct << USB_OTG_DOEPTSIZ_PKTCNT_Pos  // RM quote: Indicates the total number of USB packets that constitute the Transfer Size amount of data for this endpoint. This field is decremented every time a packet (maximum size or short packet) is written to the RxFIFO
+            | DoeptTransferSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos;                 // Transfer size. If you set transfer size = max. packet, the core will interrupt the application at the end of each packet
     
         epIn(Ep2)->DIEPCTL =
             USB_OTG_DIEPCTL_SNAK            |
@@ -744,16 +655,16 @@ class UsbDriver
         setTxBuffer(Ep0, ptr, len);
     }
     
-    uint32_t isEpStuck(uint8_t EPnum)
-    {
-        if ((epIn(EPnum)->DIEPCTL & USB_OTG_DIEPCTL_EPENA)  &&      // EPENA stuck
-            !(epIn(EPnum)->DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ) &&   // No data pending
-            (epIn(EPnum)->DIEPTSIZ & USB_OTG_HCTSIZ_PKTCNT))        // Packet count pending
-        {
-            return EpFailed;
-        }
-        else return EpOk;
-    }
+    // uint32_t isEpStuck(uint8_t EPnum)
+    // {
+    //     if ((epIn(EPnum)->DIEPCTL & USB_OTG_DIEPCTL_EPENA)  &&      // EPENA stuck
+    //         !(epIn(EPnum)->DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ) &&   // No data pending
+    //         (epIn(EPnum)->DIEPTSIZ & USB_OTG_HCTSIZ_PKTCNT))        // Packet count pending
+    //     {
+    //         return EpFailed;
+    //     }
+    //     else return EpOk;
+    // }
     
     uint8_t rxBufferEp0[RxBufferEp0Size];   // Recieved data is stored here after application reads DFIFO. RX FIFO is shared
     uint8_t rxBufferEp1[RxBufferEp1Size];   // Recieved data is stored here after application reads DFIFO. RX FIFO is shared
