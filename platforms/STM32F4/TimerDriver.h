@@ -82,7 +82,7 @@ class TimerDriver : public ITimer
                         (_timer == TIM13) ? TIM8_UP_TIM13_IRQn :
                         (_timer == TIM14) ? TIM8_TRG_COM_TIM14_IRQn :
                         0;
-            NVIC_SetPriority(static_cast<IRQn_Type>(irq), 5 + 1);
+            NVIC_SetPriority(static_cast<IRQn_Type>(irq), 5);
             NVIC_EnableIRQ(static_cast<IRQn_Type>(irq));
         }
 

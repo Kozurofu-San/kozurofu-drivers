@@ -53,6 +53,7 @@ class RtcDriver: public IDateTime
             
             _rtc->WPR = 0xCA;	//Open access to RTC
             _rtc->WPR = 0x53;	//Open access to RTC
+
             RTC->ISR |= RTC_ISR_INIT;   //Enter initialization mode
             _rtc->CR = 0;
 
@@ -79,8 +80,8 @@ class RtcDriver: public IDateTime
         EXTI->IMR |=  EXTI_IMR_MR17;
         EXTI->EMR &= ~EXTI_EMR_MR17;
         EXTI->RTSR |= EXTI_RTSR_TR17;
-        NVIC_SetPriority(RTC_Alarm_IRQn, 40);
-        NVIC_EnableIRQ  (RTC_Alarm_IRQn);
+        NVIC_SetPriority(RTC_Alarm_IRQn, 10);
+        // NVIC_EnableIRQ  (RTC_Alarm_IRQn);
         _rtc->ISR &= ~RTC_ISR_ALRAF;
         _rtc->ISR &= ~RTC_ISR_ALRBF;
 
@@ -142,6 +143,18 @@ class RtcDriver: public IDateTime
         else if (_rtc->ISR & RTC_ISR_ALRBF)
         {
             _rtc->ISR &= ~RTC_ISR_ALRBF;
+        }
+    }
+
+    void muteInterrupts(bool mute) override
+    {
+        if (mute)
+        {
+            NVIC_DisableIRQ(RTC_Alarm_IRQn);
+        }
+        else
+        {
+            NVIC_EnableIRQ(RTC_Alarm_IRQn);
         }
     }
 

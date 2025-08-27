@@ -63,7 +63,9 @@ class UsbDriver
         _usb->DIEPTXF[Ep3 - 1] = 0;
         // _usb->DIEPTXF[Ep2 - 1] =   ((TxEp2FifoSize) << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (RxFifoSize+TxEp0FifoSize+TxEp1FifoSize);
         // _usb->DIEPTXF[Ep3 - 1] =   ((TxEp3FifoSize) << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (RxFifoSize+TxEp0FifoSize+TxEp1FifoSize+TxEp2FifoSize); 
-
+        for(uint32_t i = 1; i < 0x10 ; i++){
+            USB_OTG_FS->DIEPTXF[i] = 0;
+        }
         /* Init  EP0: 1 Packet, 3*8 bytes */
         epOut(Ep0)->DOEPTSIZ = 1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos // This field is decremented to zero after a packet is written into the RxFIFO
             | CdcMaxPacketSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos   // Set in descriptor
@@ -102,6 +104,7 @@ class UsbDriver
         {
             _usb->GINTSTS = USB_OTG_GINTSTS_USBRST;
             enumerateReset();
+            printf("\nR");
             return;
         }
 
@@ -196,10 +199,10 @@ class UsbDriver
     
     uint32_t write(uint8_t *txBuff, uint16_t len)   // Write to host
     {
-        if (!(device_state & DEVICE_STATE_TX_PR) &
-            !(epIn(Ep1)->DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ) &
-            ((epIn(Ep1)->DIEPTSIZ & USB_OTG_HCTSIZ_PKTCNT) == 0) &
-            !(epIn(Ep1)->DIEPCTL & USB_OTG_DIEPCTL_EPENA)  &
+        if (!(device_state & DEVICE_STATE_TX_PR) &&
+            !(epIn(Ep1)->DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ) &&
+            ((epIn(Ep1)->DIEPTSIZ & USB_OTG_HCTSIZ_PKTCNT) == 0) &&
+            !(epIn(Ep1)->DIEPCTL & USB_OTG_DIEPCTL_EPENA)  &&
             ((epIn(Ep1)->DIEPINT & USB_OTG_DIEPINT_TXFE) != 0))
         {
             setTxBuffer(Ep1, txBuff, len);
@@ -210,13 +213,13 @@ class UsbDriver
     
     uint32_t read(uint16_t length)  // CDC loopback echo
     {
-        uint8_t *data = EndPoint[Ep1].rxBufferPtr;
-        for (uint32_t i = 0; i < length; i++)
-        {
-            data[i] = data[i] + 1;
-        }
+        // uint8_t *data = EndPoint[Ep1].rxBufferPtr;
+        // for (uint32_t i = 0; i < length; i++)
+        // {
+        //     data[i] = data[i] + 1;
+        // }
         
-        write(data, length);
+        write(EndPoint[Ep1].rxBufferPtr, length);
         return length;
     }
 
@@ -241,10 +244,10 @@ class UsbDriver
     static constexpr uint32_t Ep2 = 2;
     static constexpr uint32_t Ep3 = 3;
     
-    static constexpr uint32_t Ep0Mask = 1 << 0;
-    static constexpr uint32_t Ep1Mask = 1 << 1;
-    static constexpr uint32_t Ep2Mask = 1 << 2;
-    static constexpr uint32_t Ep3Mask = 1 << 3;
+    static constexpr uint32_t Ep0Mask = 1 << Ep0;
+    static constexpr uint32_t Ep1Mask = 1 << Ep1;
+    static constexpr uint32_t Ep2Mask = 1 << Ep2;
+    static constexpr uint32_t Ep3Mask = 1 << Ep3;
 
     static constexpr uint8_t CdcMaxPacketSize   = 64;
     static constexpr uint8_t CdcCmdPacketSize   = 8;
@@ -309,7 +312,7 @@ class UsbDriver
     static constexpr uint8_t StsSetupUpdt   = 6;
 
     static constexpr uint16_t RxBufferEp0Size = 8;
-    static constexpr uint16_t RxBufferEp1Size = 128;
+    static constexpr uint16_t RxBufferEp1Size = 2*128;
 
     typedef enum
     {
@@ -338,6 +341,17 @@ class UsbDriver
         return reinterpret_cast<uint32_t*>(
             USB_OTG_FS_PERIPH_BASE  + USB_OTG_FIFO_BASE + (i) * USB_OTG_FIFO_SIZE);
     }
+
+    uint8_t lineCoding[7]={
+        0x00, 
+        0x00,	/* 0x01, */
+        0x00, /* 0xC2, */
+        0x00, /* 0X0001C200 -= 115200 Kb/s */
+        0x00,
+        0x00,
+        0x00	/* 0x08 */
+    };
+    
 
     typedef struct EndPointStruct
     {
@@ -411,7 +425,7 @@ class UsbDriver
         uint8_t *tmp_ptr = EndPoint[dfifo].rxBufferPtr;
     
         // If unprocessed data length exceeds Max buffer length, it has to be rewritten
-        if (dfifo & ((EndPoint[dfifo].rxCounter + len) > RxBufferEp1Size))
+        if (dfifo && ((EndPoint[dfifo].rxCounter + len) > RxBufferEp1Size))
         {
             EndPoint[dfifo].rxBufferPtr = rxBufferEp1;
             EndPoint[dfifo].rxCounter = 0;
@@ -421,50 +435,35 @@ class UsbDriver
         for (uint32_t i = 0; i < block_cnt; i++)
         {
             *ptr++ = *fifo(0);
-            // printf(" r%08X", *ptr);
+            printf(" r%08X", *ptr);
         }
     
-        if (dfifo)
+        if (dfifo > 0)
         {
-            epOut(dfifo)->DOEPTSIZ = 0;			
-            epOut(dfifo)->DOEPTSIZ |= (USB_OTG_DOEPTSIZ_PKTCNT & (DoeptTransferPct << USB_OTG_DOEPTSIZ_PKTCNT_Pos)); 
-            epOut(dfifo)->DOEPTSIZ |= DoeptTransferSize; 
+            epOut(dfifo)->DOEPTSIZ |= DoeptTransferPct << USB_OTG_DOEPTSIZ_PKTCNT_Pos
+                | DoeptTransferSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
             epOut(dfifo)->DOEPCTL |= (USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA);
+            EndPoint[dfifo].rxBufferPtr = tmp_ptr + len;
+            EndPoint[dfifo].rxCounter = EndPoint[dfifo].rxCounter + len;
         }
-        
-        EndPoint[dfifo].rxBufferPtr = tmp_ptr + len;
-        EndPoint[dfifo].rxCounter = EndPoint[dfifo].rxCounter + len;
     }
     
     uint32_t writeFifo(uint8_t dfifo, uint8_t *src, uint16_t len)
     {
         uint16_t residue = (len % sizeof(uint32_t)) ? 1 : 0;
         uint32_t block_cnt = (len / sizeof(uint32_t)) + residue;
-        uint32_t status = epIn(dfifo)->DTXFSTS;
         
         uint32_t *ptr = reinterpret_cast<uint32_t *>(src);
         for (uint32_t i = 0; (i < block_cnt) ; i++)
         {
-            // printf(" w%08X", *ptr);
+            printf(" w%08X", *ptr);
             *fifo(dfifo) = *ptr++;
-        }
-        
-        if (dfifo == 0)     // Check status
-        {
-            uint32_t count = 0;
-            do
-            {
-                if (++count > DtxfStsTimeout)
-                {
-                    return EpFailed;
-                }
-            } while (!(epIn(dfifo)->DTXFSTS == status));
         }
 
         EndPoint[dfifo].txBufferPtr = EndPoint[dfifo].txBufferPtr + len;
-        EndPoint[dfifo].txCounter =EndPoint[dfifo].txCounter - len;
+        EndPoint[dfifo].txCounter = EndPoint[dfifo].txCounter - len;
 
-        return EpOk;
+        return 0;
     }
     
     uint32_t transferTxCallback(uint8_t EPnum)
@@ -511,41 +510,40 @@ class UsbDriver
             pct_cnt = len / CdcMaxPacketSize + residue;
         }
 
-        EndPoint[EPnum].statusTx = EpBusy;      //Set Busy flag
+        EndPoint[EPnum].statusTx = EpBusy;      // Set Busy flag
 
         epIn(EPnum)->DIEPTSIZ = pct_cnt << USB_OTG_DIEPTSIZ_PKTCNT_Pos
             | len << USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
         epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA;
         
-        while (writeFifo(EPnum, EndPoint[EPnum].txBufferPtr, len) == EpFailed)
+        writeFifo(EPnum, EndPoint[EPnum].txBufferPtr, len);
         {
-            if ((EPnum == Ep1) & (isEpStuck(Ep1) == EpFailed))       // Recovery Routine EP IN
-            {
-                epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_EPDIS | USB_OTG_DIEPCTL_SNAK;
-                epIn(EPnum)->DIEPTSIZ = 0;
-            }
-            epIn(EPnum)->DIEPTSIZ = pct_cnt << USB_OTG_DIEPTSIZ_PKTCNT_Pos
-                | len << USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
-            epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA;
+            // if ((EPnum == Ep1) && (isEpStuck(Ep1) == EpFailed))       // Recovery Routine EP IN
+            // {
+            //     epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_EPDIS | USB_OTG_DIEPCTL_SNAK;
+            //     epIn(EPnum)->DIEPTSIZ = 0;
+            // }
+            // epIn(EPnum)->DIEPTSIZ = pct_cnt << USB_OTG_DIEPTSIZ_PKTCNT_Pos
+            //     | len << USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
+            // epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA;
             
-            if ((EPnum == Ep1) & (epIn(EPnum)->DTXFSTS >= Ep1MinDtfXstsLvl))  // Check Fifo Free Space
-            {
-                // flushTxFifo(Ep1, FlushFifoTimeout);
-                
-                uint32_t count = 0;
-                _usb->GRSTCTL = USB_OTG_GRSTCTL_TXFFLSH | (EPnum << USB_OTG_GRSTCTL_TXFNUM_Pos);
-                do
-                {
-                    if (++count > FlushFifoTimeout)
-                    {
-                        break;
-                    }
-                }
-                while (_usb->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH);
+            // if ((EPnum == Ep1) && (epIn(EPnum)->DTXFSTS >= Ep1MinDtfXstsLvl))  // Check Fifo Free Space
+            // {
+            //     // flushTxFifo(Ep1, FlushFifoTimeout);
+            //     uint32_t count = 0;
+            //     _usb->GRSTCTL = USB_OTG_GRSTCTL_TXFFLSH | (1 << USB_OTG_GRSTCTL_TXFNUM_Pos);
+            //     do
+            //     {
+            //         if (++count > FlushFifoTimeout)
+            //         {
+            //             break;
+            //         }
+            //     }
+            //     while (_usb->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH);
             
-               return EpOk;
+            //    return EpOk;
 
-            }
+            // }
         }
 
         if (EndPoint[EPnum].txCounter >= CdcMaxPacketSize)
@@ -607,6 +605,7 @@ class UsbDriver
     void transferRXCallbackEp0()
     {
         uint16_t len = EndPoint[Ep0].rxCounter;	
+        EndPoint[Ep0].rxBufferPtr = rxBufferEp0;
         if(!len) return;
         if(EndPoint[Ep0].statusRx == EpBusy) return;
     }
@@ -622,7 +621,7 @@ class UsbDriver
         read(len);
     
         epOut(Ep1)->DOEPTSIZ = DoeptTransferPct << USB_OTG_DOEPTSIZ_PKTCNT_Pos
-            | DoeptTransferSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
+            | len << USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
         epOut(Ep1)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;
     }
     
@@ -632,10 +631,8 @@ class UsbDriver
         _usb->GINTSTS &= ~0xFFFFFFFF;
         
         _dev->DAINTMSK = 
-            Ep0Mask << USB_OTG_DAINTMSK_IEPM_Pos |
-            Ep1Mask << USB_OTG_DAINTMSK_IEPM_Pos |
-            Ep0Mask << USB_OTG_DAINTMSK_OEPM_Pos |
-            Ep1Mask << USB_OTG_DAINTMSK_OEPM_Pos ;
+            (Ep0Mask | Ep1Mask) << USB_OTG_DAINTMSK_IEPM_Pos |
+            (Ep0Mask | Ep1Mask) << USB_OTG_DAINTMSK_OEPM_Pos ;
 
         _dev->DOEPMSK = USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;  // Unmask SETUP Phase done Mask, Transfer Completed interrupt for OUT
         _dev->DIEPMSK = USB_OTG_DIEPMSK_XFRCM;                          // TransfeR Completed interrupt for IN
@@ -669,8 +666,8 @@ class UsbDriver
     void enumerate_Setup()
     {
         uint16_t len = setup_pkt_data.setup_pkt.wLength;
-        uint8_t *ptr;
-        // printf(" s%04Xv%04X[%d]", setup_pkt_data.setup_pkt.wRequest, setup_pkt_data.setup_pkt.wValue, len);
+        uint8_t *ptr = rxBufferEp1;
+        printf(" s%04Xv%04X[%d]", setup_pkt_data.setup_pkt.wRequest, setup_pkt_data.setup_pkt.wValue, len);
         switch(setup_pkt_data.setup_pkt.wRequest)
         {
             case ReqTypeHostToDeviceGetDeviceDecriptor:
@@ -727,9 +724,9 @@ class UsbDriver
                 break;     
             
             case CdcGetLineCoding:                              // Request 0x21A1
-                if(CdcLineCodingLength < len) len = CdcLineCodingLength;
+                if (CdcLineCodingLength < len) len = CdcLineCodingLength;
                 // ptr = const_cast<uint8_t*>(lineCoding);
-                device_state |= DEVICE_STATE_LINECODED;
+                // device_state |= DEVICE_STATE_LINECODED;
                 break;
             
             case CdcSetLineCoding:                              // Request 0x2021
@@ -749,8 +746,8 @@ class UsbDriver
     
     uint32_t isEpStuck(uint8_t EPnum)
     {
-        if ((epIn(EPnum)->DIEPCTL & USB_OTG_DIEPCTL_EPENA)  &       // EPENA stuck
-            !(epIn(EPnum)->DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ) &    // No data pending
+        if ((epIn(EPnum)->DIEPCTL & USB_OTG_DIEPCTL_EPENA)  &&      // EPENA stuck
+            !(epIn(EPnum)->DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ) &&   // No data pending
             (epIn(EPnum)->DIEPTSIZ & USB_OTG_HCTSIZ_PKTCNT))        // Packet count pending
         {
             return EpFailed;
