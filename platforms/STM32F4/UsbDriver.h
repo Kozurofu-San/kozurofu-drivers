@@ -58,17 +58,17 @@ class UsbDriver
         // FIFO sizes
         _usb->GRXFSIZ = RxFifoSize;     // All EPs RX FIFO RAM size
         _usb->DIEPTXF0_HNPTXFSIZ = (TxEp0FifoSize << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (RxFifoSize << USB_OTG_DIEPTXF_INEPTXSA_Pos);
-        _usb->DIEPTXF[Ep1 - 1] =   (TxEp1FifoSize) << USB_OTG_DIEPTXF_INEPTXFD_Pos | ((RxFifoSize + TxEp0FifoSize) << USB_OTG_DIEPTXF_INEPTXSA_Pos);
+        _usb->DIEPTXF[Ep1 - 1] =   (TxEp1FifoSize << USB_OTG_DIEPTXF_INEPTXFD_Pos) | ((RxFifoSize + TxEp0FifoSize) << USB_OTG_DIEPTXF_INEPTXSA_Pos);
         _usb->DIEPTXF[Ep2 - 1] = 0;
-        _usb->DIEPTXF[Ep3 - 1] = 0;
+        // _usb->DIEPTXF[Ep3 - 1] = 0;
         // _usb->DIEPTXF[Ep2 - 1] =   ((TxEp2FifoSize) << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (RxFifoSize+TxEp0FifoSize+TxEp1FifoSize);
-        // _usb->DIEPTXF[Ep3 - 1] =   ((TxEp3FifoSize) << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (RxFifoSize+TxEp0FifoSize+TxEp1FifoSize+TxEp2FifoSize); 
-        for(uint32_t i = 1; i < 0x10 ; i++){
-            USB_OTG_FS->DIEPTXF[i] = 0;
-        }
+        _usb->DIEPTXF[Ep3 - 1] =   ((TxEp3FifoSize) << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (RxFifoSize+TxEp0FifoSize+TxEp1FifoSize+TxEp2FifoSize); 
+        // for(uint32_t i = 3; i < 0x10 ; i++){
+        //     USB_OTG_FS->DIEPTXF[i] = 0;
+        // }
         /* Init  EP0: 1 Packet, 3*8 bytes */
         epOut(Ep0)->DOEPTSIZ = 1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos // This field is decremented to zero after a packet is written into the RxFIFO
-            | CdcMaxPacketSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos   // Set in descriptor
+            | MaxPacketSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos   // Set in descriptor
             | USB_OTG_DOEPTSIZ_STUPCNT;                         // STUPCNT==0x11 means, EP can recieve 3 packets. RM says to set STUPCNT = 3
         epOut(Ep0)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA; // Clear NAK and enable EP0
     
@@ -84,8 +84,9 @@ class UsbDriver
             EndPoint[i].rxCounter = 0;
             EndPoint[i].txCounter = 0;
         }
-        EndPoint[Ep0].rxBufferPtr = rxBufferEp0;     // RX Buffer for EP0
-        EndPoint[Ep1].rxBufferPtr = rxBufferEp1;	  // RX Buffer for EP1
+        EndPoint[Ep0].rxBufferPtr = rxBufferEp0;    // RX Buffer for EP0
+        EndPoint[Ep1].rxBufferPtr = rxBufferEp1;	// RX Buffer for CDC data
+        EndPoint[Ep2].rxBufferPtr = rxBufferEp2;	// RX Buffer for MSC data
 
         // Interrupts
         NVIC_SetPriority(OTG_FS_IRQn, 6);
@@ -134,6 +135,17 @@ class UsbDriver
                     epIn(Ep1)->DIEPINT = USB_OTG_DIEPINT_XFRC;	
                 }
             }
+
+            if (epNums & (Ep3Mask << USB_OTG_DAINT_IEPINT_Pos))
+            {
+                uint32_t intr = epIn(Ep3)->DIEPINT;
+                printf("\nI3(%04X)", (unsigned int)intr);
+                if (intr & USB_OTG_DIEPINT_XFRC)        // Transfer completed interrupt
+                {
+                    transferTxCallback(Ep3);			// Process TX transmission (if TX buffer is not empty)
+                    epIn(Ep3)->DIEPINT = USB_OTG_DIEPINT_XFRC;	
+                }
+            }
             return;
         }
         
@@ -156,18 +168,31 @@ class UsbDriver
                 }
                 epOut(Ep0)->DOEPINT = intr;
             }
-
+            
             if (epNums & (Ep1Mask << USB_OTG_DAINT_OEPINT_Pos))
             {
                 uint32_t intr = epOut(Ep1)->DOEPINT;
                 printf("\nO1(%04X)", (unsigned int)intr);
                 if (intr & USB_OTG_DOEPINT_XFRC)
                 {
-                    transferRxCallback();
+                    transferRxCallback(Ep1);
                     epOut(Ep1)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;  // CNAK and EPENA must be set again after every interrupt to let this EP recieve upcoming data
                 }
                 epOut(Ep1)->DOEPINT = intr;
             }
+            
+            if (epNums & (Ep2Mask << USB_OTG_DAINT_OEPINT_Pos))
+            {
+                uint32_t intr = epOut(Ep2)->DOEPINT;
+                printf("\nO2(%04X)", (unsigned int)intr);
+                if (intr & USB_OTG_DOEPINT_XFRC)
+                {
+                    transferRxCallback(Ep2);
+                    epOut(Ep2)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;  // CNAK and EPENA must be set again after every interrupt to let this EP recieve upcoming data
+                }
+                epOut(Ep2)->DOEPINT = intr;
+            }
+            
             return;
         }
 
@@ -241,6 +266,7 @@ class UsbDriver
     
         epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;
         while (epIn(EPnum)->DIEPTSIZ);  // Make sure zlp is gone
+        printf(" z");
     
         device_state &= ~DEVICE_STATE_TX_PR;
     
@@ -255,7 +281,7 @@ class UsbDriver
         uint8_t *tmp_ptr = EndPoint[dfifo].rxBufferPtr;
     
         // If unprocessed data length exceeds Max buffer length, it has to be rewritten
-        if (dfifo && ((EndPoint[dfifo].rxCounter + len) > RxBufferEp1Size))
+        if (dfifo && ((EndPoint[dfifo].rxCounter + len) > MaxPacketSize))
         {
             EndPoint[dfifo].rxBufferPtr = rxBufferEp1;
             EndPoint[dfifo].rxCounter = 0;
@@ -265,7 +291,7 @@ class UsbDriver
         for (uint32_t i = 0; i < block_cnt; i++)
         {
             *ptr++ = *fifo(0);
-            // printf(" r%08X", (unsigned int)*ptr);
+            printf(" r%08X", (unsigned int)*ptr);
         }
     
         if (dfifo > 0)
@@ -286,7 +312,7 @@ class UsbDriver
         uint32_t *ptr = reinterpret_cast<uint32_t *>(src);
         for (uint32_t i = 0; (i < block_cnt) ; i++)
         {
-            // printf(" w%08X", (unsigned int)*ptr);
+            printf(" w%08X", (unsigned int)*ptr);
             *fifo(dfifo) = *ptr++;
         }
 
@@ -300,19 +326,19 @@ class UsbDriver
     {
         if (EndPoint[EPnum].statusTx == EpBusy)
         {
-            epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;	
+            epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;
             return EpFailed;
-        }	
+        }
 
         if (!EndPoint[EPnum].txCounter)        // No data in TX Buffer
         {
             if (EndPoint[EPnum].statusTx == EpZlp)
-            {			
+            {
                 sendZlp(EPnum);
                 return EpOk;
             }
-            epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;	
-            device_state &= ~DEVICE_STATE_TX_PR;			
+            epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;
+            device_state &= ~DEVICE_STATE_TX_PR;
             EndPoint[EPnum].statusTx = EpReady;
             epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
             return EpOk;
@@ -321,8 +347,8 @@ class UsbDriver
         uint16_t max_tx_sz = (EPnum == 0) ? MaxCdcEp0TxSiz : MaxCdcEp1TxSiz; // Max transfer size considering TX FIFO size
 
         uint32_t len = (EndPoint[EPnum].txCounter > max_tx_sz) ? max_tx_sz : EndPoint[EPnum].txCounter;
-        uint32_t residue = (len % CdcMaxPacketSize) ? 1 : 0;
-        uint32_t pct_cnt = len / CdcMaxPacketSize + residue;
+        uint32_t residue = (len % MaxPacketSize) ? 1 : 0;
+        uint32_t pct_cnt = len / MaxPacketSize + residue;
 
         EndPoint[EPnum].statusTx = EpBusy;      // Set Busy flag
 
@@ -354,7 +380,7 @@ class UsbDriver
             return EpFailed;    // Previous transaction is not finished
         }
     
-        uint32_t max_transfer_sz = CdcMaxPacketSize - 1;
+        uint32_t max_transfer_sz = MaxPacketSize - 1;
         max_transfer_sz += (EPnum == 0) ? MaxCdcEp0TxSiz : MaxCdcEp1TxSiz;
         if (len > max_transfer_sz) return EpFailed;
         
@@ -375,57 +401,79 @@ class UsbDriver
         }
     }
 
-    void transferRxCallback()
+    void transferRxCallback(uint8_t EPnum)
     {
-        if (EndPoint[Ep1].statusRx == EpBusy) return;
-        uint16_t len = EndPoint[Ep1].rxCounter;
+        if (EndPoint[EPnum].statusRx == EpBusy) return;
+        uint16_t len = EndPoint[EPnum].rxCounter;
         
-        EndPoint[Ep1].rxBufferPtr -= EndPoint[Ep1].rxCounter;      // Reset RX counter and buffer pointer
-        EndPoint[Ep1].rxCounter = 0;	
+        EndPoint[EPnum].rxBufferPtr -= EndPoint[EPnum].rxCounter;      // Reset RX counter and buffer pointer
+        EndPoint[EPnum].rxCounter = 0;
         
         read(len);
     
-        epOut(Ep1)->DOEPTSIZ = DoeptTransferPct << USB_OTG_DOEPTSIZ_PKTCNT_Pos
+        epOut(EPnum)->DOEPTSIZ = DoeptTransferPct << USB_OTG_DOEPTSIZ_PKTCNT_Pos
             | len << USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
-        epOut(Ep1)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;
+        epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;
     }
     
     void enumerateReset()
     {
-        device_state = DEVICE_STATE_RESET;  
+        device_state = DEVICE_STATE_RESET;
         _usb->GINTSTS &= ~0xFFFFFFFF;
         
-        _dev->DAINTMSK = 
-            (Ep0Mask | Ep1Mask) << USB_OTG_DAINTMSK_IEPM_Pos |
-            (Ep0Mask | Ep1Mask) << USB_OTG_DAINTMSK_OEPM_Pos ;
+        _dev->DAINTMSK =
+            (Ep0Mask | Ep1Mask | Ep3Mask) << USB_OTG_DAINTMSK_IEPM_Pos |
+            (Ep0Mask | Ep1Mask | Ep2Mask) << USB_OTG_DAINTMSK_OEPM_Pos ;
 
         _dev->DOEPMSK = USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;  // Unmask SETUP Phase done Mask, Transfer Completed interrupt for OUT
         _dev->DIEPMSK = USB_OTG_DIEPMSK_XFRCM;                          // TransfeR Completed interrupt for IN
         _dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;                            // Before Enumeration set address 0
     
+        // CDC
         epIn(Ep1)->DIEPCTL =
-            USB_OTG_DIEPCTL_SNAK    |   // Set NAK
-            USB_OTG_DIEPCTL_TXFNUM_0|   // TX Number 1
-            USB_OTG_DIEPCTL_EPTYP_1 |   // Eptype 10 means Bulk
-            USB_OTG_DIEPCTL_USBAEP  |   // Set Endpoint active
-            CdcMaxPacketSize;           // Max Packet size (bytes)
+            USB_OTG_DIEPCTL_SNAK            |   // Set NAK
+            1 << USB_OTG_DIEPCTL_TXFNUM_Pos |   // TX Number 1
+            2 << USB_OTG_DIEPCTL_EPTYP_Pos  |   // Eptype 10 - Bulk
+            USB_OTG_DIEPCTL_USBAEP          |   // Set Endpoint active
+            MaxPacketSize;                      // Max Packet size (bytes)
         
         epOut(Ep1)->DOEPCTL =
-            USB_OTG_DOEPCTL_EPENA   |   // Enable Endpoint
-            USB_OTG_DOEPCTL_CNAK    |   // Clear NAK
-            USB_OTG_DOEPCTL_EPTYP_1 |   // Eptype 10 means Bulk
-            USB_OTG_DOEPCTL_USBAEP  |   // Set Endpoint active
-            CdcMaxPacketSize;           // CHK MPSIZ The application must program this field with the maximum packet size for the current logical endpoint. This value is in bytes
+            USB_OTG_DOEPCTL_EPENA           |   // Enable Endpoint
+            USB_OTG_DOEPCTL_CNAK            |   // Clear NAK
+            2 << USB_OTG_DOEPCTL_EPTYP_Pos  |   // Eptype 10 - Bulk
+            USB_OTG_DOEPCTL_USBAEP          |   // Set Endpoint active
+            MaxPacketSize;                      // MPSIZ The application must program this field with the maximum packet size for the current logical endpoint. This value is in bytes
     	
         epOut(Ep1)->DOEPTSIZ = DoeptTransferPct << USB_OTG_DOEPTSIZ_PKTCNT_Pos  // RM quote: Indicates the total number of USB packets that constitute the Transfer Size amount of data for this endpoint. This field is decremented every time a packet (maximum size or short packet) is written to the RxFIFO
             | DoeptTransferSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos;                 // Transfer size. If you set transfer size = max. packet, the core will interrupt the application at the end of each packet
     
+        // CDC Interrupt
         epIn(Ep2)->DIEPCTL =
             USB_OTG_DIEPCTL_SNAK            |
             2 << USB_OTG_DIEPCTL_TXFNUM_Pos |
-            USB_OTG_DIEPCTL_EPTYP           |     // Eptype 11 means Interrupt EP 
+            3 << USB_OTG_DIEPCTL_EPTYP_Pos  |     // Eptype 11 - Interrupt EP 
             USB_OTG_DIEPCTL_USBAEP          |
-            8 << USB_OTG_DIEPCTL_MPSIZ_Pos  ;                                                       
+            8 << USB_OTG_DIEPCTL_MPSIZ_Pos  ;
+
+        // MSC
+        epOut(Ep2)->DOEPCTL =
+            USB_OTG_DOEPCTL_EPENA           |   // Enable Endpoint
+            USB_OTG_DOEPCTL_CNAK            |   // Clear NAK
+            2 << USB_OTG_DOEPCTL_EPTYP_Pos  |   // Eptype 10 means Bulk
+            USB_OTG_DOEPCTL_USBAEP          |   // Set Endpoint active
+            MaxPacketSize;                      // Size (bytes)
+        
+        epOut(Ep2)->DOEPTSIZ = DoeptTransferPct << USB_OTG_DOEPTSIZ_PKTCNT_Pos
+            | DoeptTransferSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
+        
+        epIn(Ep3)->DIEPCTL =
+            USB_OTG_DIEPCTL_SNAK            |   // Set NAK
+            3 << USB_OTG_DIEPCTL_TXFNUM_Pos |   // TX Number 3
+            2 << USB_OTG_DIEPCTL_EPTYP_Pos  |   // Eptype 10 - Bulk
+            USB_OTG_DIEPCTL_USBAEP          |   // Set Endpoint active
+            MaxPacketSize;                      // Max Packet size (bytes)
+                // epIn(Ep3)->DIEPTSIZ = 1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos;
+                // epIn(Ep3)->DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
     }
     
     void enumerateSetup()
@@ -445,15 +493,15 @@ class UsbDriver
                     case DescriptorTypeConfiguration:           // Request 0x0680  Value 0x0200
                         if(ConfigurationDescriptorLength < len) len = ConfigurationDescriptorLength;
                         ptr = const_cast<uint8_t*>(configurationDescriptor);
-                        break;    
+                        break;
                     case DescriptorTypeDeviceQualifier:         // Request 0x0680  Value 0x0600
                         if(DeviceQualifierLength < len) len = DeviceQualifierLength; 
                         ptr = const_cast<uint8_t*>(deviceQualifierDescriptor);
-                        break;          
+                        break;
                     case DescriptorTypeLangString:              // Request 0x0680  Value 0x0300
                         if(LangDescriptorLength < len) len = LangDescriptorLength;   
                         ptr = const_cast<uint8_t*>(languageStringDescriptor);
-                        break; 
+                        break;
                     case DescriptorTypeMfcString:               // Request 0x0680  Value 0x0301
                         if(MfcDescriptorLength < len) len = MfcDescriptorLength;
                         ptr = const_cast<uint8_t*>(manufactorStringDescriptor);
@@ -461,7 +509,7 @@ class UsbDriver
                     case DescriptorTypeProdString:              // Request 0x0680  Value 0x0302
                         if(ProductDescriptorLength < len) len = ProductDescriptorLength;
                         ptr = const_cast<uint8_t*>(productStringDescriptor);
-                        break;                     
+                        break;
                     case DescriptorTypeSerialString:            // Request 0x0680  Value 0x0303
                         if(SerialDescriptorLength < len) len = SerialDescriptorLength;
                         ptr = const_cast<uint8_t*>(serialNumberStringDescriptor);
@@ -486,8 +534,9 @@ class UsbDriver
             case ReqTypeDeviceToHostSetConfiguration:           // Request 0x0900
                 len = 0;    // ZLP
                 // TODO: set configuration
-                break;     
+                break;
             
+            // CDC
             case CdcGetLineCoding:                              // Request 0x21A1
                 if (CdcLineCodingLength < len) len = CdcLineCodingLength;
                 // ptr = const_cast<uint8_t*>(lineCoding);
@@ -495,16 +544,26 @@ class UsbDriver
                 break;
             
             case CdcSetLineCoding:                              // Request 0x2021
-                len = 0;		
-                break;       
+                len = 0;
+                break;
             case CdcSetControlLineState:                        // Request 0x2221
-                len = 0;	
-                break;	
+                len = 0;
+                break;
             case ClearFeatureEndp:                              // Request 0x0201
                 return;
 
-            case 0x0:
+            // MSC
+            case MscBulkOnlyReset:                              // Request 0xFF21
+                _usb->GRSTCTL = (2 << USB_OTG_GRSTCTL_TXFNUM_Pos) | USB_OTG_GRSTCTL_TXFFLSH;   // Flush TX FIFO
+                while (USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH);
+                len = 0;
                 break;
+            case MscGetMaxLun:                                  // Request 0xFEA1
+                if (1 < len) len = 1;
+                static uint8_t maxLun = 1;
+                ptr = const_cast<uint8_t*>(&maxLun);
+                break;
+
             default:
                 break;
         } 
@@ -522,7 +581,7 @@ class UsbDriver
     static constexpr uint32_t Ep2Mask = 1 << Ep2;
     static constexpr uint32_t Ep3Mask = 1 << Ep3;
 
-    static constexpr uint8_t CdcMaxPacketSize   = 64;
+    static constexpr uint8_t MaxPacketSize      = 64;
     static constexpr uint8_t CdcCmdPacketSize   = 8;
     static constexpr uint8_t Ep0Size            = 64;
     static constexpr uint8_t EpCount            = 3;
@@ -533,7 +592,7 @@ class UsbDriver
     static constexpr uint16_t LangIdString = 1033;
 
     static constexpr uint8_t DeviceDescriptorLength         = 18;
-    static constexpr uint8_t ConfigurationDescriptorLength  = 67;
+    static constexpr uint8_t ConfigurationDescriptorLength  = 67 + 0*23;
     static constexpr uint8_t LangDescriptorLength           = 4;
     static constexpr uint8_t MfcDescriptorLength            = 38;
     static constexpr uint8_t ProductDescriptorLength        = 44;
@@ -576,15 +635,18 @@ class UsbDriver
     static constexpr uint16_t CdcSetLineCoding                      = 0x2021;
     static constexpr uint16_t CdcSetControlLineState                = 0x2221;
     static constexpr uint16_t ClearFeatureEndp                      = 0x0102;
+    static constexpr uint16_t MscBulkOnlyReset                      = 0xFF21;   // Host-to-Device, Class, Interface
+    static constexpr uint16_t MscGetMaxLun                          = 0xFEA1;   // Device-to-Host, Class, Interface
 
-    static constexpr uint32_t StsDataUpdt    = 2 << USB_OTG_GRXSTSP_PKTSTS_Pos;
-    static constexpr uint32_t StsSetupUpdt   = 6 << USB_OTG_GRXSTSP_PKTSTS_Pos;
+
+    static constexpr uint32_t StsDataUpdt  = 2 << USB_OTG_GRXSTSP_PKTSTS_Pos;
+    static constexpr uint32_t StsSetupUpdt = 6 << USB_OTG_GRXSTSP_PKTSTS_Pos;
 
     static constexpr uint16_t RxBufferEp0Size = 8;
-    static constexpr uint16_t RxBufferEp1Size = 64;
     
     uint8_t rxBufferEp0[RxBufferEp0Size];
-    uint8_t rxBufferEp1[RxBufferEp1Size];
+    uint8_t rxBufferEp1[MaxPacketSize];
+    uint8_t rxBufferEp2[MaxPacketSize];
     
     typedef enum
     {
@@ -658,14 +720,14 @@ class UsbDriver
     /* Device string descriptor */
     static constexpr uint8_t deviceDescriptor[DeviceDescriptorLength] = {
         DeviceDescriptorLength,     
-        0x01,                       /* bDescriptorType = device */
-        0x00, 0x02,                 /* bcdUSB  0x0110 = usb 1.1 ; 0x0200 = usb 2.0 */
-        0x02,                       /* bDeviceClass = 0 */
+        0x01,                       /* bDescriptorType: device */
+        0x00, 0x02,                 /* bcdUSB  0x0110: usb 1.1 ; 0x0200: usb 2.0 */
+        0xEF,                       /* bDeviceClass: Composite */
         0x02,                       /* bDeviceSubClass */
         0x00,                       /* bDeviceProtocol */
-        Ep0Size,                    /* bMaxPacketSize0 = EP0 size (64b) */
-        loByte(Vid), hiByte(Vid),   /* VID */
-        loByte(Pid), hiByte(Pid),   /* PID */
+        Ep0Size,                    /* bMaxPacketSize0: EP0 size (64 b) */
+        loByte(Vid), hiByte(Vid),   /* VID: STM */
+        loByte(Pid), hiByte(Pid),   /* PID: STM */
         0x00, 0x01,                 /* bcdDevice Version */
         0x01,                       /* iManufacturer */
         0x02,                       /* iProduct */
@@ -676,20 +738,18 @@ class UsbDriver
     /* Configuration descriptor */
     static constexpr uint8_t configurationDescriptor[ConfigurationDescriptorLength] = {
         /* Configuration descriptor */
-        0x09,                           /* bLength: Configuration Descriptor size */
-        0x02,                           /* bDescriptorType: Configuration */
-        ConfigurationDescriptorLength,  /* wTotalLength:no of returned bytes */
-        0x00,
-        0x02,                           /* bNumInterfaces: 2 interface */
-        0x01,                           /* bConfigurationValue: Configuration value */
-        0x00,                           /* iConfiguration: Index of string descriptor describing the configuration */
-        0xC0,                           /* bmAttributes: self powered */
-        0x32,                           /* MaxPower 0 mA */
-
+        0x09,                                   /* bLength: Configuration Descriptor size */
+        0x02,                                   /* bDescriptorType: Configuration */
+        ConfigurationDescriptorLength, 0x00,    /* wTotalLength:no of returned bytes */
+        0x02,                                   /* bNumInterfaces: 3 interface */
+        0x01,                                   /* bConfigurationValue: Configuration value */
+        0x00,                                   /* iConfiguration: Index of string descriptor describing the configuration */
+        0xC0,                                   /* bmAttributes: self powered */
+        0x32,                                   /* MaxPower 100 mA */
+        
         /*Interface Descriptor */
         0x09,           /* bLength: Interface Descriptor size */
         0x04,           /* bDescriptorType: Interface */
-        /* Interface descriptor type */
         0x00,           /* bInterfaceNumber: Number of Interface */
         0x00,           /* bAlternateSetting: Alternate setting */
         0x01,           /* bNumEndpoints: One endpoints used */
@@ -735,7 +795,7 @@ class UsbDriver
 
         /*Data class interface descriptor*/
         0x09,           /* bLength: Endpoint Descriptor size */
-        0x04,           /* bDescriptorType: */
+        0x04,           /* bDescriptorType: Interface */
         0x01,           /* bInterfaceNumber: Number of Interface */
         0x00,           /* bAlternateSetting: Alternate setting */
         0x02,           /* bNumEndpoints: Two endpoints used */
@@ -749,7 +809,7 @@ class UsbDriver
         0x05,           /* bDescriptorType: Endpoint */
         0x01,           /* bEndpointAddress */
         0x02,           /* bmAttributes: Bulk */
-        loByte(CdcMaxPacketSize), hiByte(CdcMaxPacketSize),  /* wMaxPacketSize: */
+        loByte(MaxPacketSize), hiByte(MaxPacketSize),  /* wMaxPacketSize: */
         0x00,           /* bInterval: ignore for Bulk transfer */
 
         /*Endpoint IN Descriptor*/
@@ -757,8 +817,35 @@ class UsbDriver
         0x05,           /* bDescriptorType: Endpoint */
         0x81,           /* bEndpointAddress */
         0x02,           /* bmAttributes: Bulk */
-        loByte(CdcMaxPacketSize), hiByte(CdcMaxPacketSize), /* wMaxPacketSize: */
-        0x00            /* bInterval: ignore for Bulk transfer */
+        loByte(MaxPacketSize), hiByte(MaxPacketSize), /* wMaxPacketSize: */
+        0x00,           /* bInterval: ignore for Bulk transfer */
+        
+        // /*Data class interface descriptor*/
+        // 0x09,           /* bLength: Endpoint Descriptor size */
+        // 0x04,           /* bDescriptorType: Interface */
+        // 0x02,           /* bInterfaceNumber: Number of Interface */
+        // 0x00,           /* bAlternateSetting: Alternate setting */
+        // 0x02,           /* bNumEndpoints: Two endpoints used */
+        // 0x08,           /* bInterfaceClass: MSC */
+        // 0x06,           /* bInterfaceSubClass: */
+        // 0x50,           /* bInterfaceProtocol: */
+        // 0x00,           /* iInterface: */
+        
+        // /*Endpoint OUT Descriptor*/
+        // 0x07,           /* bLength: Endpoint Descriptor size */
+        // 0x05,           /* bDescriptorType: Endpoint */
+        // 0x02,           /* bEndpointAddress */
+        // 0x02,           /* bmAttributes: Bulk */
+        // loByte(MaxPacketSize), hiByte(MaxPacketSize),  /* wMaxPacketSize: */
+        // 0x00,           /* bInterval: ignore for Bulk transfer */
+
+        // /*Endpoint IN Descriptor*/
+        // 0x07,           /* bLength: Endpoint Descriptor size */
+        // 0x05,           /* bDescriptorType: Endpoint */
+        // 0x83,           /* bEndpointAddress */
+        // 0x02,           /* bmAttributes: Bulk */
+        // loByte(MaxPacketSize), hiByte(MaxPacketSize), /* wMaxPacketSize: */
+        // 0x00            /* bInterval: ignore for Bulk transfer */
     };
 
     /* Language string descriptor */
@@ -797,27 +884,27 @@ class UsbDriver
     static constexpr uint8_t productStringDescriptor[ProductDescriptorLength] = {
         ProductDescriptorLength, 
         0x03,                   /* USB_DESC_TYPE_STRING */
-        'S', 0x00, 
-        'T', 0x00, 
-        'M', 0x00, 
-        '3', 0x00, 
-        '2', 0x00, 
-        ' ', 0x00, 
-        'V', 0x00, 
-        'i', 0x00, 
+        'G', 0x00, 
         'r', 0x00, 
-        't', 0x00, 
+        'o', 0x00, 
         'u', 0x00, 
-        'a', 0x00, 
-        'l', 0x00, 
-        ' ', 0x00,
-        'C', 0x00, 
-        'o', 0x00, 
-        'm', 0x00, 
+        'n', 0x00, 
+        'd', 0x00, 
+        ' ', 0x00, 
         'P', 0x00, 
-        'o', 0x00, 
+        'e', 0x00, 
+        'n', 0x00, 
+        'e', 0x00, 
+        't', 0x00, 
         'r', 0x00, 
-        't', 0x00
+        'a', 0x00,
+        't', 0x00, 
+        ' ', 0x00, 
+        'R', 0x00, 
+        'a', 0x00, 
+        'd', 0x00, 
+        'a', 0x00, 
+        'r', 0x00
     };
 
     /* Serial number string descriptor */
