@@ -148,7 +148,7 @@ class UsbDriver
                 printf("\nO0(%04X)", (unsigned int)intr);
                 if (intr & USB_OTG_DOEPINT_STUP)    // Setup packet recieved
                 {
-                    enumerate_Setup();
+                    enumerateSetup();
                 }
                 if (intr & USB_OTG_DOEPINT_XFRC)    // Transfer completed
                 {
@@ -176,21 +176,21 @@ class UsbDriver
         {
             uint32_t status = _usb->GRXSTSP;   // Read out packet status
 
-            if (((status & USB_OTG_GRXSTSP_PKTSTS) >> USB_OTG_GRXSTSP_PKTSTS_Pos) ==  StsDataUpdt)      // 0010: OUT data packet received
+            if ((status & USB_OTG_GRXSTSP_PKTSTS) ==  StsDataUpdt)      // 0010: OUT data packet received
             {
                 printf("\n%d d", cnt++); 
                 if (status & USB_OTG_GRXSTSP_BCNT)     // Byte count > 0
                 {
-                    uint16_t length = ((status & USB_OTG_GRXSTSP_BCNT) >> USB_OTG_GRXSTSP_BCNT_Pos);
-                    uint8_t EpNum =	((status & USB_OTG_GRXSTSP_EPNUM) >> USB_OTG_GRXSTSP_EPNUM_Pos);
+                    uint16_t length = (status & USB_OTG_GRXSTSP_BCNT) >> USB_OTG_GRXSTSP_BCNT_Pos;
+                    uint8_t EpNum =	(status & USB_OTG_GRXSTSP_EPNUM) >> USB_OTG_GRXSTSP_EPNUM_Pos;
                     readFifo(EpNum, length);   //  Read data from DFIFO
                 }
             }
-            else if (((status & USB_OTG_GRXSTSP_PKTSTS) >> USB_OTG_GRXSTSP_PKTSTS_Pos) ==  StsSetupUpdt)  // 0110: SETUP data packet received
+            else if ((status & USB_OTG_GRXSTSP_PKTSTS) ==  StsSetupUpdt)  // 0110: SETUP data packet received
             {
                 // Read FFIO
-                setup_pkt_data.raw_data[0] = *fifo(0);
-                setup_pkt_data.raw_data[1] = *fifo(0);
+                setup_pkt_data.rawData[0] = *fifo(0);
+                setup_pkt_data.rawData[1] = *fifo(0);
             }
             printf("\n"); 
             return;
@@ -233,151 +233,13 @@ class UsbDriver
     uint32_t _speed = 0;
     bool _isInit = false;
     
-    static constexpr uint32_t Ep0 = 0;
-    static constexpr uint32_t Ep1 = 1;
-    static constexpr uint32_t Ep2 = 2;
-    static constexpr uint32_t Ep3 = 3;
-    
-    static constexpr uint32_t Ep0Mask = 1 << Ep0;
-    static constexpr uint32_t Ep1Mask = 1 << Ep1;
-    static constexpr uint32_t Ep2Mask = 1 << Ep2;
-    static constexpr uint32_t Ep3Mask = 1 << Ep3;
-
-    static constexpr uint8_t CdcMaxPacketSize   = 64;
-    static constexpr uint8_t CdcCmdPacketSize   = 8;
-    static constexpr uint8_t Ep0Size            = 64;
-    static constexpr uint8_t EpCount            = 3;
-
-    static constexpr uint16_t Vid = 0x0483;
-    static constexpr uint16_t Pid = 0x5740;
-
-    static constexpr uint16_t LangIdString = 1033;
-
-    static constexpr uint8_t DeviceDescriptorLength         = 18;
-    static constexpr uint8_t ConfigurationDescriptorLength  = 67;
-    static constexpr uint8_t LangDescriptorLength           = 4;
-    static constexpr uint8_t MfcDescriptorLength            = 38;
-    static constexpr uint8_t ProductDescriptorLength        = 44;
-    static constexpr uint8_t SerialDescriptorLength         = 26;
-    static constexpr uint8_t DeviceQualifierLength          = 10;
-    static constexpr uint8_t InterfaceStringLength          = 28;
-    static constexpr uint8_t ConfigStringLength             = 22;
-    static constexpr uint8_t CdcLineCodingLength            = 7;
-
-    static constexpr uint16_t RxFifoSize        = 36;
-    static constexpr uint16_t TxEp0FifoSize     = 16;
-    static constexpr uint16_t TxEp1FifoSize     = 320-(RxFifoSize+TxEp0FifoSize);
-    static constexpr uint16_t TxEp2FifoSize     = 0;
-    static constexpr uint16_t TxEp3FifoSize     = 0;
-    static constexpr uint16_t MaxCdcEp0TxSiz    = 64;
-    static constexpr uint16_t MaxCdcEp1TxSiz    = 256;
-    static constexpr uint8_t DoeptTransferSize  = 0x40;
-    static constexpr uint8_t DoeptTransferPct   = 0x01;
-
-    static constexpr uint8_t EpReady    = 0;
-    static constexpr uint8_t EpBusy     = 1;
-    static constexpr uint8_t EpZlp      = 2;
-
-    static constexpr uint8_t EpOk       = 1;
-    static constexpr uint8_t EpFailed   = 0;
-
-    static constexpr uint16_t ReqTypeHostToDeviceGetDeviceDecriptor = 0x0680;
-    static constexpr uint16_t ReqTypeDeviceToHostSetAddress         = 0x0500;
-    static constexpr uint16_t ReqTypeDeviceToHostSetConfiguration   = 0x0900;
-    static constexpr uint16_t DescriptorTypeDevice                  = 0x0100;
-    static constexpr uint16_t DescriptorTypeConfiguration           = 0x0200;
-    static constexpr uint16_t DescriptorTypeLangString              = 0x0300;
-    static constexpr uint16_t DescriptorTypeMfcString               = 0x0301;
-    static constexpr uint16_t DescriptorTypeProdString              = 0x0302;
-    static constexpr uint16_t DescriptorTypeSerialString            = 0x0303;
-    static constexpr uint16_t DescriptorTypeConfigurationString     = 0x0304;
-    static constexpr uint16_t DescriptorTypeInterfaceString         = 0x0305;
-    static constexpr uint16_t DescriptorTypeDeviceQualifier         = 0x0600;
-    static constexpr uint16_t CdcGetLineCoding                      = 0x21A1;
-    static constexpr uint16_t CdcSetLineCoding                      = 0x2021;
-    static constexpr uint16_t CdcSetControlLineState                = 0x2221;
-    static constexpr uint16_t ClearFeatureEndp                      = 0x0102;
-
-    static constexpr uint8_t StsDataUpdt    = 2;
-    static constexpr uint8_t StsSetupUpdt   = 6;
-
-    static constexpr uint16_t RxBufferEp0Size = 8;
-    static constexpr uint16_t RxBufferEp1Size = 64;
-
-    typedef enum
-    {
-        DEVICE_STATE_DEFAULT    = 0,
-        DEVICE_STATE_RESET      = 1,
-        DEVICE_STATE_ADDRESSED  = 2,
-        DEVICE_STATE_LINECODED  = 4,
-        DEVICE_STATE_TX_PR      = 8, /* TX transmission active */
-    } eDeviceState;
-    
-    
-    static constexpr inline USB_OTG_OUTEndpointTypeDef* epOut(uint32_t i)
-    {
-        return reinterpret_cast<USB_OTG_OUTEndpointTypeDef*>(
-            USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE + (i * USB_OTG_EP_REG_SIZE));
-    }
-    
-    static constexpr inline USB_OTG_INEndpointTypeDef* epIn(uint32_t i)
-    {
-        return reinterpret_cast<USB_OTG_INEndpointTypeDef*>(
-            USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE + (i * USB_OTG_EP_REG_SIZE));
-    }
-    
-    static constexpr inline uint32_t* fifo(uint32_t i)
-    {
-        return reinterpret_cast<uint32_t*>(
-            USB_OTG_FS_PERIPH_BASE  + USB_OTG_FIFO_BASE + (i) * USB_OTG_FIFO_SIZE);
-    }
-
-    uint8_t lineCoding[7]={
-        0x00, 
-        0x00,	/* 0x01, */
-        0x00, /* 0xC2, */
-        0x00, /* 0X0001C200 -= 115200 Kb/s */
-        0x00,
-        0x00,
-        0x00	/* 0x08 */
-    };
-    
-    typedef struct EndPointStruct
-    {
-        uint16_t statusRx;
-        uint16_t statusTx;
-    
-        uint16_t rxCounter;
-        uint16_t txCounter;
-        
-        uint8_t *rxBufferPtr;
-        uint8_t *txBufferPtr;
-    } EndPointStruct;
-    EndPointStruct EndPoint[EpCount];	/* All the Enpoints are included in this array */
-
-    typedef struct
-    {
-        uint16_t  wRequest;
-        uint16_t  wValue;
-        uint16_t  wIndex;
-        uint16_t  wLength;
-    } USB_setup_req;	/* SETUP packet buffer. Always 8 bytes */
-
-    typedef union
-    {
-        USB_setup_req setup_pkt;
-        uint32_t raw_data[2];
-    } USB_setup_req_data;
-
-    uint32_t device_state = DEVICE_STATE_DEFAULT; /* Device state */
-
     void sendZlp(uint8_t EPnum)
     {
         epIn(EPnum)->DIEPTSIZ = 1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos   // One Packet
             | 0 << USB_OTG_DIEPTSIZ_XFRSIZ_Pos;          // Zero Length
         epIn(EPnum)->DIEPCTL |= USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA;
     
-        epOut(EPnum)->DOEPCTL |= (USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA);
+        epOut(EPnum)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;
         while (epIn(EPnum)->DIEPTSIZ);  // Make sure zlp is gone
     
         device_state &= ~DEVICE_STATE_TX_PR;
@@ -444,7 +306,7 @@ class UsbDriver
 
         if (!EndPoint[EPnum].txCounter)        // No data in TX Buffer
         {
-            if(EndPoint[EPnum].statusTx == EpZlp)
+            if (EndPoint[EPnum].statusTx == EpZlp)
             {			
                 sendZlp(EPnum);
                 return EpOk;
@@ -512,15 +374,7 @@ class UsbDriver
             return EpOk;
         }
     }
-    
-    void transferRXCallbackEp0()
-    {
-        uint16_t len = EndPoint[Ep0].rxCounter;	
-        EndPoint[Ep0].rxBufferPtr = rxBufferEp0;
-        if(!len) return;
-        if(EndPoint[Ep0].statusRx == EpBusy) return;
-    }
-    
+
     void transferRxCallback()
     {
         if (EndPoint[Ep1].statusRx == EpBusy) return;
@@ -574,15 +428,15 @@ class UsbDriver
             8 << USB_OTG_DIEPCTL_MPSIZ_Pos  ;                                                       
     }
     
-    void enumerate_Setup()
+    void enumerateSetup()
     {
-        uint16_t len = setup_pkt_data.setup_pkt.wLength;
+        uint16_t len = setup_pkt_data.setupPacket.wLength;
         uint8_t *ptr = rxBufferEp1;
-        printf(" s%04Xv%04X[%d]", setup_pkt_data.setup_pkt.wRequest, setup_pkt_data.setup_pkt.wValue, len);
-        switch(setup_pkt_data.setup_pkt.wRequest)
+        printf(" s%04Xv%04X[%d]", setup_pkt_data.setupPacket.wRequest, setup_pkt_data.setupPacket.wValue, len);
+        switch(setup_pkt_data.setupPacket.wRequest)
         {
             case ReqTypeHostToDeviceGetDeviceDecriptor:
-                switch(setup_pkt_data.setup_pkt.wValue)
+                switch(setup_pkt_data.setupPacket.wValue)
                 {
                     case DescriptorTypeDevice:                  // Request 0x0680  Value 0x0100 
                         if(DeviceDescriptorLength < len) len = DeviceDescriptorLength;
@@ -626,7 +480,7 @@ class UsbDriver
                 break;
                 
             case ReqTypeDeviceToHostSetAddress:                 // Request 0x0500
-                _dev->DCFG |= setup_pkt_data.setup_pkt.wValue << 4;
+                _dev->DCFG |= setup_pkt_data.setupPacket.wValue << 4;
                 device_state |= DEVICE_STATE_ADDRESSED;
                 break;
             case ReqTypeDeviceToHostSetConfiguration:           // Request 0x0900
@@ -648,6 +502,9 @@ class UsbDriver
                 break;	
             case ClearFeatureEndp:                              // Request 0x0201
                 return;
+
+            case 0x0:
+                break;
             default:
                 break;
         } 
@@ -655,39 +512,165 @@ class UsbDriver
         setTxBuffer(Ep0, ptr, len);
     }
     
-    // uint32_t isEpStuck(uint8_t EPnum)
-    // {
-    //     if ((epIn(EPnum)->DIEPCTL & USB_OTG_DIEPCTL_EPENA)  &&      // EPENA stuck
-    //         !(epIn(EPnum)->DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ) &&   // No data pending
-    //         (epIn(EPnum)->DIEPTSIZ & USB_OTG_HCTSIZ_PKTCNT))        // Packet count pending
-    //     {
-    //         return EpFailed;
-    //     }
-    //     else return EpOk;
-    // }
+    static constexpr uint32_t Ep0 = 0;
+    static constexpr uint32_t Ep1 = 1;
+    static constexpr uint32_t Ep2 = 2;
+    static constexpr uint32_t Ep3 = 3;
     
-    uint8_t rxBufferEp0[RxBufferEp0Size];   // Recieved data is stored here after application reads DFIFO. RX FIFO is shared
-    uint8_t rxBufferEp1[RxBufferEp1Size];   // Recieved data is stored here after application reads DFIFO. RX FIFO is shared
+    static constexpr uint32_t Ep0Mask = 1 << Ep0;
+    static constexpr uint32_t Ep1Mask = 1 << Ep1;
+    static constexpr uint32_t Ep2Mask = 1 << Ep2;
+    static constexpr uint32_t Ep3Mask = 1 << Ep3;
+
+    static constexpr uint8_t CdcMaxPacketSize   = 64;
+    static constexpr uint8_t CdcCmdPacketSize   = 8;
+    static constexpr uint8_t Ep0Size            = 64;
+    static constexpr uint8_t EpCount            = 3;
+
+    static constexpr uint16_t Vid = 0x0483;
+    static constexpr uint16_t Pid = 0x5740;
+
+    static constexpr uint16_t LangIdString = 1033;
+
+    static constexpr uint8_t DeviceDescriptorLength         = 18;
+    static constexpr uint8_t ConfigurationDescriptorLength  = 67;
+    static constexpr uint8_t LangDescriptorLength           = 4;
+    static constexpr uint8_t MfcDescriptorLength            = 38;
+    static constexpr uint8_t ProductDescriptorLength        = 44;
+    static constexpr uint8_t SerialDescriptorLength         = 26;
+    static constexpr uint8_t DeviceQualifierLength          = 10;
+    static constexpr uint8_t InterfaceStringLength          = 28;
+    static constexpr uint8_t ConfigStringLength             = 22;
+    static constexpr uint8_t CdcLineCodingLength            = 7;
+
+    static constexpr uint16_t RxFifoSize        = 36;
+    static constexpr uint16_t TxEp0FifoSize     = 16;
+    static constexpr uint16_t TxEp1FifoSize     = 320 - (RxFifoSize + TxEp0FifoSize);
+    static constexpr uint16_t TxEp2FifoSize     = 0;
+    static constexpr uint16_t TxEp3FifoSize     = 0;
+    static constexpr uint16_t MaxCdcEp0TxSiz    = 64;
+    static constexpr uint16_t MaxCdcEp1TxSiz    = 256;
+    static constexpr uint8_t DoeptTransferSize  = 0x40;
+    static constexpr uint8_t DoeptTransferPct   = 0x01;
+
+    static constexpr uint8_t EpReady    = 0;
+    static constexpr uint8_t EpBusy     = 1;
+    static constexpr uint8_t EpZlp      = 2;
+
+    static constexpr uint8_t EpOk       = 1;
+    static constexpr uint8_t EpFailed   = 0;
+
+    static constexpr uint16_t ReqTypeHostToDeviceGetDeviceDecriptor = 0x0680;
+    static constexpr uint16_t ReqTypeDeviceToHostSetAddress         = 0x0500;
+    static constexpr uint16_t ReqTypeDeviceToHostSetConfiguration   = 0x0900;
+    static constexpr uint16_t DescriptorTypeDevice                  = 0x0100;
+    static constexpr uint16_t DescriptorTypeConfiguration           = 0x0200;
+    static constexpr uint16_t DescriptorTypeLangString              = 0x0300;
+    static constexpr uint16_t DescriptorTypeMfcString               = 0x0301;
+    static constexpr uint16_t DescriptorTypeProdString              = 0x0302;
+    static constexpr uint16_t DescriptorTypeSerialString            = 0x0303;
+    static constexpr uint16_t DescriptorTypeConfigurationString     = 0x0304;
+    static constexpr uint16_t DescriptorTypeInterfaceString         = 0x0305;
+    static constexpr uint16_t DescriptorTypeDeviceQualifier         = 0x0600;
+    static constexpr uint16_t CdcGetLineCoding                      = 0x21A1;
+    static constexpr uint16_t CdcSetLineCoding                      = 0x2021;
+    static constexpr uint16_t CdcSetControlLineState                = 0x2221;
+    static constexpr uint16_t ClearFeatureEndp                      = 0x0102;
+
+    static constexpr uint32_t StsDataUpdt    = 2 << USB_OTG_GRXSTSP_PKTSTS_Pos;
+    static constexpr uint32_t StsSetupUpdt   = 6 << USB_OTG_GRXSTSP_PKTSTS_Pos;
+
+    static constexpr uint16_t RxBufferEp0Size = 8;
+    static constexpr uint16_t RxBufferEp1Size = 64;
     
-    USB_setup_req_data setup_pkt_data;      // Setup Packet var
+    uint8_t rxBufferEp0[RxBufferEp0Size];
+    uint8_t rxBufferEp1[RxBufferEp1Size];
+    
+    typedef enum
+    {
+        DEVICE_STATE_DEFAULT    = 0,
+        DEVICE_STATE_RESET      = 1,
+        DEVICE_STATE_ADDRESSED  = 2,
+        DEVICE_STATE_LINECODED  = 4,
+        DEVICE_STATE_TX_PR      = 8, /* TX transmission active */
+    } eDeviceState;
+    
+    
+    static constexpr inline USB_OTG_OUTEndpointTypeDef* epOut(uint32_t i)
+    {
+        return reinterpret_cast<USB_OTG_OUTEndpointTypeDef*>(
+            USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE + (i * USB_OTG_EP_REG_SIZE));
+    }
+    
+    static constexpr inline USB_OTG_INEndpointTypeDef* epIn(uint32_t i)
+    {
+        return reinterpret_cast<USB_OTG_INEndpointTypeDef*>(
+            USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE + (i * USB_OTG_EP_REG_SIZE));
+    }
+    
+    static constexpr inline uint32_t* fifo(uint32_t i)
+    {
+        return reinterpret_cast<uint32_t*>(
+            USB_OTG_FS_PERIPH_BASE  + USB_OTG_FIFO_BASE + (i) * USB_OTG_FIFO_SIZE);
+    }
+
+    uint8_t lineCoding[7]={
+        0x00, 
+        0x00,	/* 0x01, */
+        0x00, /* 0xC2, */
+        0x00, /* 0X0001C200 -= 115200 Kb/s */
+        0x00,
+        0x00,
+        0x00	/* 0x08 */
+    };
+    
+    typedef struct EndPointStruct
+    {
+        uint16_t statusRx;
+        uint16_t statusTx;
+    
+        uint16_t rxCounter;
+        uint16_t txCounter;
+        
+        uint8_t *rxBufferPtr;
+        uint8_t *txBufferPtr;
+    } EndPointStruct;
+    EndPointStruct EndPoint[EpCount];	/* All the Enpoints are included in this array */
+
+    typedef struct
+    {
+        uint16_t  wRequest;
+        uint16_t  wValue;
+        uint16_t  wIndex;
+        uint16_t  wLength;
+    } UsbSetupReq;	/* SETUP packet buffer. Always 8 bytes */
+
+    typedef union
+    {
+        UsbSetupReq setupPacket;
+        uint32_t rawData[2];
+    } UsbSetupReqData;
+
+    uint32_t device_state = DEVICE_STATE_DEFAULT; /* Device state */
+
+    UsbSetupReqData setup_pkt_data;      // Setup Packet var
 
     /* Device string descriptor */
     static constexpr uint8_t deviceDescriptor[DeviceDescriptorLength] = {
         DeviceDescriptorLength,     
-        0x01,                       /* Descriptor type - device */
-        0x00, 0x02,                 /*  0x0110 = usb 1.1 ; 0x0200 = usb 2.0 */
-        0x02,                       /* CDC */
-        0x02,                       /*  Abstract Control Model subclass */
-        0x00,                       /* protocol */
-        Ep0Size,                    /* EP0 size */
+        0x01,                       /* bDescriptorType = device */
+        0x00, 0x02,                 /* bcdUSB  0x0110 = usb 1.1 ; 0x0200 = usb 2.0 */
+        0x02,                       /* bDeviceClass = 0 */
+        0x02,                       /* bDeviceSubClass */
+        0x00,                       /* bDeviceProtocol */
+        Ep0Size,                    /* bMaxPacketSize0 = EP0 size (64b) */
         loByte(Vid), hiByte(Vid),   /* VID */
         loByte(Pid), hiByte(Pid),   /* PID */
-        0x00,                       /* ver. (BCD) */
-        0x02,                       /* ver. (BCD) */	
-        0x01,                       /* Manufactor string index */
-        0x02,                       /* Product string index */
-        0x03,                       /* Serial number string index */
-        1                           /* configuration count */
+        0x00, 0x01,                 /* bcdDevice Version */
+        0x01,                       /* iManufacturer */
+        0x02,                       /* iProduct */
+        0x03,                       /* iSerial */
+        1                           /* bNumConfigurations */
     };
 
     /* Configuration descriptor */
