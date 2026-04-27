@@ -50,6 +50,11 @@ class LedStripDriver : public ILedStrip
     {
         
     }
+    
+    inline bool isInit() override
+    {
+        return false;  // Not implemented
+    }
 
     private:
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Adc.h"
+#include "interface/VoltageGet.h"
 
 #include "esp_log.h"
 #include "esp_adc/adc_oneshot.h"
@@ -14,13 +14,14 @@ const static char *TAG = "ADC";
 namespace driver
 {
 
-class AdcDriver : public IAdc
+class AdcDriver : public IVoltageGet
 {
     public:
 
     AdcDriver(adc_unit_t adc, adc_channel_t channel)
-        : _adc(adc), _channel(channel)
     {
+        _adc = adc;
+        _channel = channel;
     }
 
     void init(adc_bitwidth_t width, adc_atten_t atten)
@@ -100,39 +101,64 @@ class AdcDriver : public IAdc
     #endif
     }
 
-    // Get current voltage in volts
-    float getVoltage() override
+    void start() override
     {
-        int value;
-        int voltage;
-        adc_oneshot_read(_adc_oneshot, _channel, &value);
-        if (_calibrated) {
-            ESP_ERROR_CHECK(adc_cali_raw_to_voltage(_cali_handle, value, &voltage));
+
+    }
+    
+    // Get current voltage in volts
+    int32_t getVoltage(size_t channel) override
+    {
+        int value = 0;
+        int voltage = 0;
+        esp_err_t err = adc_oneshot_read(_adc_oneshot, _channel, &value);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "adc_oneshot_read failed: %d, channel=%d", static_cast<int>(err), static_cast<int>(_channel));
+            return 0;
+        }
+        if (_calibrated)
+        {
+            err = adc_cali_raw_to_voltage(_cali_handle, value, &voltage);
+            if (err != ESP_OK)
+            {
+                ESP_LOGE(TAG, "adc_cali_raw_to_voltage failed: %d", static_cast<int>(err));
+                return 0;
+            }
+        }
+        else
+        {
+            voltage = value;
         }
         return voltage;
     }
-    int32_t getRawValue() override
+    int32_t getRawValue(size_t channel) override
     {
-        int value;
-        adc_oneshot_read(_adc_oneshot, _channel, &value);
+        int value = 0;
+        esp_err_t err = adc_oneshot_read(_adc_oneshot, _channel, &value);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "adc_oneshot_read failed: %d, channel=%d", static_cast<int>(err), static_cast<int>(_channel));
+            return 0;
+        }
         return value;
     }
 
     // Set callback for voltage change
-    void onVoltageChange(void (*cb)(uint32_t)) override
+    bool isInit() override
     {
-
+        return 0;
     }
 
     private:
 
-    adc_unit_t _adc;
-    adc_channel_t _channel;
+    inline static adc_unit_t _adc = ADC_UNIT_1;
+    inline static adc_channel_t _channel = ADC_CHANNEL_0;
     void (*_cb)(uint32_t) = nullptr;
 
-    adc_oneshot_unit_handle_t _adc_oneshot;
-    bool _calibrated = false;
-    adc_cali_handle_t _cali_handle = NULL;
+    inline static adc_oneshot_unit_handle_t _adc_oneshot = nullptr;
+    inline static bool _calibrated = false;
+    inline static adc_cali_handle_t _cali_handle = NULL;
 };
 
 }

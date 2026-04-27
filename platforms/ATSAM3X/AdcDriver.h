@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Adc.h"
+#include "interface/VoltageGet.h"
 
 #include "sam3x8e.h"
 #include <cstdint>
@@ -9,7 +9,7 @@
 namespace driver
 {
 
-class AdcDriver : public IAdc
+class AdcDriver : public IVoltageGet
 {
     public:
 
@@ -29,7 +29,7 @@ class AdcDriver : public IAdc
     {
     }
 
-    void start()
+    void start() override
     {
     }
 
@@ -42,12 +42,19 @@ class AdcDriver : public IAdc
     {
         return _channels[channel].data;
     }
+    
+    bool isInit() override
+    {
+        return _isInit;
+    }
 
     private:
 
     Adc *_adc;
     ChannelConfig *_channels;
     size_t _channelCount;
+    
+    bool _isInit = false;
 };
 
 }

@@ -75,6 +75,11 @@ class GpioDriver : public IGpio
         _cb = cb;
     }
     
+    inline bool isInit() override
+    {
+        return false;  // Not implemented
+    }
+
     private:
 
     gpio_num_t _pin;

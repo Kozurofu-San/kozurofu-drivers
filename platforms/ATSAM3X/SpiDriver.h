@@ -1,14 +1,15 @@
 #pragma once
 
-#include "interface/Spi.h"
+#include "interface/Communication.h"
 
-#include "sam3x8e.h"
+#include "asf.h"
 #include "component/component_spi.h"
+#include "spi/spi.h"
 
 namespace driver
 {
 
-class SpiDevice
+class SpiController: public ICommunication
 {
     public:
 
@@ -36,93 +37,157 @@ class SpiDevice
         Bits16 = 0x80
     };
 
-    SpiDevice(Spi *spi)
+    SpiController(Spi *spi)
         : _spi(spi)
     {
     }
 
-    void init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, uint32_t baudRatePrescaler)
+    bool init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, uint32_t speed)
     {
-        // Clock enable
-        if (_spi == SPI0) {
-            PMC->PMC_PCER0 = (1 << ID_SPI0);
-        }
-        
-        _spi->SPI_CR = SPI_CR_SPIDIS; // Disable SPI
-        // Configure mode
-        _spi->SPI_MR = static_cast<uint32_t>(mode)
-            | SPI_MR_WDRBT;
-        _spi->SPI_CSR[0] = static_cast<uint32_t>(clockPolarity)
-            | static_cast<uint32_t>(clockPhase)
-            | static_cast<uint32_t>(dataSize)
-            | SPI_CSR_SCBR(baudRatePrescaler)
-            | SPI_CSR_DLYBCT(0x0); // Delay between chip selects
-
-        // Enable SPI
-        _spi->SPI_CR = SPI_CR_SPIEN;
+        spi_enable_clock(_spi);
+        spi_disable(_spi);
+        spi_reset(_spi);
+        spi_set_lastxfer(_spi);
+        spi_set_master_mode(_spi);
+        spi_disable_mode_fault_detect(_spi);
+        spi_set_peripheral_chip_select_value(_spi, 0);
+        spi_set_clock_polarity(_spi, 0, 0);
+        spi_set_clock_phase(_spi, 0, 0);
+        spi_set_bits_per_transfer(_spi, 0, SPI_CSR_BITS_8_BIT);
+        spi_set_baudrate_div(_spi, 0, (sysclk_get_peripheral_hz() / speed));
+        spi_set_transfer_delay(_spi, 0, 0x40, 0x10);
+        spi_enable(_spi);
+        return true;
     };
+    
+    void write(uint8_t *data, size_t len, size_t bytes = 1) override
+    {
+        for (size_t i = 0; i < len; ++i)
+        {
+            spi_write(_spi, data[i], 0, 0);
+        }
+    };
+
+    void read(uint8_t *data, size_t len, size_t bytes = 1) override
+    {
+        static uint16_t ret;
+        for (size_t i = 0; i < len; ++i)
+        {
+            spi_write(_spi, 0, 0, 0);
+            /* Wait transfer done. */
+            while ((spi_read_status(_spi) & SPI_SR_RDRF) == 0);
+            spi_read(_spi, &ret, 0);
+            data[i] = ret;
+        }
+    };
+    
+    
+    uint32_t sendCommand(uint32_t cmd) override
+    {
+        return 0;
+    }
 
     Spi* getSpi()
     {
         return _spi;
     }
 
+    uint32_t getSpeed() const override
+    {
+        return _speed;
+    }
+
+    void enable() override
+    {
+    }
+
+    void disable() override
+    {
+    }
+
+    bool isInit() override
+    {
+        return _isInit;
+    }
+    
+
     private:
 
     Spi* _spi;
+    uint32_t _speed;
+
+    bool _isInit = false;
 };
     
-class SpiDriver : public ISpi
+class SpiDriver : public ICommunication
 {
     public:
-
-    SpiDriver(SpiDevice &spi)
-        : _spi(spi.getSpi())
+    
+    enum class IdleState : bool
     {
-    }
-
-    void init()
-    {
-
-    }
-
-    void write(uint8_t *data, size_t len) override
-    {
-        for (size_t i = 0; i < len; ++i)
-        {
-            while (!(_spi->SPI_SR & SPI_SR_TDRE));
-            _spi->SPI_TDR = data[i];
-        }
+        Low = false,
+        High = true
     };
 
-    void read(uint8_t *data, size_t len) override
+    SpiDriver(SpiController &spi)
+        : _spi(spi)
     {
-        for (size_t i = 0; i < len; ++i)
-        {
-            while (!(_spi->SPI_SR & SPI_SR_TDRE));
-            _spi->SPI_TDR = 0xFF;
-            while (!(_spi->SPI_SR & SPI_SR_RDRF));
-            data[i] = _spi->SPI_RDR;
-        }
+    }
+
+    bool init(GpioDriver *cs, IdleState idleState)
+    {
+        _cs = cs;
+        _cs->write(!_idleState);
+        _idleState = static_cast<bool>(idleState);
+        return _spi.isInit();
+    }
+    
+    void write(uint8_t *data, size_t len, size_t bytes = 1) override
+    {
+        _spi.write(data, len);
     };
+
+    void read(uint8_t *data, size_t len, size_t bytes = 1) override
+    {
+        _spi.read(data, len);
+    };
+
+    inline uint32_t sendCommand(uint32_t cmd) override
+    {
+        return _spi.sendCommand(cmd);
+    }
     
-    
-    void sendCommand(uint32_t cmd) override
+    inline void enable() override
     {
-
-    }
-    void sendData(uint32_t data) override
-    {
-
-    }
-    uint32_t readData() override
-    {
-        return 0;
+        if (_cs)
+        {
+            _cs->write(!_idleState);
+        }
     }
 
+    inline void disable() override
+    {
+        if (_cs)
+        {
+            _cs->write(_idleState);
+        }
+    }
+
+    inline uint32_t getSpeed() const override
+    {
+        return _spi.getSpeed();
+    }
+
+    inline bool isInit() override
+    {
+        return _spi.isInit();
+    }
     private:
 
-    Spi *_spi;
+    SpiController &_spi;
+    
+    GpioDriver *_cs;
+    bool _idleState; // CS state when idle, true - high, false - low
 };
 
 }

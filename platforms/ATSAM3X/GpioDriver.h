@@ -2,9 +2,12 @@
 
 #include "interface/Gpio.h"
 
-#include "sam3x8e.h"
 #include <cstdint>
 #include <cstddef>
+
+#include "asf.h"
+#include "component/component_pio.h"
+#include "pio/pio.h"
 
 namespace driver
 {
@@ -36,12 +39,14 @@ class GpioDriver : public IGpio
     void init(Mode mode, Pull pull)
     {
         // Clock enable
-        uint32_t rccPort = 0;
-        if (_port == PIOA) rccPort = ID_PIOA;
-        else if (_port == PIOB) rccPort = ID_PIOB;
-        else if (_port == PIOC) rccPort = ID_PIOC;
-        else if (_port == PIOD) rccPort = ID_PIOD;
-        PMC->PMC_PCER0 = 1 << rccPort;
+        uint32_t rccId = 0;
+        if      (_port == PIOA) rccId = ID_PIOA;
+        else if (_port == PIOB) rccId = ID_PIOB;
+        else if (_port == PIOC) rccId = ID_PIOC;
+        else if (_port == PIOD) rccId = ID_PIOD;
+        pmc_enable_periph_clk(rccId);
+        
+        pio_set_output(_port, PIO_PA23, LOW, DISABLE, ENABLE);
 
         _port->PIO_PER |= 1 << _pin; // Enable pin
 
@@ -100,11 +105,16 @@ class GpioDriver : public IGpio
         return (_port->PIO_PDSR & (1 << _pin)) != 0;
     }
 
-    void callback(void (*cb)(uint32_t))
+    void callback(void (*cb)(uint32_t)) override
     {
         _cb = cb;
     }
     
+    inline bool isInit() override
+    {
+        return false;  // Not implemented
+    }
+
     enum class Peripheral: uint8_t
     {
         A   = 0x0,
