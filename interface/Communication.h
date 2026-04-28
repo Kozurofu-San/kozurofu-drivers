@@ -3,6 +3,10 @@
 #include <cstdint>
 #include <functional>
 
+
+namespace driver
+{
+
 class ICommunication
 {
     public:
@@ -21,3 +25,5 @@ class ICommunication
     virtual uint32_t getSpeed() const = 0;
     virtual bool isInit() = 0;
 };
+
+}

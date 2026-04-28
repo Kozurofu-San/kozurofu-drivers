@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <functional>
 
+namespace driver
+{
+
 class ITouchScreen
 {
     public:
@@ -23,3 +26,5 @@ class ITouchScreen
     virtual void calibrate(CalibrationData *calibrationData) = 0;
     virtual bool isInit() = 0;
 };
+
+}

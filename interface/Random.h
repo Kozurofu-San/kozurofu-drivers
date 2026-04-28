@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <functional>
 
+namespace driver
+{
+
 class IRandom
 {
     public:
@@ -12,3 +15,5 @@ class IRandom
 
     virtual bool isInit() = 0;
 };
+
+}

@@ -3,6 +3,10 @@
 #include <cstdint>
 #include <ctime>
 
+
+namespace driver
+{
+
 class IDateTime
 {
     public:
@@ -18,3 +22,5 @@ class IDateTime
     virtual uint32_t getSpeed() const = 0;
     virtual bool isInit() = 0;
 };
+
+}

@@ -4,6 +4,9 @@
 #include <cstddef>
 #include <functional>
 
+namespace driver
+{
+
 class IGpio
 {
     public:
@@ -16,3 +19,5 @@ class IGpio
     virtual void callback(void (*cb)(uint32_t)) = 0;
     virtual bool isInit() = 0;
 };
+
+}

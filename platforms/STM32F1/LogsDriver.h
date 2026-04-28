@@ -7,6 +7,9 @@
 #include <cstdio>
 #include <cstdint>
 
+namespace driver
+{
+
 class LogsDriver : public ILogs
 {
     public:
@@ -126,3 +129,5 @@ class LogsDriver : public ILogs
     
 
 };
+
+}

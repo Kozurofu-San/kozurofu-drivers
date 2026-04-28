@@ -1,9 +1,9 @@
 #pragma once
 
 #include "interface/Timer.h"
-#include <stdint.h> // For uint32_t, etc.
-// Assuming necessary CMSIS includes for ATSAM peripherals are available in the build environment
-// e.g., #include "sam3x.h" or similar peripheral definitions
+
+#include "asf.h"
+#include <stdint.h>
 
 namespace driver
 {
@@ -79,8 +79,7 @@ class TimerDriver : public ITimer
 
 private:
 
-    uint32_t* _timer; // Base address of the peripheral registers
-    uint32_t _periodMs = 1;
+    uint32_t* _timer;
     uint32_t _ms = 0;
     uint32_t _speed = 0;
 

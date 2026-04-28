@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <functional>
 
+namespace driver
+{
+
 class IDisplay
 {
     public:
@@ -13,3 +16,5 @@ class IDisplay
     virtual void fillArea(uint8_t *color, size_t len) = 0;
     virtual bool isInit() = 0;
 };
+
+}

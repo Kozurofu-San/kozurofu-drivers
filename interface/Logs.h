@@ -2,6 +2,9 @@
 
 #include <cstdint>
 
+namespace driver
+{
+
 class  ILogs
 {
     public:
@@ -18,3 +21,5 @@ class  ILogs
     virtual void LOGE(const char* message, ...) = 0;
     virtual void LOGV(uint32_t channel, int32_t value) = 0;
 };
+
+}

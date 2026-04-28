@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <functional>
 
+namespace driver
+{
+
 class IMemory
 {
     public:
@@ -19,3 +22,5 @@ class IMemory
     virtual uint32_t getSectorCount() = 0;
     virtual uint32_t getSectorSize() = 0;
 };
+
+}

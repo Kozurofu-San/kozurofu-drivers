@@ -4,6 +4,9 @@
 
 #include "esp_log.h"
 
+namespace driver
+{
+
 class LogsDriver : public ILogs
 {
     public:
@@ -59,3 +62,5 @@ class LogsDriver : public ILogs
     char _buffer[20];
 
 };
+
+}

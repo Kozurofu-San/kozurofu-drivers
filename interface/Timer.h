@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <functional>
 
+namespace driver
+{
+
 class ITimer
 {
     public:
@@ -18,3 +21,5 @@ class ITimer
     virtual uint32_t getSpeed() = 0;
     virtual bool isInit() = 0;
 };
+
+}

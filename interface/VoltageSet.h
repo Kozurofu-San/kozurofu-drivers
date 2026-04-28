@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <functional>
 
+namespace driver
+{
+
 class IVoltageSet
 {
     public:
@@ -14,3 +17,5 @@ class IVoltageSet
     virtual void setRawValue(uint32_t value, size_t channel) = 0;
     virtual bool isInit() = 0;
 };
+
+}

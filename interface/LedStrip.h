@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <functional>
 
+namespace driver
+{
+
 class ILedStrip
 {
     public:
@@ -13,3 +16,5 @@ class ILedStrip
     virtual void setBacklight(size_t value) = 0;
     virtual bool isInit() = 0;
 };
+
+}
