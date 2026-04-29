@@ -61,12 +61,6 @@ class DacDriver : public IVoltageSet
         dacc_enable_channel(_dac, 0); // TODO
         dacc_set_analog_control(_dac, DACC_ACR_IBCTLCH0(0x02) | DACC_ACR_IBCTLCH1(0x02) | DACC_ACR_IBCTLDACCORE(0x01));
 
-        
-        if (_channelCount == 2)
-        {
-            // Dual mode
-        }
-
         _isInit = true;
         return true;
     }
