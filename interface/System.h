@@ -34,27 +34,29 @@ class ISystem
         Backup,     //!< Reset due to backup
     };
 
-    // static constexpr std::array<std::string_view, 19> resetReasonString = {
-    //     "Unknown",
-    //     "PowerOn",
-    //     "Ext",
-    //     "Sw",
-    //     "Panic",
-    //     "IntWdt",
-    //     "IndWdt",
-    //     "WinWdt",
-    //     "TaskWdt",
-    //     "Wdt",
-    //     "DeepSleep",
-    //     "Brownout",
-    //     "Sdio",
-    //     "Usb",
-    //     "Jtag",
-    //     "Efuse",
-    //     "PwrGlitch",
-    //     "CpuLockup",
-    //     "Backup"
-    // };
+    /*
+    static constexpr std::array<std::string_view, 19> resetReasonString = {
+        "Unknown",
+        "PowerOn",
+        "Ext",
+        "Sw",
+        "Panic",
+        "IntWdt",
+        "IndWdt",
+        "WinWdt",
+        "TaskWdt",
+        "Wdt",
+        "DeepSleep",
+        "Brownout",
+        "Sdio",
+        "Usb",
+        "Jtag",
+        "Efuse",
+        "PwrGlitch",
+        "CpuLockup",
+        "Backup"
+    };
+    */
 
     struct MemoryInfo {
         char* ramEnd;       // конец RAM
@@ -75,8 +77,9 @@ class ISystem
 
     virtual ResetReason getValue() = 0;
     virtual const std::string_view& getString() = 0;
-
+    
     virtual uint32_t getCpuSpeed() = 0;
+    virtual uint64_t getChipId() = 0;
     virtual void restart() = 0;
 
     virtual void updateMemoryInfo() = 0;

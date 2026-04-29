@@ -3,6 +3,8 @@
 #include "interface/System.h"
 
 #include "asf.h"
+#include "component/component_chipid.h"
+#include "chipid/chipid.h"
 #include <cstdint>
 #include <cstddef>
 
@@ -24,12 +26,12 @@ class SystemDriver : public ISystem
         ResetReason ret;
         uint32_t reason = (RSTC->RSTC_SR & RSTC_SR_RSTTYP_Msk) >> RSTC_SR_RSTTYP_Pos;
 
-        if      (reason == 0) { ret = ResetReason::PowerOn; _reasonIdx = 0; }
-        else if (reason == 1) { ret = ResetReason::Backup ; _reasonIdx = 1; }
-        else if (reason == 2) { ret = ResetReason::Wdt    ; _reasonIdx = 2; }
-        else if (reason == 3) { ret = ResetReason::Sw     ; _reasonIdx = 3; }
-        else if (reason == 4) { ret = ResetReason::Ext    ; _reasonIdx = 4; }
-        else                  { ret = ResetReason::Unknown; _reasonIdx = 5; }
+        if      ( reason == 0) { ret = ResetReason::PowerOn; _reasonIdx = 0; }
+        else if ( reason == 1) { ret = ResetReason::Backup ; _reasonIdx = 1; }
+        else if ( reason == 2) { ret = ResetReason::Wdt    ; _reasonIdx = 2; }
+        else if ( reason == 3) { ret = ResetReason::Sw     ; _reasonIdx = 3; }
+        else if ( reason == 4) { ret = ResetReason::Ext    ; _reasonIdx = 4; }
+        else                   { ret = ResetReason::Unknown; _reasonIdx = 5; }
 
         return ret;
     }
@@ -40,9 +42,16 @@ class SystemDriver : public ISystem
         return resetReasonString[_reasonIdx];
     }
 
-    uint32_t getCpuSpeed() override
+    inline uint32_t getCpuSpeed() override
     {
         return SystemCoreClock;
+    }
+    
+    uint64_t getChipId() override
+    {
+        chipid_data_t chipId;
+        chipid_read(CHIPID, &chipId);
+        return (static_cast<uint64_t>(CHIPID->CHIPID_EXID) << 32) | CHIPID->CHIPID_CIDR;
     }
     
     void restart() override
@@ -86,7 +95,7 @@ class SystemDriver : public ISystem
 
     private:
 
-    static constexpr std::array<std::string_view, 19> resetReasonString = {
+    static constexpr std::array<std::string_view, 6> resetReasonString = {
         "PowerOn",
         "Backup",
         "Wdt",

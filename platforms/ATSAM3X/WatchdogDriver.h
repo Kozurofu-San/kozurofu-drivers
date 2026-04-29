@@ -22,29 +22,28 @@ class WatchdogDriver : public ITimer
             return false;
         }
 
-        // Вычисляем значение для WDV
-        // period = (WDV + 1) * 128 / 32768 * 1000 мс
+        // Period = (WDV + 1) * 128 / 32768 * 1000 ms
         _speed = 32768UL;
         uint32_t wdv = (periodMs * _speed) / (128 * 1000UL);
 
         if (wdv == 0) wdv = 1;
-        if (wdv > 0xFFF) wdv = 0xFFF;   // максимум ~16 секунд
+        if (wdv > 0xFFF) wdv = 0xFFF;   // Max ~16 sec
 
-        _ms = (wdv + 1) * 128 * 1000 / 32768;  // реальный период в мс
+        _ms = (wdv + 1) * 128 * 1000 / 32768;  // Real period [ms]
 
-        // Конфигурация WDT_MR:
-        // WDV   = период
-        // WDD   = то же значение (отключаем window mode)
-        // WDRSTEN = 1  → Reset при таймауте
-        // WDRPROC = 0  → Reset всего процессора
-        // WDDBGHLT = 1 → останавливается в debug
-        // WDIDLEHLT = 1 → останавливается в idle
-        // WDDIS = 0    → watchdog включён
+        // Config WDT_MR:
+        // WDV       = period
+        // WDD       = the same value (turn off window mode)
+        // WDRSTEN   = 1  → Reset after timeout
+        // WDRPROC   = 0  → Reset of processor
+        // WDDBGHLT  = 1  → halt in debug
+        // WDIDLEHLT = 1  → halt in idle
+        // WDDIS     = 0  → watchdog on
 
         uint32_t mode =
-            WDT_MR_WDRSTEN |            // разрешить сброс
-            WDT_MR_WDDBGHLT |           // halt в debug
-            WDT_MR_WDIDLEHLT;           // halt в idle
+            WDT_MR_WDRSTEN |            // Reset enable
+            WDT_MR_WDDBGHLT |           // Halt in debug
+            WDT_MR_WDIDLEHLT;           // Halt in idle
             
         wdt_init(_timer, mode, (uint16_t)wdv, (uint16_t)wdv);
 
@@ -69,7 +68,6 @@ class WatchdogDriver : public ITimer
         wdt_restart(_timer);
     }
 
-    // Delay implementation depends on whether we use polling or RTOS delay
     void delay(uint32_t ms) override
     {
         

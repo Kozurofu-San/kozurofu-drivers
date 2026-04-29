@@ -8,6 +8,9 @@
 #include <functional>
 #include <optional>
 
+namespace driver
+{
+
 class GpioDriver : public IGpio
 {
     public:
@@ -85,3 +88,5 @@ class GpioDriver : public IGpio
     gpio_num_t _pin;
     void (*_cb)(uint32_t) = nullptr;
 };
+
+}
