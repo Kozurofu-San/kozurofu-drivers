@@ -18,7 +18,7 @@ class WatchdogDriver : public ITimer
         esp_task_wdt_config_t twdt_config = {
             .timeout_ms = periodMs,
             .idle_core_mask = (1 << CONFIG_FREERTOS_NUMBER_OF_CORES) - 1,    // Bitmask of all cores
-            .trigger_panic = false,
+            .trigger_panic = true,
         };
         ESP_ERROR_CHECK(esp_task_wdt_init(&twdt_config));
 
