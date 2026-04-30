@@ -22,19 +22,19 @@ class TimerDriver : public ITimer
 
     TimerDriver() = default;
 
-    bool init(Mode mode, uint32_t period)
+    bool init(Mode mode, uint32_t periodMs)
     {
         if (mode != Mode::Normal)
         {
             return false;
         }
 
-        if (period == 0)
+        if (periodMs == 0)
         {
-            period = 1;
+            periodMs = 1;
         }
 
-        _periodMs = period;
+        _periodMs = periodMs;
         _ms = 0;
 
         if (_timer != nullptr)

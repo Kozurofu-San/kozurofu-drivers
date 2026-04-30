@@ -63,30 +63,4 @@ class Utils
         }
     }
 
-    static int32_t mulQ16(int32_t a, int32_t b)
-    {
-        int64_t temp = static_cast<int64_t>(a) * static_cast<int64_t>(b);
-        if ((temp & 0x8000) == 0x8000)
-        {
-            temp += 0x10000;
-        }
-        temp >>= 16;
-        return temp;
-    }
-
-    static int32_t q16ToInt(int32_t a)
-    {
-        if ((a & 0x8000) == 0x8000)
-        {
-            a += 0x10000;
-        }
-        a >>= 16;
-        return a;
-    }
-
-    static inline int32_t int_to_q16(int32_t a){
-        return a << 16;
-    }
-
-
 };
