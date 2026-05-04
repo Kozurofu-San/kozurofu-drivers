@@ -6,6 +6,7 @@
 #include "esp_wifi.h"
 #include "esp_mac.h"
 #include "nvs_flash.h"
+#include "esp_log.h"
 
 #include <functional>
 #include <optional>
@@ -19,6 +20,10 @@ namespace driver
 class WifiDriver : public INetwork
 {
 public:
+
+    // (Logging tag used with ESP_LOGI) kept as literal to avoid ODR issues
+
+
 
     WifiDriver()
     {
@@ -306,7 +311,7 @@ public:
 
 private:
     static void eventHandler(void* arg, esp_event_base_t event_base,
-                             int32_t event_id, void* event_data)
+                              int32_t event_id, void* event_data)
     {
         auto* self = static_cast<WifiDriver*>(arg);
         if (self == nullptr) return;
@@ -322,6 +327,11 @@ private:
 
                 case WIFI_EVENT_STA_DISCONNECTED:
                     self->_connected = false;
+                    // Попробуем залогировать причину отключения, если она есть
+                    if (event_data != nullptr) {
+                        auto* disconn = static_cast<wifi_event_sta_disconnected_t*>(event_data);
+                        ESP_LOGI("WifiDriver", "WiFi STA_DISCONNECTED, reason=%d", disconn->reason);
+                    }
                     if (self->_userCallback) {
                         self->_userCallback(WIFI_EVENT_STA_DISCONNECTED);
                     }
