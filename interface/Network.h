@@ -4,6 +4,7 @@
 #include <string>
 #include <optional>
 #include <vector>
+#include <ctime>
 
 namespace driver
 {
@@ -41,7 +42,6 @@ class INetwork
 
     virtual ~INetwork() = default;
 
-    virtual bool init() = 0;
     virtual bool start() = 0;
     virtual bool stop() = 0;
     virtual bool scan(std::vector<ScanResult>& results, 
@@ -53,10 +53,14 @@ class INetwork
     virtual bool isConnected() const = 0;
     virtual bool isStarted() const = 0;
 
+    virtual bool isInit() const = 0;
     virtual void callback(void (*cb)(uint32_t)) = 0;
-
+    
     virtual std::optional<std::string> getIp() const = 0;
     virtual std::optional<std::string> getMac() const = 0;
+
+    virtual std::time_t time() const = 0;
+    virtual std::optional<std::string> ping() const = 0;
 };
 
 }

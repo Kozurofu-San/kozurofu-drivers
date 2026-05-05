@@ -53,12 +53,12 @@ namespace driver
     
             _isInit = true;
             _speed = speed;
-            return true;
+            return _isInit;
         };
     
         bool setDma()
         {
-            return true;
+            return false;
         }
     
         void write(uint8_t *data, size_t len, size_t bytes = 1) override

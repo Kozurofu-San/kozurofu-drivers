@@ -16,9 +16,10 @@ class LogsDriver : public ILogs
     {
     }
 
-    void init()
+    bool init()
     {
         // esp_log_level_set("*", ESP_LOG_MAX);        // set all components to ERROR level
+        return true;
     }
 
     void LOGI(const char* message, ...) override

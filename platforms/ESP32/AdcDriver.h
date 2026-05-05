@@ -24,7 +24,7 @@ class AdcDriver : public IVoltageGet
         _channel = channel;
     }
 
-    void init(adc_bitwidth_t width, adc_atten_t atten)
+    bool init(adc_bitwidth_t width, adc_atten_t atten)
     {
         adc_oneshot_unit_init_cfg_t init_config = {
             .unit_id = _adc,
@@ -38,6 +38,9 @@ class AdcDriver : public IVoltageGet
         ESP_ERROR_CHECK(adc_oneshot_config_channel(_adc_oneshot, _channel, &config));
 
         _calibrated = calibration_init(_adc, _channel, atten, &_cali_handle);
+
+        _isInit = true;
+        return _isInit;
     }
 
     static bool calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle)
@@ -159,6 +162,8 @@ class AdcDriver : public IVoltageGet
     inline static adc_oneshot_unit_handle_t _adc_oneshot = nullptr;
     inline static bool _calibrated = false;
     inline static adc_cali_handle_t _cali_handle = NULL;
+
+    bool _isInit = false;
 };
 
 }

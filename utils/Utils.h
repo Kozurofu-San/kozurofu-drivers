@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <ctime>
+
 
 class Utils
 {
@@ -61,6 +63,14 @@ class Utils
             }
             p[len - 2] = t;
         }
+    }
+
+    
+    static void unixDateToDate(time_t unixTime, char *buf)
+    {
+        struct tm *utc_time_info;
+        utc_time_info = gmtime(&unixTime);
+        strftime(buf, 40, "%Y-%m-%d %H:%M:%S", utc_time_info);
     }
 
 };

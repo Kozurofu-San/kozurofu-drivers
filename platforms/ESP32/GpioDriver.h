@@ -35,7 +35,7 @@ class GpioDriver : public IGpio
     {
     }
 
-    void init(Mode mode, Pull pull, gpio_int_type_t intr_type)
+    bool init(Mode mode, Pull pull, gpio_int_type_t intr_type)
     {
         gpio_config_t io_conf {
             .pin_bit_mask = 1ULL << _pin,
@@ -56,6 +56,8 @@ class GpioDriver : public IGpio
             //     }
             // }, this);
         }
+        _isInit = true;
+        return _isInit;
     }
 
     inline size_t getPin() override
@@ -80,12 +82,13 @@ class GpioDriver : public IGpio
     
     inline bool isInit() override
     {
-        return false;  // Not implemented
+        return _isInit;  // Not implemented
     }
 
     private:
 
     gpio_num_t _pin;
+    bool _isInit = false;
     void (*_cb)(uint32_t) = nullptr;
 };
 

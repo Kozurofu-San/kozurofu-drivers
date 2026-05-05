@@ -7,12 +7,16 @@
 #include "esp_mac.h"
 #include "nvs_flash.h"
 #include "esp_log.h"
+#include "esp_sntp.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include <functional>
 #include <optional>
 #include <atomic>
 #include <cstring>
 #include <cstdio>
+#include <ctime>
 
 namespace driver
 {
@@ -34,9 +38,9 @@ public:
      * @brief Initialize WiFi in Station mode
      * @return true if initialization was successful
      */
-    bool init() override
+    bool init()
     {
-        if (_initialized) {
+        if (_isInit) {
             return true;
         }
 
@@ -90,7 +94,12 @@ public:
             return false;
         }
 
-        _initialized = true;
+        // Time server
+        esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+        esp_sntp_setservername(0, "pool.ntp.org");
+        esp_sntp_init();
+
+        _isInit = true;
         return true;
     }
 
@@ -100,13 +109,13 @@ public:
      */
     bool start() override
     {
-        if (!_initialized) {
+        if (!_isInit) {
             if (!init()) {
                 return false;
             }
         }
 
-        if (_started) {
+        if (_isStarted) {
             return true;
         }
 
@@ -115,7 +124,7 @@ public:
             return false;
         }
 
-        _started = true;
+        _isStarted = true;
         return true;
     }
 
@@ -125,7 +134,7 @@ public:
      */
     bool stop() override
     {
-        if (!_started) {
+        if (!_isStarted) {
             return true;
         }
 
@@ -134,8 +143,8 @@ public:
             return false;
         }
 
-        _started = false;
-        _connected = false;
+        _isStarted = false;
+        _isConnected = false;
         return true;
     }
 
@@ -143,7 +152,7 @@ public:
         size_t max_results = 20, 
         uint32_t timeout_ms = 10000) override
     {
-        if (!_started) {
+        if (!_isStarted) {
             if (!start()) {
                 return false;
             }
@@ -215,7 +224,7 @@ public:
             return false;
         }
 
-        if (!_started) {
+        if (!_isStarted) {
             if (!start()) {
                 return false;
             }
@@ -232,9 +241,56 @@ public:
             return false;
         }
 
-        _connected = false;
-        ret = esp_wifi_connect();
-        return (ret == ESP_OK);
+        const int max_retries = 3;
+        _isConnected = false;
+        const int max_wait_ms = 10000;
+        int waited = 0;
+
+        wifi_ap_record_t ap_info;
+        for (int attempt = 0; attempt < max_retries && !_isConnected; ++attempt)
+        {
+            if (esp_wifi_connect() == ESP_OK)
+            {
+                for (int attempt1 = 0; attempt1 < max_retries && !_isConnected; ++attempt1)
+                {
+                    if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK)
+                    {
+                        _isConnected = true;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                waited = 0;
+                while (!isConnected() && waited < max_wait_ms)
+                {
+                    vTaskDelay(100 / portTICK_PERIOD_MS);
+                    waited += 100;
+                }
+            }
+            if (attempt > 0)
+            {
+                disconnect();
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+            }
+        }
+        
+        waited = 0;
+        while (waited < max_wait_ms)
+        {
+            if (!getIp())
+            {
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+                waited += 1000;
+            }
+            else
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -252,7 +308,7 @@ public:
      */
     bool isConnected() const override
     {
-        return _connected;
+        return _isConnected;
     }
 
     /**
@@ -260,7 +316,7 @@ public:
      */
     bool isStarted() const override
     {
-        return _started;
+        return _isStarted;
     }
 
     /**
@@ -272,12 +328,17 @@ public:
         _userCallback = cb;
     }
 
+    bool isInit() const override
+    {
+        return _isInit;
+    }
+
     /**
      * @brief Get current IP address as string
      */
     std::optional<std::string> getIp() const override
     {
-        if (!_staNetif || !_connected) {
+        if (!_staNetif || !_isConnected) {
             return std::nullopt;
         }
 
@@ -308,8 +369,21 @@ public:
                       mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         return std::string(mac_str);
     }
+    
+    std::time_t time() const override
+    {
+        std::time_t now = 0;
+        std::time(&now);
+        return now;
+    }
+    
+    std::optional<std::string> ping() const override
+    {
+        return std::nullopt;
+    }
 
 private:
+
     static void eventHandler(void* arg, esp_event_base_t event_base,
                               int32_t event_id, void* event_data)
     {
@@ -326,7 +400,7 @@ private:
                     break;
 
                 case WIFI_EVENT_STA_DISCONNECTED:
-                    self->_connected = false;
+                    self->_isConnected = false;
                     // Попробуем залогировать причину отключения, если она есть
                     if (event_data != nullptr) {
                         auto* disconn = static_cast<wifi_event_sta_disconnected_t*>(event_data);
@@ -342,7 +416,7 @@ private:
             }
         }
         else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-            self->_connected = true;
+            self->_isConnected = true;
             if (self->_userCallback) {
                 self->_userCallback(IP_EVENT_STA_GOT_IP);
             }
@@ -353,7 +427,7 @@ private:
             self->_userCallback(static_cast<uint32_t>(event_id));
         }
     }
-
+    
 private:
     esp_netif_t* _staNetif = nullptr;
     esp_event_handler_instance_t _wifiEventHandler = nullptr;
@@ -361,9 +435,9 @@ private:
 
     void (*_userCallback)(uint32_t) = nullptr;
 
-    std::atomic<bool> _initialized{false};
-    std::atomic<bool> _started{false};
-    std::atomic<bool> _connected{false};
+    std::atomic<bool> _isInit{false};
+    std::atomic<bool> _isStarted{false};
+    std::atomic<bool> _isConnected{false};
 };
 
 }
