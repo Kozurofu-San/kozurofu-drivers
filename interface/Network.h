@@ -60,7 +60,7 @@ class INetwork
     virtual std::optional<std::string> getMac() const = 0;
 
     virtual std::time_t time() const = 0;
-    virtual std::optional<std::string> ping() const = 0;
+    virtual bool ping(const std::string& host, uint32_t count, uint32_t timeout_ms) const = 0;
 };
 
 }
