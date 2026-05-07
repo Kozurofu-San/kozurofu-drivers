@@ -336,33 +336,57 @@ public:
     
     bool ping(const std::string& host, uint32_t count = 4, uint32_t timeout_ms = 1000) const
     {
-        if (!_isConnected) { return false; }
+        if (!_isConnected) { ESP_LOGD("WifiDriver", "Wifi isn't connected"); return false; }
+
+        esp_err_t ret;
 
         ip_addr_t target_addr;
         struct addrinfo hint;
-        struct addrinfo *res = NULL;
+        struct addrinfo *res = nullptr;
         memset(&hint, 0, sizeof(hint));
         memset(&target_addr, 0, sizeof(target_addr));
-        getaddrinfo(host.c_str(), NULL, &hint, &res);
+        hint.ai_family = AF_INET;
+        ret = getaddrinfo(host.c_str(), nullptr, &hint, &res);
+        if (ret != 0 || res == nullptr)
+        {
+            ESP_LOGE("WifiDriver", "DNS lookup failed for %s: %d", host.c_str(), ret);
+            return false;
+        }
+
         struct in_addr addr4 = ((struct sockaddr_in *) (res->ai_addr))->sin_addr;
         inet_addr_to_ip4addr(ip_2_ip4(&target_addr), &addr4);
         freeaddrinfo(res);
-        ESP_LOGI("WifiDriver", "Target address 0x%X", target_addr);
+        ESP_LOGI("WifiDriver", "Ping target %s %s", host.c_str(), inet_ntoa(target_addr.u_addr.ip4));
 
         esp_ping_config_t ping_config = ESP_PING_DEFAULT_CONFIG();
         ping_config.target_addr = target_addr;          // target IP address
-        ping_config.count = ESP_PING_COUNT_INFINITE;    // ping in infinite mode, esp_ping_stop can stop it
+        ping_config.count = count;
+        ping_config.timeout_ms = timeout_ms;
 
         /* set callback functions */
-        esp_ping_callbacks_t cbs;
+        esp_ping_callbacks_t cbs {};
         cbs.on_ping_success = onPingSuccess;
         cbs.on_ping_timeout = onPingTimeout;
         cbs.on_ping_end = onPingEnd;
-        cbs.cb_args = NULL;
+        cbs.cb_args = nullptr;
 
-        esp_ping_handle_t ping;
-        esp_ping_new_session(&ping_config, &cbs, &ping);
-        return true;
+        esp_ping_handle_t ping = nullptr;
+        ret = esp_ping_new_session(&ping_config, &cbs, &ping);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE("WifiDriver", "Ping session isn't created: %s", esp_err_to_name(ret));
+            return false;
+        }
+
+        ret = esp_ping_start(ping);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE("WifiDriver", "Ping isn't started: %s", esp_err_to_name(ret));
+            esp_ping_delete_session(ping);
+            return false;
+        }
+
+        return ret == ESP_OK;
     }
 
 private:
@@ -389,7 +413,7 @@ private:
                     if (event_data != nullptr)
                     {
                         auto* disconn = static_cast<wifi_event_sta_disconnected_t*>(event_data);
-                        ESP_LOGI("WifiDriver", "WiFi STA_DISCONNECTED, reason=%d", disconn->reason);
+                        ESP_LOGD("WifiDriver", "WiFi STA_DISCONNECTED, reason=%d", disconn->reason);
                     }
                     if (self->_userCallback)
                     {
@@ -428,7 +452,7 @@ private:
         esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
         esp_ping_get_profile(hdl, ESP_PING_PROF_SIZE, &recv_len, sizeof(recv_len));
         esp_ping_get_profile(hdl, ESP_PING_PROF_TIMEGAP, &elapsed_time, sizeof(elapsed_time));
-        ESP_LOGI("WifiDriver", "%u bytes from %s icmp_seq=%u ttl=%u time=%u ms\n",
+        ESP_LOGD("WifiDriver", "%u bytes from %s icmp_seq=%u ttl=%u time=%u ms\n",
            recv_len, inet_ntoa(target_addr.u_addr.ip4), seqno, ttl, elapsed_time);
     }
 
@@ -438,7 +462,7 @@ private:
         ip_addr_t target_addr;
         esp_ping_get_profile(hdl, ESP_PING_PROF_SEQNO, &seqno, sizeof(seqno));
         esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
-        ESP_LOGI("WifiDriver", "From %s icmp_seq=%u timeout\n", inet_ntoa(target_addr.u_addr.ip4), seqno);
+        ESP_LOGD("WifiDriver", "From %s icmp_seq=%u timeout\n", inet_ntoa(target_addr.u_addr.ip4), seqno);
     }
 
     static void onPingEnd(esp_ping_handle_t hdl, void* args)
@@ -452,7 +476,7 @@ private:
         esp_ping_get_profile(hdl, ESP_PING_PROF_REPLY, &received, sizeof(received));
         esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
         esp_ping_get_profile(hdl, ESP_PING_PROF_DURATION, &total_time_ms, sizeof(total_time_ms));
-        ESP_LOGI("WifiDriver", "%u packets transmitted, %u received, time %ums\n", transmitted, received, total_time_ms);
+        ESP_LOGD("WifiDriver", "%u packets transmitted, %u received, time %ums\n", transmitted, received, total_time_ms);
 
         esp_ping_delete_session(hdl);
     }

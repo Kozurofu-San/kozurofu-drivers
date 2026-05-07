@@ -3,10 +3,13 @@
 
 #include "interface/Logs.h"
 
+#include "esp_console.h"
 #include "esp_log.h"
 #include "esp_vfs_dev.h"
 #include "driver/uart.h"
 #include "driver/uart_vfs.h"
+#include "driver/usb_serial_jtag.h"
+#include "driver/usb_serial_jtag_vfs.h"
 
 namespace driver
 {
@@ -33,11 +36,25 @@ class LogsDriver : public ILogs
             .rx_flow_ctrl_thresh = 0
         };
     
-        // For blocking scanf
+        // For blocking scanf - UART
         uart_param_config(UART_NUM_0, &uart_config);
         uart_driver_install(UART_NUM_0, 2048, 0, 0, NULL, 0);
-        uart_vfs_dev_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
+
+        // TODO: For blocking scanf - USB-JTAG
+        usb_serial_jtag_driver_config_t usb_config = {
+            .tx_buffer_size = 1024,
+            .rx_buffer_size = 1024,
+        };
+        usb_serial_jtag_driver_install(&usb_config);
     
+        // if (usb_serial_jtag_is_connected())
+        // {
+            usb_serial_jtag_vfs_use_driver();
+        // }
+        // else
+        // {
+            uart_vfs_dev_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
+        // }
         return true;
     }
 
