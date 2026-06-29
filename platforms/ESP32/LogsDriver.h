@@ -63,7 +63,7 @@ class LogsDriver : public ILogs
         va_list args;
         va_start(args, message);
         printf("I:");
-        vsprintf(_buffer, message, args);
+        vsnprintf(_buffer, sizeof(_buffer), message, args);
         printf("%s\n", _buffer);
         va_end(args);
     }
@@ -73,7 +73,7 @@ class LogsDriver : public ILogs
         va_list args;
         va_start(args, message);
         printf("W:");
-        vsprintf(_buffer, message, args);
+        vsnprintf(_buffer, sizeof(_buffer), message, args);
         printf("%s\n", _buffer);
         va_end(args);
     }
@@ -83,14 +83,14 @@ class LogsDriver : public ILogs
         va_list args;
         va_start(args, message);
         printf("E:");
-        vsprintf(_buffer, message, args);
+        vsnprintf(_buffer, sizeof(_buffer), message, args);
         printf("%s\n", _buffer);
         va_end(args);
     }
 
     void v(uint32_t channel, int32_t value) override
     {
-        sprintf(_buffer, "V%ld: %ld", channel, value);
+        snprintf(_buffer, sizeof(_buffer), "V%ld: %ld", channel, value);
         printf("%s\n", _buffer);
     }
     
@@ -126,7 +126,7 @@ class LogsDriver : public ILogs
 
     private:
 
-    char _buffer[20];
+    char _buffer[128];
 
 };
 

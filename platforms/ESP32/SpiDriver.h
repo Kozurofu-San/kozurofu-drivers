@@ -22,34 +22,44 @@ namespace driver
         
         bool init(int clk, int miso, int mosi, int cs, int speed)
         {
-            spi_bus_config_t buscfg {
-                .iocfg = {
-                    mosi,      // [0] MOSI / data0
-                    miso,      // [1] MISO / data1
-                    clk,       // [2] SCLK
-                    -1,        // [3] WP / data2
-                    -1,        // [4] HD / data3
-                    -1,        // [5] data4
-                    -1,        // [6] data5
-                    -1,        // [7] data6
-                    -1         // [8] data7
-                },
-                .data_io_default_level = false,
-                .max_transfer_sz = 8,
-                .flags = SPICOMMON_BUSFLAG_MASTER
-            };
+            spi_bus_config_t buscfg {};
+            buscfg.mosi_io_num = mosi;
+            buscfg.miso_io_num = miso;
+            buscfg.sclk_io_num = clk;
+            buscfg.quadwp_io_num = -1;
+            buscfg.quadhd_io_num = -1;
+            buscfg.data4_io_num = -1;
+            buscfg.data5_io_num = -1;
+            buscfg.data6_io_num = -1;
+            buscfg.data7_io_num = -1;
+            buscfg.data_io_default_level = false;
+            buscfg.max_transfer_sz = 8;
+            buscfg.flags = SPICOMMON_BUSFLAG_MASTER;
     
-            spi_device_interface_config_t devcfg {
-                .command_bits = 0,
-                .address_bits = 0,
-                .mode = 0,
-                .clock_speed_hz = speed,
-                .spics_io_num = cs,
-                .queue_size = 7,
-            };
+            spi_device_interface_config_t devcfg {};
+            devcfg.command_bits = 0;
+            devcfg.address_bits = 0;
+            devcfg.mode = 0;
+            devcfg.clock_speed_hz = speed;
+            devcfg.spics_io_num = cs;
+            devcfg.queue_size = 7;
     
-            ESP_ERROR_CHECK(spi_bus_initialize(_spi, &buscfg, SPI_DMA_CH_AUTO));
-            ESP_ERROR_CHECK(spi_bus_add_device(_spi, &devcfg, &_spiDevice));
+            esp_err_t err = spi_bus_initialize(_spi, &buscfg, SPI_DMA_CH_AUTO);
+            if (err != ESP_OK)
+            {
+                ESP_LOGE(kSpiTag, "bus init failed: host=%d clk=%d miso=%d mosi=%d cs=%d err=%s",
+                         static_cast<int>(_spi), clk, miso, mosi, cs, esp_err_to_name(err));
+                return false;
+            }
+
+            err = spi_bus_add_device(_spi, &devcfg, &_spiDevice);
+            if (err != ESP_OK)
+            {
+                ESP_LOGE(kSpiTag, "device add failed: host=%d cs=%d speed=%d err=%s",
+                         static_cast<int>(_spi), cs, speed, esp_err_to_name(err));
+                spi_bus_free(_spi);
+                return false;
+            }
     
             _isInit = true;
             _speed = speed;
