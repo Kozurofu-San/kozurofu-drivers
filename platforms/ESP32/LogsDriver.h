@@ -1,15 +1,9 @@
 #pragma once
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
 #include "interface/Logs.h"
 
-#include "esp_console.h"
-#include "esp_log.h"
-#include "esp_vfs_dev.h"
-#include "driver/uart.h"
-#include "driver/uart_vfs.h"
-#include "driver/usb_serial_jtag.h"
-#include "driver/usb_serial_jtag_vfs.h"
+#include <cstdio>
+#include <cstdarg>
 
 namespace driver
 {
@@ -18,43 +12,19 @@ class LogsDriver : public ILogs
 {
     public:
 
-
-    LogsDriver()
+    static LogsDriver& getInstance()
     {
+        static LogsDriver instance;
+        return instance;
     }
+
+    LogsDriver(const LogsDriver&) = delete;
+    LogsDriver& operator=(const LogsDriver&) = delete;
+    LogsDriver(LogsDriver&&) = delete;
+    LogsDriver& operator=(LogsDriver&&) = delete;
 
     bool init()
     {
-        // esp_log_level_set("*", ESP_LOG_MAX);        // set all components to ERROR level
-        
-        uart_config_t uart_config = {
-            .baud_rate = 115200,
-            .data_bits = UART_DATA_8_BITS,
-            .parity = UART_PARITY_DISABLE,
-            .stop_bits = UART_STOP_BITS_1,
-            .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-            .rx_flow_ctrl_thresh = 0
-        };
-    
-        // For blocking scanf - UART
-        uart_param_config(UART_NUM_0, &uart_config);
-        uart_driver_install(UART_NUM_0, 2048, 0, 0, NULL, 0);
-
-        // TODO: For blocking scanf - USB-JTAG
-        usb_serial_jtag_driver_config_t usb_config = {
-            .tx_buffer_size = 1024,
-            .rx_buffer_size = 1024,
-        };
-        usb_serial_jtag_driver_install(&usb_config);
-    
-        // if (usb_serial_jtag_is_connected())
-        // {
-            usb_serial_jtag_vfs_use_driver();
-        // }
-        // else
-        // {
-            uart_vfs_dev_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
-        // }
         return true;
     }
 
@@ -94,7 +64,7 @@ class LogsDriver : public ILogs
         printf("%s\n", _buffer);
     }
     
-    bool readString(char* string)
+    bool readString(char* string) override
     {
         int ret = scanf("%s", string);
         if (ret == 1)
@@ -109,7 +79,7 @@ class LogsDriver : public ILogs
         }
     }
     
-    bool readNumber(int number)
+    bool readNumber(int& number) override
     {
         int ret = scanf("%d", &number);
         if (ret == 1)
@@ -125,7 +95,7 @@ class LogsDriver : public ILogs
     }
 
     private:
-
+    LogsDriver() = default;
     char _buffer[128];
 
 };

@@ -100,6 +100,8 @@ public:
         esp_err_t ret = esp_wifi_start();
         if (ret != ESP_OK) { return false; }
 
+        esp_wifi_set_ps(WIFI_PS_NONE);
+
         _isStarted = true;
         return true;
     }
@@ -198,56 +200,53 @@ public:
         {
             std::strncpy(reinterpret_cast<char*>(wifi_config.sta.password), password.data(), sizeof(wifi_config.sta.password) - 1);
         }
+        wifi_config.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+        wifi_config.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
+        wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+        wifi_config.sta.pmf_cfg.capable = true;
+        wifi_config.sta.pmf_cfg.required = false;
+        wifi_config.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+        wifi_config.sta.sae_pk_mode = WPA3_SAE_PK_MODE_DISABLED;
+        wifi_config.sta.disable_wpa3_compatible_mode = true;
+        wifi_config.sta.failure_retry_cnt = 3;
 
         esp_err_t ret = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
         if (ret != ESP_OK) { return false; }
 
-        const int max_retries = 3;
         _isConnected = false;
-        const int max_wait_ms = 10000;
-        int waited = 0;
 
-        wifi_ap_record_t ap_info;
-        for (int attempt = 0; attempt < max_retries && !_isConnected; ++attempt)
+        constexpr int max_retries = 3;
+        constexpr int max_wait_ms = 15000;
+        constexpr int poll_ms = 200;
+
+        for (int attempt = 0; attempt < max_retries; ++attempt)
         {
-            if (esp_wifi_connect() == ESP_OK)
+            ret = esp_wifi_connect();
+            if (ret != ESP_OK && ret != ESP_ERR_WIFI_CONN)
             {
-                for (int attempt1 = 0; attempt1 < max_retries && !_isConnected; ++attempt1)
+                ESP_LOGW("WifiDriver", "connect attempt %d failed to start: %s", attempt + 1, esp_err_to_name(ret));
+                return false;
+            }
+
+            int waited = 0;
+            while (waited < max_wait_ms)
+            {
+                if (auto ip = getIp())
                 {
-                    if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK)
-                    {
-                        _isConnected = true;
-                        break;
-                    }
+                    ESP_LOGI("WifiDriver", "connected to %.*s, IP %s", static_cast<int>(ssid.size()), ssid.data(), ip->c_str());
+                    return true;
                 }
+
+                vTaskDelay(poll_ms / portTICK_PERIOD_MS);
+                waited += poll_ms;
             }
-            else
+
+            ESP_LOGW("WifiDriver", "connect attempt %d timed out", attempt + 1);
+            if (attempt + 1 < max_retries)
             {
-                waited = 0;
-                while (!isConnected() && waited < max_wait_ms)
-                {
-                    vTaskDelay(100 / portTICK_PERIOD_MS);
-                    waited += 100;
-                }
-            }
-            if (attempt > 0)
-            {
-                disconnect();
+                esp_wifi_disconnect();
+                _isConnected = false;
                 vTaskDelay(1000 / portTICK_PERIOD_MS);
-            }
-        }
-        
-        waited = 0;
-        while (waited < max_wait_ms)
-        {
-            if (!getIp())
-            {
-                vTaskDelay(1000 / portTICK_PERIOD_MS);
-                waited += 1000;
-            }
-            else
-            {
-                return true;
             }
         }
 
