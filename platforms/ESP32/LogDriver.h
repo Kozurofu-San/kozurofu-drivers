@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Logs.h"
+#include "interface/Log.h"
 
 #include <cstdio>
 #include <cstdarg>
@@ -8,20 +8,20 @@
 namespace driver
 {
 
-class LogsDriver : public ILogs
+class LogDriver : public ILog
 {
     public:
 
-    static LogsDriver& getInstance()
+    static LogDriver& getInstance()
     {
-        static LogsDriver instance;
+        static LogDriver instance;
         return instance;
     }
 
-    LogsDriver(const LogsDriver&) = delete;
-    LogsDriver& operator=(const LogsDriver&) = delete;
-    LogsDriver(LogsDriver&&) = delete;
-    LogsDriver& operator=(LogsDriver&&) = delete;
+    LogDriver(const LogDriver&) = delete;
+    LogDriver& operator=(const LogDriver&) = delete;
+    LogDriver(LogDriver&&) = delete;
+    LogDriver& operator=(LogDriver&&) = delete;
 
     bool init()
     {
@@ -95,7 +95,7 @@ class LogsDriver : public ILogs
     }
 
     private:
-    LogsDriver() = default;
+    LogDriver() = default;
     char _buffer[128];
 
 };

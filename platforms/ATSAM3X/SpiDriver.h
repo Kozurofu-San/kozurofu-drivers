@@ -44,18 +44,37 @@ class SpiController: public ICommunication
 
     bool init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, uint32_t speed)
     {
+        // Clock
         spi_enable_clock(_spi);
+
+        // Disable
         spi_disable(_spi);
         spi_reset(_spi);
+
         spi_set_lastxfer(_spi);
+
+        // Parameters
         spi_set_master_mode(_spi);
         spi_disable_mode_fault_detect(_spi);
         spi_set_peripheral_chip_select_value(_spi, 0);
         spi_set_clock_polarity(_spi, 0, 0);
         spi_set_clock_phase(_spi, 0, 0);
         spi_set_bits_per_transfer(_spi, 0, SPI_CSR_BITS_8_BIT);
+
+        uint32_t speedMin = sysclk_get_peripheral_hz() / 255;
+        uint32_t speedMax = sysclk_get_peripheral_hz() / 2;
+        if ((speed < speedMin) || (speed > speedMax))
+        {
+            printf("SPI baudrate limits %lu..%lu. Desired speed is %lu", speedMin, speedMax, speed);
+            return false;
+        }
         spi_set_baudrate_div(_spi, 0, (sysclk_get_peripheral_hz() / speed));
+        int16_t div = spi_calc_baudrate_div(speed, sysclk_get_peripheral_hz());
+        _speed = sysclk_get_peripheral_hz() / div;
+
         spi_set_transfer_delay(_spi, 0, 0x40, 0x10);
+
+        // Enable
         spi_enable(_spi);
         return true;
     };

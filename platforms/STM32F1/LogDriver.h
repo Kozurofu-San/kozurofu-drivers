@@ -1,8 +1,8 @@
 #pragma once
 
-#include "interface/Logs.h"
+#include "interface/Log.h"
 
-#include <sam3x8e.h>
+#include <stm32f1xx.h>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdint>
@@ -10,15 +10,11 @@
 namespace driver
 {
 
-class LogsDriver : public ILogs
+class LogDriver : public ILog
 {
     public:
 
     static constexpr uint32_t StLinkV2MaxSpeed = 2250000;
-
-    LogsDriver()
-    {
-    }
 
     /*
     * @param  portMask: 0xFFFFFFFF to enable all ports
@@ -27,12 +23,16 @@ class LogsDriver : public ILogs
     * @retval None
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     */
+    LogDriver()
+    {
+    }
+
     void init(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
     {
         uint32_t swoPrescaler = (cpuCoreFreqHz / baudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
         
-         CoreDebug->DEMCR = CoreDebug_DEMCR_TRCENA_Msk;      // Debug Exception and Monitor Control Register (DEMCR): enable trace in core debug
-        // DBGMCU->CR	= 0x00000027u;                          // DBGMCU_CR : TRACE_IOEN DBG_STANDBY DBG_STOP 	DBG_SLEEP
+        CoreDebug->DEMCR = CoreDebug_DEMCR_TRCENA_Msk;      // Debug Exception and Monitor Control Register (DEMCR): enable trace in core debug
+        DBGMCU->CR	= 0x00000027u;                          // DBGMCU_CR : TRACE_IOEN DBG_STANDBY DBG_STOP 	DBG_SLEEP
         TPI->SPPR	= 0x00000002u;                          // Selected PIN Protocol Register: Select which protocol to use for trace output (2: SWO)
         TPI->ACPR	= swoPrescaler;                         // Async Clock Prescaler Register: Scale the baud rate of the asynchronous output
         ITM->LAR	= 0xC5ACCE55u;                          // ITM Lock Access Register: C5ACCE55 enables more write access to Control Register 0xE00 :: 0xFFC
@@ -43,7 +43,7 @@ class LogsDriver : public ILogs
         TPI->FFCR	= 0x00000100u;                          // Formatter and Flush Control Register
     }
 
-    void LOGI(const char* message, ...) override
+    void i(const char* message, ...) override
     {
         va_list args;
         va_start(args, message);
@@ -57,7 +57,7 @@ class LogsDriver : public ILogs
         printString(0, _buffer);
     }
 
-    void LOGW(const char* message, ...) override
+    void w(const char* message, ...) override
     {
         va_list args;
         va_start(args, message);
@@ -71,7 +71,7 @@ class LogsDriver : public ILogs
         printString(1, _buffer);
     }
 
-    void LOGE(const char* message, ...) override
+    void e(const char* message, ...) override
     {
         va_list args;
         va_start(args, message);
@@ -85,7 +85,7 @@ class LogsDriver : public ILogs
         printString(2, _buffer);
     }
 
-    void LOGV(uint32_t channel, int32_t value) override
+    void v(uint32_t channel, int32_t value) override
     {
         if (((ITM->TCR & ITM_TCR_ITMENA_Msk) != 0UL) &&      /* ITM enabled */
             ((ITM->TER & (1UL << channel)  ) != 0UL)   )     /* ITM Port enabled */
@@ -96,6 +96,16 @@ class LogsDriver : public ILogs
             }
             ITM->PORT[channel].u32 = value;
         }
+    }
+
+    bool readString(char* string) override
+    {
+        return true;
+    }
+    
+    bool readNumber(int& number) override
+    {
+        return true;
     }
 
     private:

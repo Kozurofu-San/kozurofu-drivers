@@ -34,41 +34,17 @@ class ISystem
         Backup,     //!< Reset due to backup
     };
 
-    /*
-    static constexpr std::array<std::string_view, 19> resetReasonString = {
-        "Unknown",
-        "PowerOn",
-        "Ext",
-        "Sw",
-        "Panic",
-        "IntWdt",
-        "IndWdt",
-        "WinWdt",
-        "TaskWdt",
-        "Wdt",
-        "DeepSleep",
-        "Brownout",
-        "Sdio",
-        "Usb",
-        "Jtag",
-        "Efuse",
-        "PwrGlitch",
-        "CpuLockup",
-        "Backup"
-    };
-    */
-
     struct MemoryInfo {
-        char* ramEnd;       // конец RAM
+        char* ramEnd;       // The end of RAM
     
-        char* dataEnd;      // конец .bss / начало heap
-        char* heapEnd;      // текущий конец heap
+        char* dataEnd;      // The end of .bss / the beginning of heap
+        char* heapEnd;      // The current end of heap
     
-        char* stackPtr;     // текущая позиция стека
+        char* stackPtr;     // The current stack pointer
     
-        int32_t ramFree;   // вычисленное свободное место
+        int32_t ramFree;   // Calculated free RAM
         
-        bool heapStackCollision; // 🔥 критично
+        bool heapStackCollision; // Critical
         size_t usedHeap;
         size_t usedStack;
     };

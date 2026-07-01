@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Logs.h"
+#include "interface/Log.h"
 
 #include "proc/p32mx440f256h.h"
 #include <cstdarg>
@@ -10,7 +10,7 @@
 namespace driver
 {
 
-class LogsDriver : public ILogs
+class LogDriver : public ILog
 {
     public:
 
@@ -23,7 +23,7 @@ class LogsDriver : public ILogs
     * @retval None
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     */
-    LogsDriver()
+    LogDriver()
     {
         // uint32_t SWOPrescaler = (cpuCoreFreqHz / baudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
         
@@ -43,7 +43,7 @@ class LogsDriver : public ILogs
     {
     }
 
-    void LOGI(const char* message, ...) override
+    void i(const char* message, ...) override
     {
         va_list args;
         va_start(args, message);
@@ -52,7 +52,7 @@ class LogsDriver : public ILogs
         printString(0, _buffer);
     }
 
-    void LOGW(const char* message, ...) override
+    void w(const char* message, ...) override
     {
         va_list args;
         va_start(args, message);
@@ -61,7 +61,7 @@ class LogsDriver : public ILogs
         printString(1, _buffer);
     }
 
-    void LOGE(const char* message, ...) override
+    void e(const char* message, ...) override
     {
         va_list args;
         va_start(args, message);
@@ -70,7 +70,7 @@ class LogsDriver : public ILogs
         printString(2, _buffer);
     }
 
-    void LOGV(uint32_t channel, int32_t value) override
+    void v(uint32_t channel, int32_t value) override
     {
         // if (((ITM->TCR & ITM_TCR_ITMENA_Msk) != 0UL) &&      /* ITM enabled */
         //     ((ITM->TER & (1UL << channel)  ) != 0UL)   )     /* ITM Port enabled */
@@ -82,6 +82,17 @@ class LogsDriver : public ILogs
         //     ITM->PORT[channel].u32 = value;
         // }
     }
+    
+    bool readString(char* string) override
+    {
+        return true;
+    }
+    
+    bool readNumber(int& number) override
+    {
+        return true;
+    }
+
 
     private:
 

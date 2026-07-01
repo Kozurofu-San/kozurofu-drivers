@@ -2,16 +2,14 @@
 
 #include "interface/System.h"
 
-#include "asf.h"
-#include "component/component_chipid.h"
-#include "chipid/chipid.h"
+#include "stm32f4xx.h"
 #include <cstdint>
 #include <cstddef>
 
 extern "C" {
     void* _sbrk(int);
-    extern char _end;     // The end of .bss
-    extern char _estack;  // The top of RAM
+    extern char _end;     // конец .bss
+    extern char _estack;  // верх RAM
 }
 
 namespace driver
@@ -24,14 +22,16 @@ class SystemDriver : public ISystem
     ResetReason getValue() override
     {
         ResetReason ret;
-        uint32_t reason = (RSTC->RSTC_SR & RSTC_SR_RSTTYP_Msk) >> RSTC_SR_RSTTYP_Pos;
+        uint32_t reason = RCC-> CSR;
 
-        if      ( reason == 0) { ret = ResetReason::PowerOn; _reasonIdx = 0; }
-        else if ( reason == 1) { ret = ResetReason::Backup ; _reasonIdx = 1; }
-        else if ( reason == 2) { ret = ResetReason::Wdt    ; _reasonIdx = 2; }
-        else if ( reason == 3) { ret = ResetReason::Sw     ; _reasonIdx = 3; }
-        else if ( reason == 4) { ret = ResetReason::Ext    ; _reasonIdx = 4; }
-        else                   { ret = ResetReason::Unknown; _reasonIdx = 5; }
+        if      ( reason & RCC_CSR_PORRSTF)  { ret = ResetReason::PowerOn   ; _reasonIdx = 0; }
+        else if ( reason & RCC_CSR_LPWRRSTF) { ret = ResetReason::Brownout  ; _reasonIdx = 1; }
+        else if ( reason & RCC_CSR_BORRSTF)  { ret = ResetReason::Brownout  ; _reasonIdx = 1; }
+        else if ( reason & RCC_CSR_IWDGRSTF) { ret = ResetReason::IndWdt    ; _reasonIdx = 2; }
+        else if ( reason & RCC_CSR_WWDGRSTF) { ret = ResetReason::WinWdt    ; _reasonIdx = 3; }
+        else if ( reason & RCC_CSR_SFTRSTF)  { ret = ResetReason::Sw        ; _reasonIdx = 4; }
+        else if ( reason & RCC_CSR_PINRSTF)  { ret = ResetReason::Ext       ; _reasonIdx = 5; }
+        else                                 { ret = ResetReason::Unknown   ; _reasonIdx = 6; }
 
         return ret;
     }
@@ -49,9 +49,7 @@ class SystemDriver : public ISystem
     
     uint64_t getChipId() override
     {
-        chipid_data_t chipId;
-        chipid_read(CHIPID, &chipId);
-        return (static_cast<uint64_t>(CHIPID->CHIPID_EXID) << 32) | CHIPID->CHIPID_CIDR;
+        return static_cast<uint64_t>(DBGMCU->IDCODE);
     }
     
     void restart() override
@@ -95,11 +93,12 @@ class SystemDriver : public ISystem
 
     private:
 
-    static constexpr std::array<std::string_view, 6> resetReasonString =
+    static constexpr std::array<std::string_view, 7> resetReasonString =
     {
         "PowerOn",
-        "Backup",
-        "Wdt",
+        "Brownout",
+        "IndWdt",
+        "WinWdt",
         "Sw",
         "Ext",
         "Unknown"

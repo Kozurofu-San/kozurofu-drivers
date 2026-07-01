@@ -90,7 +90,8 @@ class SystemDriver : public ISystem
 
     private:
 
-    static constexpr std::array<std::string_view, 16> resetReasonString = {
+    static constexpr std::array<std::string_view, 16> resetReasonString =
+    {
         "Unknown",
         "PowerOn",
         "Ext",

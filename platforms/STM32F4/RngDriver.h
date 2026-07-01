@@ -6,8 +6,7 @@
 #include <cstddef>
 #include <cassert>
 
-#include "asf.h"
-#include "component/component_trng.h"
+#include "stm32f4xx.h"
 
 #define TRNG_KEY 0x524E4700
 
@@ -18,18 +17,15 @@ class RngDriver : public IRandom
 {
     public:
 
-    RngDriver(Trng *rng)
+    RngDriver(RNG_TypeDef *rng)
         : _rng(rng)
     {
     }
 
     bool init()
     {
-        uint32_t rccId = 0;
-        if (_rng == TRNG) rccId = ID_TRNG;
-        sysclk_enable_peripheral_clock(rccId);
-
-        _rng->TRNG_CR = TRNG_CR_ENABLE | TRNG_KEY;
+        RCC->AHB2ENR |= RCC_AHB2ENR_RNGEN;
+        RNG->CR |= RNG_CR_RNGEN;
 
         _isInit = true;
         return true;
@@ -37,8 +33,8 @@ class RngDriver : public IRandom
 
     uint32_t getValue() override
     {
-        while ((_rng->TRNG_ISR & TRNG_ISR_DATRDY) == 0);
-        return _rng->TRNG_ODATA;
+        while (!(_rng->SR & RNG_SR_DRDY));
+        return _rng->DR;
     }
 
     bool isInit() override
@@ -48,7 +44,7 @@ class RngDriver : public IRandom
 
     private:
 
-    Trng *_rng;
+    RNG_TypeDef *_rng;
     
     bool _isInit = false;
 };

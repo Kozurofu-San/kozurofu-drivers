@@ -175,7 +175,7 @@ public:
 
         float rf = 0, gf = 0, bf = 0;
 
-        if (h < 60)       { rf = c; gf = x; bf = 0; }
+        if      (h < 60)  { rf = c; gf = x; bf = 0; }
         else if (h < 120) { rf = x; gf = c; bf = 0; }
         else if (h < 180) { rf = 0; gf = c; bf = x; }
         else if (h < 240) { rf = 0; gf = x; bf = c; }
@@ -267,11 +267,11 @@ public:
 
         s = delta / max;
 
-        if (max == rf)
+        if (areEqual(max, rf))
         {
             h = 60.0f * std::fmod(((gf - bf) / delta), 6.0f);
         }
-        else if (max == gf)
+        else if (areEqual(max, gf))
         {
             h = 60.0f * (((bf - rf) / delta) + 2.0f);
         }
@@ -281,6 +281,15 @@ public:
         }
 
         if (h < 0) h += 360.0f;
+    }
+
+    /**
+     * @brief Compare floating-point numbers.
+     */
+    static bool areEqual(float& a, float& b)
+    {
+        // Scale epsilon relative to the larger magnitude of the two numbers
+        return std::fabs(a - b) <= 0.00001;
     }
 
     /**

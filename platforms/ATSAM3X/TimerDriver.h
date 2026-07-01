@@ -18,7 +18,7 @@ class TimerDriver : public ITimer
         Pwm = 1, // If PWM mode is supported/needed for ATSAM
     };
 
-    TimerDriver(uint32_t* timer)
+    TimerDriver(Tc *timer)
         : _timer(timer) {}
 
     bool init(Mode mode, uint32_t periodMs)
@@ -69,7 +69,7 @@ class TimerDriver : public ITimer
 
     uint32_t getSpeed() override
     {
-        
+        return 0;
     }
 
     bool isInit() override
@@ -79,7 +79,7 @@ class TimerDriver : public ITimer
 
 private:
 
-    uint32_t* _timer;
+    Tc *_timer;
     uint32_t _ms = 0;
     uint32_t _speed = 0;
 

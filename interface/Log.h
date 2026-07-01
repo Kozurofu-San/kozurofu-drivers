@@ -5,11 +5,11 @@
 namespace driver
 {
 
-class  ILogs
+class  ILog
 {
     public:
 
-    virtual ~ ILogs() = default;
+    virtual ~ ILog() = default;
     virtual void i(const char* message, ...) = 0;
     virtual void w(const char* message, ...) = 0;
     virtual void e(const char* message, ...) = 0;
