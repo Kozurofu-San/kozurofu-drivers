@@ -18,6 +18,7 @@ class  IConsole
     };
 
     virtual ~ IConsole() = default;
+    virtual bool start() = 0;
     virtual bool cmdAdd(Command& cmd) = 0;
     virtual bool cmdRemove(const char* name) = 0;
 };

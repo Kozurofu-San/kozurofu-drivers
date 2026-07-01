@@ -36,7 +36,7 @@ class ConsoleDriver : public IConsole
         return true;
     }
 
-    bool start()
+    bool start() override
     {
         if (s_repl == nullptr && !init())
         {
