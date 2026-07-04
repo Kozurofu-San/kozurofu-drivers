@@ -16,6 +16,13 @@ class LogDriver : public ILog
 
     static constexpr uint32_t StLinkV2MaxSpeed = 2250000;
 
+    enum class MsgType
+    {
+        I,
+        W,
+        E
+    };
+
     /*
     * @param  portMask: 0xFFFFFFFF to enable all ports
     * @param  cpuCoreFreqHz: CPU core frequency in Hz
@@ -27,6 +34,14 @@ class LogDriver : public ILog
     {
     }
 
+    /*
+    * @param  portMask: 0xFFFFFFFF to enable all ports
+    * @param  cpuCoreFreqHz: CPU core frequency in Hz
+    * @param  baudrate: SWO baudrate in Hz
+    * @retval None
+    * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
+    * Init OK
+    */
     void init(uint32_t portMask, uint32_t cpuCoreFreqHz, uint32_t baudrate)
     {
         uint32_t swoPrescaler = (cpuCoreFreqHz / baudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
@@ -45,48 +60,55 @@ class LogDriver : public ILog
 
     void i(const char* message, ...) override
     {
+        #ifdef LOG
         va_list args;
         va_start(args, message);
         uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
+        printString(static_cast<uint8_t>(MsgType::I), _buffer);
         if (len > sizeof(_buffer))
         {
-            printString(2, ErrorMsg);
+            printString(static_cast<uint8_t>(MsgType::E), ErrorMsg);
             return;
         }
-        printString(0, _buffer);
+        #endif
     }
 
     void w(const char* message, ...) override
     {
+        #ifdef LOG
         va_list args;
         va_start(args, message);
         uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
+        printString(static_cast<uint8_t>(MsgType::W), _buffer);
         if (len > sizeof(_buffer))
         {
-            printString(2, ErrorMsg);
+            printString(static_cast<uint8_t>(MsgType::E), ErrorMsg);
             return;
         }
-        printString(1, _buffer);
+        #endif
     }
 
     void e(const char* message, ...) override
     {
+        #ifdef LOG
         va_list args;
         va_start(args, message);
         uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
+        printString(static_cast<uint8_t>(MsgType::E), _buffer);
         if (len > sizeof(_buffer))
         {
-            printString(2, ErrorMsg);
+            printString(static_cast<uint8_t>(MsgType::E), ErrorMsg);
             return;
         }
-        printString(2, _buffer);
+        #endif
     }
 
     void v(uint32_t channel, int32_t value) override
     {
+        #ifdef LOG
         if (((ITM->TCR & ITM_TCR_ITMENA_Msk) != 0UL) &&      /* ITM enabled */
             ((ITM->TER & (1UL << channel)  ) != 0UL)   )     /* ITM Port enabled */
         {
@@ -96,6 +118,7 @@ class LogDriver : public ILog
             }
             ITM->PORT[channel].u32 = value;
         }
+        #endif
     }
 
     bool readString(char* string) override

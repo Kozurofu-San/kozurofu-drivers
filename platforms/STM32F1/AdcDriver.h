@@ -76,7 +76,7 @@ class AdcDriver : public IVoltageGet
     {
     }
 
-    void init()
+    bool init()
     {
         // Clock
         RCC->APB2ENR |= (_adc == ADC1) ? RCC_APB2ENR_ADC1EN : RCC_APB2ENR_ADC2EN;
@@ -123,11 +123,14 @@ class AdcDriver : public IVoltageGet
         _adc->CR1 |= ADC_CR1_SCAN; // Enable scan mode
         _adc->CR2 |= ADC_CR2_ADON; // Enable ADC
 
-        _adc->CR2 |= ADC_CR2_RSTCAL;        
-        while(_adc->CR2 & ADC_CR2_RSTCAL);  
+        _adc->CR2 |= ADC_CR2_RSTCAL;
+        while(_adc->CR2 & ADC_CR2_RSTCAL);
         
-        _adc->CR2 |= ADC_CR2_CAL;           
-        while(_adc->CR2 & ADC_CR2_CAL);     
+        _adc->CR2 |= ADC_CR2_CAL;
+        while(_adc->CR2 & ADC_CR2_CAL);
+
+        _isInit = true;
+        return  true;
 
     }
 
@@ -153,11 +156,18 @@ class AdcDriver : public IVoltageGet
         return _channels[channel].data;
     }
 
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     private:
 
     ADC_TypeDef *_adc;
     ChannelConfig *_channels;
     size_t _channelCount;
+
+    bool _isInit = false;
 };
 
 }

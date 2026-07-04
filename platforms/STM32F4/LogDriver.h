@@ -23,6 +23,13 @@ class LogDriver : public ILog
         E
     };
 
+    /*
+    * @param  portMask: 0xFFFFFFFF to enable all ports
+    * @param  cpuCoreFreqHz: CPU core frequency in Hz
+    * @param  baudrate: SWO baudrate in Hz
+    * @retval None
+    * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
+    */
     LogDriver()
     {
     }

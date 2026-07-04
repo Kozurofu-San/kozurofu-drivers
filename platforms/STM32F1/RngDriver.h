@@ -1,12 +1,12 @@
 #pragma once
 
 #include "interface/Random.h"
+#include "interface/VoltageGet.h"
 
 #include <cstdint>
-#include <cstddef>
-#include <cassert>
+#include <random>
 
-#include "stm32f4xx.h"
+#include "stm32f1xx.h"
 
 namespace driver
 {
@@ -15,24 +15,23 @@ class RngDriver : public IRandom
 {
     public:
 
-    RngDriver(RNG_TypeDef *rng)
-        : _rng(rng)
+    RngDriver(IVoltageGet &adc)
+        : _adc(adc)
     {
     }
 
     bool init()
     {
-        RCC->AHB2ENR |= RCC_AHB2ENR_RNGEN;
-        RNG->CR |= RNG_CR_RNGEN;
-
         _isInit = true;
         return true;
     }
 
     uint32_t getValue() override
     {
-        while (!(_rng->SR & RNG_SR_DRDY));
-        return _rng->DR;
+        uint32_t seed = _adc.getRawValue(0);
+        std::mt19937 rng(seed);
+        std::uniform_int_distribution<uint32_t> dist(0, 2048);
+        return dist(rng);
     }
 
     bool isInit() override
@@ -42,7 +41,7 @@ class RngDriver : public IRandom
 
     private:
 
-    RNG_TypeDef *_rng;
+    IVoltageGet &_adc;
     
     bool _isInit = false;
 };

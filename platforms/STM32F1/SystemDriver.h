@@ -2,7 +2,7 @@
 
 #include "interface/System.h"
 
-#include "stm32f4xx.h"
+#include "stm32f1xx.h"
 #include <cstdint>
 #include <cstddef>
 
@@ -26,7 +26,6 @@ class SystemDriver : public ISystem
 
         if      ( reason & RCC_CSR_PORRSTF)  { ret = ResetReason::PowerOn   ; _reasonIdx = 0; }
         else if ( reason & RCC_CSR_LPWRRSTF) { ret = ResetReason::Brownout  ; _reasonIdx = 1; }
-        else if ( reason & RCC_CSR_BORRSTF)  { ret = ResetReason::Brownout  ; _reasonIdx = 1; }
         else if ( reason & RCC_CSR_IWDGRSTF) { ret = ResetReason::IndWdt    ; _reasonIdx = 2; }
         else if ( reason & RCC_CSR_WWDGRSTF) { ret = ResetReason::WinWdt    ; _reasonIdx = 3; }
         else if ( reason & RCC_CSR_SFTRSTF)  { ret = ResetReason::Sw        ; _reasonIdx = 4; }
