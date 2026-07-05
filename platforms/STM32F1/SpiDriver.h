@@ -208,7 +208,7 @@ class SpiController : public ICommunication
         return _isInit;
     }
 
-    SPI_TypeDef* getSpi()
+    SPI_TypeDef* getInstance()
     {
         return _spi;
     }
@@ -253,17 +253,17 @@ class SpiDriver : public ICommunication
 
     void init(IGpio* cs, uint8_t idleState)
     {
-        _spi.getSpi()->CR1 &= ~SPI_CR1_SPE;
+        _spi.getInstance()->CR1 &= ~SPI_CR1_SPE;
         if (cs)
         {
             _cs = cs;
-            _spi.getSpi()->CR2 |= SPI_CR2_SSOE;  // Soft Chip Select
+            _spi.getInstance()->CR2 |= SPI_CR2_SSOE;  // Soft Chip Select
         }
         else
         {
-            _spi.getSpi()->CR2 &= ~SPI_CR2_SSOE; // Hard Chip Select
+            _spi.getInstance()->CR2 &= ~SPI_CR2_SSOE; // Hard Chip Select
         }
-        _spi.getSpi()->CR1 |= SPI_CR1_SPE;
+        _spi.getInstance()->CR1 |= SPI_CR1_SPE;
 
         if (idleState)
         {

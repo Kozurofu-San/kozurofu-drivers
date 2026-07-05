@@ -1,0 +1,82 @@
+#pragma once
+
+#include "interface/Communication.h"
+
+#include "asf.h"
+#include "component/component_twi.h"
+#include "twi/twi.h"
+
+namespace driver
+{
+
+class I2cDriver: public ICommunication
+{
+    public:
+
+    I2cDriver(Twi *i2c)
+        : _i2c(i2c)
+    {
+    }
+
+    bool init(uint32_t speed)
+    {
+        
+        _isInit = true;
+        return true;
+    };
+    
+    void write(uint8_t *data, size_t len, size_t bytes = 1) override
+    {
+        for (size_t i = 0; i < len; ++i)
+        {
+            
+        }
+    };
+
+    void read(uint8_t *data, size_t len, size_t bytes = 1) override
+    {
+        static uint16_t ret;
+        for (size_t i = 0; i < len; ++i)
+        {
+            
+        }
+    };
+    
+    
+    uint32_t sendCommand(uint32_t cmd) override
+    {
+        return 0;
+    }
+
+    uint32_t getSpeed() const override
+    {
+        return _speed;
+    }
+
+    void enable() override
+    {
+    }
+
+    void disable() override
+    {
+    }
+
+    bool isInit() override
+    {
+        return _isInit;
+    }
+    
+    Twi* getInstance()
+    {
+        return _i2c;
+    }
+
+    private:
+
+    Twi* _i2c;
+    uint32_t _speed;
+
+    bool _isInit = false;
+};
+
+}

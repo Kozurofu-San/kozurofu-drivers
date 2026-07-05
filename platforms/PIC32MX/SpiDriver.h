@@ -1,13 +1,13 @@
 #pragma once
 
-#include "interface/Spi.h"
+#include "interface/Communication.h"
 
 #include "proc/p32mx440f256h.h"
 
 namespace driver
 {
 
-class SpiDriver : public ISpi
+class SpiDriver : public ICommunication
 {
     public:
 
@@ -45,7 +45,7 @@ class SpiDriver : public ISpi
     {
     }
 
-    void init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, uint32_t baudRatePrescaler)
+    void init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, uint32_t speed)
     {
         // // Clock enable
         // if (_spi == SPI0) {
@@ -66,7 +66,7 @@ class SpiDriver : public ISpi
         // _spi->SPI_CR = SPI_CR_SPIEN;
     };
 
-    void write(uint8_t *data, size_t len) override
+    void write(uint8_t *data, size_t len, size_t bytes = 1) override
     {
         // for (size_t i = 0; i < len; ++i)
         // {
@@ -75,7 +75,7 @@ class SpiDriver : public ISpi
         // }
     };
 
-    void read(uint8_t *data, size_t len) override
+    void read(uint8_t *data, size_t len, size_t bytes = 1) override
     {
         // for (size_t i = 0; i < len; ++i)
         // {
@@ -86,9 +86,40 @@ class SpiDriver : public ISpi
         // }
     };
     
+    uint32_t sendCommand(uint32_t cmd) override
+    {
+        return 0;
+    }
+
+    P getInstance()
+    {
+        return _spi;
+    }
+
+    uint32_t getSpeed() const override
+    {
+        return _speed;
+    }
+
+    void enable() override
+    {
+    }
+
+    void disable() override
+    {
+    }
+
+    bool isInit() override
+    {
+        return _isInit;
+    }
+    
+
     private:
 
     P _spi;
+    uint32_t _speed;
+    bool _isInit = false;
 };
 
 }

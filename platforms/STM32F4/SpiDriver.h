@@ -267,7 +267,7 @@ class SpiController : public ICommunication
         return _isInit;
     }
 
-    SPI_TypeDef* getSpi()
+    SPI_TypeDef* getInstance()
     {
         return _spi;
     }

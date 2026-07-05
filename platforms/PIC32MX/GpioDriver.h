@@ -45,10 +45,23 @@ class GpioDriver : public IGpio
     {
     }
 
-    void init(Mode mode, Pull pull)
+    bool init(Mode mode, Pull pull)
     {
         SYSKEY = 0xAA996655;
         SYSKEY = 0x556699AA;
+
+        _isInit = true;
+        return true;
+    }
+
+    inline P getInstance()
+    {
+        return _port;
+    }
+
+    inline size_t getPin() override
+    {
+        return _pin;
     }
 
     void write(bool state) override
@@ -62,11 +75,16 @@ class GpioDriver : public IGpio
         return false;
     }
 
-    void callback(void (*cb)(uint32_t))
+    void callback(void (*cb)(uint32_t)) override
     {
         _cb = cb;
     }
     
+    inline bool isInit() override
+    {
+        return false;  // Not implemented
+    }
+
     enum class Peripheral: uint8_t
     {
         A   = 0x0,
@@ -105,6 +123,8 @@ class GpioDriver : public IGpio
     size_t _pin;
 
     void (*_cb)(uint32_t) = nullptr;
+    uint32_t _speed = 0;
+    bool _isInit = false;
 };
 
 }

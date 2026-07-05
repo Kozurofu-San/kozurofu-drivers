@@ -76,6 +76,7 @@ class SpiController: public ICommunication
 
         // Enable
         spi_enable(_spi);
+        _isInit = true;
         return true;
     };
     
@@ -106,7 +107,7 @@ class SpiController: public ICommunication
         return 0;
     }
 
-    Spi* getSpi()
+    Spi* getInstance()
     {
         return _spi;
     }

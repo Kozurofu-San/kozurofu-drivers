@@ -36,7 +36,7 @@ class GpioDriver : public IGpio
     {
     }
 
-    void init(Mode mode, Pull pull)
+    bool init(Mode mode, Pull pull)
     {
         // Clock enable
         uint32_t rccId = 0;
@@ -81,11 +81,11 @@ class GpioDriver : public IGpio
             _port->PIO_PUDR = 1 << _pin;
         }
 
+        _isInit = true;
+        return true;
     }
 
-    
-
-    inline Pio* getPort()
+    inline Pio* getInstance()
     {
         return _port;
     }
@@ -152,6 +152,8 @@ class GpioDriver : public IGpio
     size_t _pin;
 
     void (*_cb)(uint32_t) = nullptr;
+    uint32_t _speed = 0;
+    bool _isInit = false;
 };
 
 }

@@ -73,7 +73,7 @@ class GpioDriver : public IGpio
         EXTI->PR = 1 << _pin;
     }
 
-    inline GPIO_TypeDef * getPort()
+    inline GPIO_TypeDef * getInstance()
     {
         return _port;
     }

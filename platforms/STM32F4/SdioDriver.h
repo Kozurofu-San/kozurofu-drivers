@@ -3,6 +3,8 @@
 #include "interface/Memory.h"
 #include "interface/Timer.h"
 
+#include <cstdio>
+
 #include "stm32f4xx.h"
 extern uint32_t SystemCoreClock;
 
@@ -267,7 +269,7 @@ class SdioDriver : public IMemory
         return _sdio->RESP1;
     }
     
-    SDIO_TypeDef* getSdio()
+    SDIO_TypeDef* getInstance()
     {
         return _sdio;
     }

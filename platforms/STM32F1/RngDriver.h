@@ -41,7 +41,7 @@ class RngDriver : public IRandom
 
     private:
 
-    IVoltageGet &_adc;
+    IVoltageGet &_adc; // TODO: &_adc doesn't exist after Freertos starts
     
     bool _isInit = false;
 };

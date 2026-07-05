@@ -2,7 +2,7 @@
 
 #include "interface/Communication.h"
 
-#include "stm32f4xx.h"
+#include "stm32f1xx.h"
 extern uint32_t SystemCoreClock;
 
 namespace driver
@@ -23,14 +23,12 @@ class UartDriver : public ICommunication
     {
     }
     
-    bool init(uint32_t baudRate, Oversampling oversampling)
+    bool init(uint32_t speed, Oversampling oversampling)
     {
         // Clock enable
         if      (_uart == USART1) RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
         else if (_uart == USART2) RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
         else if (_uart == USART3) RCC->APB1ENR |= RCC_APB1ENR_USART3EN;
-        else if (_uart == UART4)  RCC->APB1ENR |= RCC_APB1ENR_UART4EN;
-        else if (_uart == UART5)  RCC->APB1ENR |= RCC_APB1ENR_UART5EN;
 
         // Calculate baud rate
         uint32_t busPrescalerPos = (_uart == USART1) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
@@ -38,8 +36,8 @@ class UartDriver : public ICommunication
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
         uint32_t oversamplingBits = (2 - static_cast<uint32_t>(oversampling)) * 8;
         uint32_t busSpeed = SystemCoreClock / busPrescaler / oversamplingBits;
-        uint32_t mantissa = busSpeed / baudRate;
-        uint32_t fraction = (busSpeed % baudRate) * 16 / baudRate;
+        uint32_t mantissa = busSpeed / speed;
+        uint32_t fraction = (busSpeed % speed) * 16 / speed;
         _uart->BRR = (mantissa << USART_BRR_DIV_Mantissa_Pos) | (fraction << USART_BRR_DIV_Fraction_Pos);
         
         
@@ -66,6 +64,8 @@ class UartDriver : public ICommunication
     {
         for (size_t i = 0; i < len; ++i)
         {
+             while (!(_uart->SR & USART_SR_TXE));
+             _uart->DR = *data++;
         }
     };
 
@@ -73,6 +73,8 @@ class UartDriver : public ICommunication
     {
         for (size_t i = 0; i < len; ++i)
         {
+            while (!(_uart->SR & USART_SR_RXNE));
+            *data++ = _uart->DR;
         }
     };
 

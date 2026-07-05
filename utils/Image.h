@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdlib>
 #include <cmath>
 
 class Image
@@ -170,7 +171,7 @@ public:
     static void hsvToRgb(float h, float s, float v, uint8_t& r, uint8_t& g, uint8_t& b)
     {
         float c = v * s;
-        float x = c * (1.0f - std::fabsf(std::fmod(h / 60.0f, 2.0f) - 1.0f));
+        float x = c * (1.0f - std::abs(std::fmod(h / 60.0f, 2.0f) - 1.0f));
         float m = v - c;
 
         float rf = 0, gf = 0, bf = 0;
