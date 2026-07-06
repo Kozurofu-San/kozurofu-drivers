@@ -81,7 +81,7 @@ class TimerDriver : public ITimer
 
     uint32_t getSpeed() override
     {
-        return 0;
+        return _speed;
     }
 
     bool isInit() override

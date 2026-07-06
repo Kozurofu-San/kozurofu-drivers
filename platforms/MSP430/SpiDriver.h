@@ -1,6 +1,8 @@
 #pragma once
 
-#include "interface/Spi.h"
+#include "interface/Communication.h"
+
+#include <msp430.h>
 
 #undef REG
 #define REG(p, bias) (*(volatile uint16_t *)((uint16_t)p + (uint16_t)& bias - (uint16_t)& UCA0CTL0))
@@ -8,7 +10,7 @@
 namespace driver
 {
 
-class SpiDriver : public ISpi
+class SpiDriver : public ICommunication
 {
     public:
 
@@ -48,7 +50,7 @@ class SpiDriver : public ISpi
     {
     }
 
-    void init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, uint16_t baudRatePrescaler, Interrupt interrupt = Interrupt::None)
+    void init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, uint16_t speed, Interrupt interrupt = Interrupt::None)
     {
         __disable_interrupt();
 
@@ -78,6 +80,7 @@ class SpiDriver : public ISpi
         REG(_spi, UCA0CTL1) |= UCSSEL_2;   // SMCLK
 
         // Prescaler
+        auto baudRatePrescaler = speed;
         REG(_spi, UCA0BR0) = baudRatePrescaler & 0xFF; 
         REG(_spi, UCA0BR1) = (baudRatePrescaler >> 8) & 0xFF; 
         
@@ -86,7 +89,7 @@ class SpiDriver : public ISpi
         __enable_interrupt();
     };
 
-    void write(uint8_t *data, size_t len) override
+    void write(uint8_t *data, size_t len, size_t bytes = 1) override
     {
         uint8_t flagTx = (_spi == P::UsciA0) ? UCA0TXIFG : UCB0TXIFG;
         for (size_t i = 0; i < len; ++i)
@@ -97,7 +100,7 @@ class SpiDriver : public ISpi
         }
     };
 
-    void read(uint8_t *data, size_t len) override
+    void read(uint8_t *data, size_t len, size_t bytes = 1) override
     {
         uint8_t flagTx = (_spi == P::UsciA0) ? UCA0TXIFG : UCB0TXIFG;
         uint8_t flagRx = (_spi == P::UsciA0) ? UCA0RXIFG : UCB0RXIFG;
@@ -112,9 +115,38 @@ class SpiDriver : public ISpi
         }
     };
     
+    uint32_t sendCommand(uint32_t cmd) override
+    {
+        return 0;
+    }
+    uint32_t getSpeed() const override
+    {
+        return _speed;
+    }
+
+    void enable() override
+    {
+    }
+
+    void disable() override
+    {
+    }
+
+    bool isInit() override
+    {
+        return _isInit;
+    }
+    
+    P getInstance()
+    {
+        return _spi;
+    }
+
     private:
 
     P _spi;
+    uint32_t _speed;
+    bool _isInit = false;
 };
 
 }

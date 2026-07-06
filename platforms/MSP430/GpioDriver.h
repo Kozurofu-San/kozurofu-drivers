@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <cstddef>
 
+#include <msp430.h>
+
 #undef REG
 #define REG(p, bias) (*(volatile uint16_t *)((uint16_t)p + (uint16_t)& bias - (uint16_t)& P1IN))
 
@@ -147,6 +149,21 @@ class GpioDriver : public IGpio
     static void writePort(uint16_t port, uint16_t value)
     {
         REG(port, P1OUT) = value;
+    }
+
+    inline size_t getPin() override
+    {
+        return _pin;
+    }
+
+    inline bool isInit() override
+    {
+        return false;  // Not implemented
+    }
+
+    inline P getInstance()
+    {
+        return _port;
     }
 
     private:

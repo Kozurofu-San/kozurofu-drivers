@@ -4,6 +4,7 @@
 #include "interface/Gpio.h"
 
 #include <msp430.h>
+
 #include <cstdint>
 #include <cstddef>
 
@@ -108,6 +109,16 @@ class TimerDriver : public ITimer
         _cb = cb;
     }
 
+    uint32_t getSpeed() override
+    {
+        return _speed;
+    }
+
+    bool isInit() override
+    {
+        return _isInit;
+    }
+
     inline void load(uint32_t ms) { _ms = ms; }
     inline uint32_t now() { return _ms; }
     
@@ -118,6 +129,9 @@ class TimerDriver : public ITimer
     uint32_t _ms = 0;
 
     IGpio *_gpioPwm = nullptr;
+    uint32_t _speed = 0;
+
+    bool _isInit = false;
 
     void (*_cb)(uint32_t) = nullptr;
 };
