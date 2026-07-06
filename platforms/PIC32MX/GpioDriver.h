@@ -2,9 +2,11 @@
 
 #include "interface/Gpio.h"
 
-#include "proc/p32mx440f256h.h"
 #include <cstdint>
 #include <cstddef>
+
+#include <xc.h>
+#include <sys/attribs.h>
 
 #define REG(p, bias) (*(volatile uint32_t *)((uint32_t)p + (uint32_t)& bias - (uint32_t)& TRISB))
 

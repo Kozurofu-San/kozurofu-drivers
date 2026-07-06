@@ -2,7 +2,7 @@
 
 #include "interface/Log.h"
 
-#include "proc/p32mx440f256h.h"
+#include <xc.h>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdint>

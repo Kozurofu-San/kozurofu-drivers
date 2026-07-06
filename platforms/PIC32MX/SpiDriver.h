@@ -2,7 +2,7 @@
 
 #include "interface/Communication.h"
 
-#include "proc/p32mx440f256h.h"
+#include <xc.h>
 
 namespace driver
 {
