@@ -1,8 +1,7 @@
 #pragma once
 
-#include <cstdint>
-#include <cstddef>
-#include <functional>
+#include <stdint.h>
+#include <stddef.h>
 
 namespace driver
 {
