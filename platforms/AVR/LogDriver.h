@@ -1,6 +1,7 @@
 #pragma once
 
 #include "interface/Log.h"
+#include "interface/Communication.h"
 
 #include <avr/io.h>
 #include <stdarg.h>
@@ -21,19 +22,28 @@ class LogDriver : public ILog
     * @retval None
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     */
-    LogDriver()
+    
+    static LogDriver& getInstance()
     {
+        static LogDriver instance;
+        return instance;
     }
 
-    void init()
+    LogDriver(const LogDriver&) = delete;
+    LogDriver& operator=(const LogDriver&) = delete;
+    LogDriver(LogDriver&&) = delete;
+    LogDriver& operator=(LogDriver&&) = delete;
+
+    void init(ICommunication *uart)
     {
+        _uart = uart;
     }
 
     void i(const char* message, ...) override
     {
         va_list args;
         va_start(args, message);
-        vsprintf(_buffer, message, args);
+        vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
         printString(0, _buffer);
     }
@@ -42,7 +52,7 @@ class LogDriver : public ILog
     {
         va_list args;
         va_start(args, message);
-        vsprintf(_buffer, message, args);
+        vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
         printString(1, _buffer);
     }
@@ -51,7 +61,7 @@ class LogDriver : public ILog
     {
         va_list args;
         va_start(args, message);
-        vsprintf(_buffer, message, args);
+        vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
         printString(2, _buffer);
     }
@@ -71,22 +81,22 @@ class LogDriver : public ILog
         return true;
     }
 
-
     private:
 
-    char _buffer[20];
+    LogDriver() = default;
+    ICommunication *_uart;
+    char _buffer[60];
+    const uint8_t crlf[2] = {'\r', '\n'};
 
     void printString(uint32_t channel, char *symbol)
     {
         while (*symbol != 0)
         {
-            // ITM_SendCharToChannel(channel, *symbol);
+            _uart->write(reinterpret_cast<uint8_t*>(symbol), 1);
             symbol++;
         }
-        // ITM_SendCharToChannel(channel, '\n');
+        _uart->write(const_cast<uint8_t*>(crlf), 2);
     }
-    
-
 };
 
 }

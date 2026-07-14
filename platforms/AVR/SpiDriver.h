@@ -14,12 +14,6 @@ class SpiDriver : public ICommunication
 {
     public:
 
-    enum class P: uint16_t
-    {
-        UsciA0 = 0x60,
-        UsciB0 = 0x68,
-    };
-
     enum class Mode: uint8_t
     {
         Master  = 0,
@@ -45,8 +39,7 @@ class SpiDriver : public ICommunication
         Rx      = 0
     };
 
-    SpiDriver(P spi)
-        : _spi(spi)
+    SpiDriver()
     {
     }
 
@@ -87,14 +80,8 @@ class SpiDriver : public ICommunication
         return _isInit;
     }
     
-    P getInstance()
-    {
-        return _spi;
-    }
-
     private:
 
-    P _spi;
     uint32_t _speed;
     bool _isInit = false;
 };
