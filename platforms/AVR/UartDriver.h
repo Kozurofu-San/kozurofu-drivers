@@ -22,8 +22,6 @@ class UartDriver: public ICommunication
         // const uint16_t baudDivider = static_cast<uint16_t>(((F_CPU) / (speed * 8UL)) - 1UL);
         UBRR0H = static_cast<uint8_t>(UART_BAUDRATE >> 8);
         UBRR0L = static_cast<uint8_t>(UART_BAUDRATE);
-        // UBRR0H = 0;
-        // UBRR0L = 16;
         UCSR0A = _BV(U2X0);
         UCSR0B = _BV(TXEN0) | _BV(RXEN0);
         UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);

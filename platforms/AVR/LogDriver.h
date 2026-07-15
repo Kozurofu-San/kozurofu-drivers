@@ -22,7 +22,6 @@ class LogDriver : public ILog
     * @retval None
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     */
-    
     static LogDriver& getInstance()
     {
         static LogDriver instance;
@@ -79,6 +78,11 @@ class LogDriver : public ILog
     bool readNumber(int& number) override
     {
         return true;
+    }
+
+    bool printChar(char c)
+    {
+        _uart->write(reinterpret_cast<uint8_t*>(c), 1);
     }
 
     private:
