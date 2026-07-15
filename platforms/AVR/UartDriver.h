@@ -31,7 +31,7 @@ class UartDriver: public ICommunication
         return true;
     };
     
-    void write(uint8_t *data, size_t len, size_t bytes = 1) override
+    void write(uint8_t *data, size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
         for (size_t i = 0; i < len; ++i)
         {
@@ -40,7 +40,7 @@ class UartDriver: public ICommunication
         }
     };
 
-    void read(uint8_t *data, size_t len, size_t bytes = 1) override
+    void read(uint8_t *data, size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
         for (size_t i = 0; i < len; ++i)
         {
@@ -49,7 +49,7 @@ class UartDriver: public ICommunication
         }
     };
     
-    uint32_t sendCommand(uint32_t cmd) override
+    uint32_t sendCommand([[maybe_unused]] uint32_t cmd) override
     {
         return 0;
     }

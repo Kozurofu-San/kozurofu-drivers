@@ -79,6 +79,11 @@ class LogDriver : public ILog
     {
         return true;
     }
+    
+    bool isInit() override
+    {
+        return true;
+    }
 
     bool printChar(char c)
     {

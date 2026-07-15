@@ -20,6 +20,7 @@ class  ILog
     virtual void v(uint32_t channel, int32_t value) = 0;
     virtual bool readString(char* string) = 0;
     virtual bool readNumber(int& number) = 0;
+    virtual bool isInit() = 0;
 };
 
 }

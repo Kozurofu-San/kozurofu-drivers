@@ -19,7 +19,7 @@ class Ili9341Driver: public IDisplay
 {
     public:
 
-    static constexpr uint32_t MaxSpeed = 10000000;
+    static constexpr uint32_t MaxSpeed = 10'000'000;    // Hz
     static constexpr uint32_t Id = 0x419300;
 
     Ili9341Driver(ICommunication &p, ITimer &timer, IGpio *backlight = nullptr)

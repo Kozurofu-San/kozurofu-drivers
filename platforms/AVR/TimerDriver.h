@@ -33,9 +33,9 @@ public:
     }
 
 
-    bool init(Mode mode, uint32_t speed)
+    bool init(Mode Mode)
     {
-        _speed = speed;
+        // _speed = speed;
         _ms = 0;
         cli();
 
@@ -66,7 +66,6 @@ public:
         }
 
         sei();
-
 
         _isInit = true;
 

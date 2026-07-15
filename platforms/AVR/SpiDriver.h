@@ -48,12 +48,12 @@ class SpiDriver : public ICommunication
         return true;
     };
 
-    void write(uint8_t *data, size_t len, size_t bytes = 1) override
+    void write(uint8_t *data, size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
         
     };
 
-    void read(uint8_t *data, size_t len, size_t bytes = 1) override
+    void read(uint8_t *data, size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
         
     };

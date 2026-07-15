@@ -8,6 +8,9 @@
 #include <avr/io.h>
 #include <util/twi.h>
 
+#define I2C_DIV ((F_CPU / I2C_SPEED - 16) / 2)
+#define I2C_BAUDRATE (F_CPU / (16 + 2 * I2C_SPEED))
+
 namespace driver
 {
 
@@ -15,112 +18,43 @@ class I2cDriver : public ICommunication
 {
 public:
 
-    I2cDriver()
+    I2cDriver(uint8_t address)
+        : _address(address << 1)
     {
     }
 
-    bool init(uint32_t speed)
+    bool init()
     {
-        if (speed == 0 || speed > F_CPU / 16UL)
-        {
-            return false;
-        }
+        // Set SCL to 100kHz with 16MHz clock
+        TWSR = 0x00;        // Prescaler = 1
+        TWBR = I2C_DIV;        // (F_CPU / F_SCL - 16) / 2 = 72 (0x48)
 
-        // Prescaler = 1: SCL = F_CPU / (16 + 2 * TWBR).
-        const uint32_t divider = (F_CPU / speed - 16UL) / 2UL;
-        if (divider > UINT8_MAX)
-        {
-            return false;
-        }
-
-        TWSR = 0;
-        TWBR = static_cast<uint8_t>(divider);
-
-        // Arduino Uno: SDA = PC4/A4, SCL = PC5/A5.
-        DDRC &= static_cast<uint8_t>(~(_BV(PC4) | _BV(PC5)));
-        PORTC |= _BV(PC4) | _BV(PC5);
-
-        enable();
-        _speed = speed;
+        _speed = I2C_BAUDRATE;
         _isInit = true;
         return true;
     }
 
     // Uses the address selected by sendCommand().
-    void write(uint8_t* data, size_t len, size_t bytes = 1) override
+    void write(uint8_t* data, [[maybe_unused]] size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
-        (void)bytes;
-        writeTo(_address, data, len);
+        TWDR = data[0];
+        TWCR = (1 << TWEN) | (1 << TWINT);
+        while (!(TWCR & (1 << TWINT)));
     }
 
     // Uses the address selected by sendCommand().
-    void read(uint8_t* data, size_t len, size_t bytes = 1) override
+    void read([[maybe_unused]] uint8_t* data, [[maybe_unused]] size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
-        (void)bytes;
-        readFrom(_address, data, len);
-    }
-
-    bool writeTo(uint8_t address, const uint8_t* data, size_t len)
-    {
-        if (!_isInit || data == nullptr || address > 0x7F || !start())
-        {
-            return false;
-        }
-
-        if (!sendAddress(address, false))
-        {
-            stop();
-            return false;
-        }
-
-        for (size_t i = 0; i < len; ++i)
-        {
-            if (!writeByte(data[i]))
-            {
-                stop();
-                return false;
-            }
-        }
-
-        stop();
-        return true;
-    }
-
-    bool readFrom(uint8_t address, uint8_t* data, size_t len)
-    {
-        if (!_isInit || data == nullptr || len == 0 || address > 0x7F || !start())
-        {
-            return false;
-        }
-
-        if (!sendAddress(address, true))
-        {
-            stop();
-            return false;
-        }
-
-        for (size_t i = 0; i < len; ++i)
-        {
-            if (!readByte(data[i], i + 1 < len))
-            {
-                stop();
-                return false;
-            }
-        }
-
-        stop();
-        return true;
     }
 
     // Select a 7-bit I2C address for subsequent write()/read() calls.
-    uint32_t sendCommand(uint32_t cmd) override
+    uint32_t sendCommand([[maybe_unused]] uint32_t readBit) override
     {
-        if (cmd > 0x7F)
-        {
-            return 0;
-        }
+        // Send address
+        TWDR = _address | readBit;
+        TWCR = (1 << TWEN) | (1 << TWINT);
+        while (!(TWCR & (1 << TWINT)));
 
-        _address = static_cast<uint8_t>(cmd);
         return 1;
     }
 
@@ -131,13 +65,13 @@ public:
 
     void enable() override
     {
-        TWCR = _BV(TWEN);
+        TWCR = _BV(TWSTA) | _BV(TWEN) | _BV(TWINT);
+        while (!(TWCR & _BV(TWINT))); // Wait for transmission to complete
     }
 
     void disable() override
     {
-        TWCR = 0;
-        _isInit = false;
+        TWCR = _BV(TWSTO) | _BV(TWEN) | _BV(TWINT);
     }
 
     bool isInit() override
@@ -145,82 +79,38 @@ public:
         return _isInit;
     }
 
+    bool check(uint8_t address)
+    {
+        bool ret = false;
+
+        // Start
+        TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
+        while (!(TWCR & (1 << TWINT))); // Wait
+
+        // 2. Отправка адреса на запись
+        TWDR = (address << 1) | TW_WRITE;
+        TWCR = (1 << TWINT) | (1 << TWEN);
+        while (!(TWCR & (1 << TWINT)))
+            ;
+
+        // 3. Проверка ответа (ACK)
+        if ((TWSR & 0xF8) == TW_MT_SLA_ACK)
+        {
+            ret = true;
+        }
+        TWCR = (1 << TWINT) | (1 << TWSTO) | (1 << TWEN);
+        return ret;
+    }
+
+    uint8_t getInstance()
+    {
+        return _address >> 1;
+    }
+
 private:
-    static constexpr uint16_t WaitLimit = UINT16_MAX;
 
-    bool waitForTwint()
-    {
-        for (uint16_t timeout = WaitLimit; timeout != 0; --timeout)
-        {
-            if ((TWCR & _BV(TWINT)) != 0)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    static uint8_t status()
-    {
-        return TWSR & 0xF8;
-    }
-
-    bool start()
-    {
-        TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN);
-        if (!waitForTwint())
-        {
-            return false;
-        }
-
-        const uint8_t twStatus = status();
-        return twStatus == TW_START || twStatus == TW_REP_START;
-    }
-
-    bool sendAddress(uint8_t address, bool read)
-    {
-        TWDR = static_cast<uint8_t>((address << 1) | (read ? TW_READ : TW_WRITE));
-        TWCR = _BV(TWINT) | _BV(TWEN);
-        if (!waitForTwint())
-        {
-            return false;
-        }
-
-        return status() == (read ? TW_MR_SLA_ACK : TW_MT_SLA_ACK);
-    }
-
-    bool writeByte(uint8_t value)
-    {
-        TWDR = value;
-        TWCR = _BV(TWINT) | _BV(TWEN);
-        return waitForTwint() && status() == TW_MT_DATA_ACK;
-    }
-
-    bool readByte(uint8_t& value, bool acknowledge)
-    {
-        TWCR = _BV(TWINT) | _BV(TWEN) | (acknowledge ? _BV(TWEA) : 0);
-        if (!waitForTwint())
-        {
-            return false;
-        }
-
-        const uint8_t expectedStatus = acknowledge ? TW_MR_DATA_ACK : TW_MR_DATA_NACK;
-        if (status() != expectedStatus)
-        {
-            return false;
-        }
-
-        value = TWDR;
-        return true;
-    }
-
-    static void stop()
-    {
-        TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO);
-    }
-
-    uint32_t _speed = 0;
     uint8_t _address = 0;
+    uint32_t _speed = 0;
     bool _isInit = false;
 };
 

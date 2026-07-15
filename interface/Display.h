@@ -1,7 +1,10 @@
 #pragma once
 
-#include <cstdint>
-#include <functional>
+#ifdef AVR
+#include <stdint.h>
+#else
+#include <ctdint>
+#endif
 
 namespace driver
 {
