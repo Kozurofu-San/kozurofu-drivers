@@ -38,44 +38,26 @@ class LogDriver : public ILog
         _uart = uart;
     }
 
-    void i(const char* message, ...) override
+    void print(uint32_t channel, const char* message, ...) override
     {
         va_list args;
         va_start(args, message);
         vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
-        printString(0, _buffer);
+        printString(channel, _buffer);
     }
 
-    void w(const char* message, ...) override
-    {
-        va_list args;
-        va_start(args, message);
-        vsnprintf(_buffer, sizeof(_buffer), message, args);
-        va_end(args);
-        printString(1, _buffer);
-    }
-
-    void e(const char* message, ...) override
-    {
-        va_list args;
-        va_start(args, message);
-        vsnprintf(_buffer, sizeof(_buffer), message, args);
-        va_end(args);
-        printString(2, _buffer);
-    }
-
-    void v(uint32_t channel, int32_t value) override
+    void value(uint32_t channel, int32_t value) override
     {
 
     }
     
-    bool readString(char* string) override
+    bool scan(char* string) override
     {
         return true;
     }
     
-    bool readNumber(int& number) override
+    bool scan(int& number) override
     {
         return true;
     }

@@ -14,32 +14,111 @@
 namespace driver
 {
 
-class I2cDriver : public ICommunication
+class I2cController
 {
 public:
 
-    I2cDriver(uint8_t address)
-        : _address(address << 1)
+    I2cController()
     {
     }
 
     bool init()
     {
         // Set SCL to 100kHz with 16MHz clock
-        TWSR = 0x00;        // Prescaler = 1
-        TWBR = I2C_DIV;        // (F_CPU / F_SCL - 16) / 2 = 72 (0x48)
+        TWSR = 0x00;            // Prescaler = 1
+        TWBR = I2C_DIV;         // (F_CPU / F_SCL - 16) / 2 = 72 (0x48)
 
-        _speed = I2C_BAUDRATE;
+        _speed = I2C_BAUDRATE;  // Real I2C speed
         _isInit = true;
+        return true;
+    }
+
+    void write(uint8_t data)
+    {
+        TWDR = data;
+        TWCR = _BV(TWEN) | _BV(TWINT);
+        while (!(TWCR & _BV(TWINT)));
+    }
+
+    // Read byte and return ACK (continue reading)
+    uint8_t readAck()
+    {
+        TWCR = _BV(TWEN) | _BV(TWINT) | _BV(TWEA);
+        while (!(TWCR & _BV(TWINT)))
+            ;
+        return TWDR;
+    }
+
+    // Read byte and return NACK (stop reading)
+    uint8_t readNack()
+    {
+        TWCR = _BV(TWEN) | _BV(TWINT);
+        while (!(TWCR & _BV(TWINT)))
+            ;
+        return TWDR;
+    }
+
+    uint32_t getSpeed() const
+    {
+        return _speed;
+    }
+
+    void start()
+    {
+        TWCR = _BV(TWSTA) | _BV(TWEN) | _BV(TWINT);
+        while (!(TWCR & _BV(TWINT))); // Wait for transmission to complete
+    }
+
+    inline void stop()
+    {
+        TWCR = _BV(TWSTO) | _BV(TWEN) | _BV(TWINT);
+    }
+
+    inline bool isInit()
+    {
+        return _isInit;
+    }
+
+    bool check(uint8_t address)
+    {
+        bool ret = false;
+        address <<= 1;
+        start();
+        write(address);
+        // 3. Проверка ответа (ACK)
+        if ((TWSR & 0xF8) == TW_MT_SLA_ACK)
+        {
+            ret = true;
+        }
+        stop();
+        return ret;
+    }
+
+private:
+
+    uint32_t _speed = 0;
+    bool _isInit = false;
+};
+
+class I2cDriver : public ICommunication
+{
+public:
+
+    I2cDriver(I2cController &i2c)
+        : _i2c(i2c)
+    {
+    }
+
+    bool init(uint8_t address)
+    {
+        _address = address << 1;
         return true;
     }
 
     // Uses the address selected by sendCommand().
     void write(uint8_t* data, [[maybe_unused]] size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
-        TWDR = data[0];
-        TWCR = (1 << TWEN) | (1 << TWINT);
-        while (!(TWCR & (1 << TWINT)));
+        _i2c.write(*data);
     }
 
     // Uses the address selected by sendCommand().
@@ -50,56 +129,28 @@ public:
     // Select a 7-bit I2C address for subsequent write()/read() calls.
     uint32_t sendCommand([[maybe_unused]] uint32_t readBit) override
     {
-        // Send address
-        TWDR = _address | readBit;
-        TWCR = (1 << TWEN) | (1 << TWINT);
-        while (!(TWCR & (1 << TWINT)));
-
-        return 1;
+        _i2c.write(readBit |= _address);
+        return 0;
     }
 
     uint32_t getSpeed() const override
     {
-        return _speed;
+        return _i2c.getSpeed();
     }
 
     void enable() override
     {
-        TWCR = _BV(TWSTA) | _BV(TWEN) | _BV(TWINT);
-        while (!(TWCR & _BV(TWINT))); // Wait for transmission to complete
+        _i2c.start();
     }
 
     void disable() override
     {
-        TWCR = _BV(TWSTO) | _BV(TWEN) | _BV(TWINT);
+        _i2c.stop();
     }
 
     bool isInit() override
     {
-        return _isInit;
-    }
-
-    bool check(uint8_t address)
-    {
-        bool ret = false;
-
-        // Start
-        TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
-        while (!(TWCR & (1 << TWINT))); // Wait
-
-        // 2. Отправка адреса на запись
-        TWDR = (address << 1) | TW_WRITE;
-        TWCR = (1 << TWINT) | (1 << TWEN);
-        while (!(TWCR & (1 << TWINT)))
-            ;
-
-        // 3. Проверка ответа (ACK)
-        if ((TWSR & 0xF8) == TW_MT_SLA_ACK)
-        {
-            ret = true;
-        }
-        TWCR = (1 << TWINT) | (1 << TWSTO) | (1 << TWEN);
-        return ret;
+        return _i2c.isInit();
     }
 
     uint8_t getInstance()
@@ -109,9 +160,8 @@ public:
 
 private:
 
+    I2cController &_i2c;
     uint8_t _address = 0;
-    uint32_t _speed = 0;
-    bool _isInit = false;
 };
 
 }
