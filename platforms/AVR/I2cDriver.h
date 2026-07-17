@@ -85,7 +85,6 @@ public:
         address <<= 1;
         start();
         write(address);
-        // 3. Проверка ответа (ACK)
         if ((TWSR & 0xF8) == TW_MT_SLA_ACK)
         {
             ret = true;

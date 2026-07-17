@@ -6,12 +6,46 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
+#include <array>
+
 namespace driver
 {
 
 class TimerDriver : public ITimer
 {
 public:
+
+
+    struct TimerConfig
+    {
+        uint16_t div;
+        uint8_t cs;
+        uint16_t cnt;
+    };
+
+    template<uint32_t Fcpu,
+            uint32_t PeriodUs,
+            uint16_t MaxCounter = 256>
+    static constexpr TimerConfig makeTimerConfig()
+    {
+        constexpr std::array<uint16_t, 5> prescalers{1, 8, 64, 256, 1024};
+
+        uint8_t cs = 1;
+
+        for (auto div : prescalers)
+        {
+            uint32_t ticks = Fcpu * PeriodUs / 1'000'000UL / div;
+
+            if (ticks < MaxCounter)
+                return {div, cs, static_cast<uint16_t>(ticks - 1)};
+
+            ++cs;
+        }
+
+        return {1024, 5,
+                static_cast<uint16_t>(
+                    Fcpu * PeriodUs / 1'000'000UL / 1024 - 1)};
+    }
 
     enum class P
     {
@@ -20,20 +54,12 @@ public:
         Tim2,
     };
 
-    enum class Mode
-    {
-        Normal  = 2,
-        Pwm     = 3,
-    };
-
-
     TimerDriver(P timer)
         : _timer(timer)
     {
     }
 
-
-    bool init(Mode Mode)
+    bool init(TimerConfig cfg)
     {
         // _speed = speed;
         _ms = 0;
@@ -41,38 +67,34 @@ public:
 
         if (_timer == P::Tim0)
         {
-            TCCR0A |= (1 << WGM01);
-            TCCR0B |= (1 << CS01) | (1 << CS00);    // 16 MHz / 64 = 250 kHz
+            TCCR0A |= _BV(WGM01);
+            TCCR0B |= _BV(CS01) | _BV(CS00);    // 16 MHz / 64 = 250 kHz
             OCR0A = 250 - 1;
-            TIMSK0 |= (1 << OCIE0A);
+            TIMSK0 |= _BV(OCIE0A);
         }
         else if (_timer == P::Tim1)
         {
             TCCR1A = 0;
-            TCCR1B |= (1 << WGM12) | (1 << CS01) | (1 << CS00);    // 16 MHz / 64 = 250 kHz
+            TCCR1B |= _BV(WGM12) | _BV(CS01) | _BV(CS00);    // 16 MHz / 64 = 250 kHz
             OCR1A = 250 - 1;
-            TIMSK1 |= (1 << OCIE1A);
+            TIMSK1 |= _BV(OCIE1A);
         }
         else if (_timer == P::Tim2)
         {
-            TCCR2A |= (1 << WGM21);    // 16 MHz / 64 = 250 kHz
-            TCCR2A &= ~(1 << WGM20);
-            TCCR2B &= ~(1 << WGM22);
-            TCCR2B |= (1 << CS22);
-            TCCR2B &= ~(1 << CS21);
-            TCCR2B &= ~(1 << CS20);
+            TCCR2A |=  _BV(WGM21);    // 16 MHz / 64 = 250 kHz
+            TCCR2A &= ~_BV(WGM20);
+            TCCR2B &= ~_BV(WGM22);
+            TCCR2B |=  _BV(CS22);
+            TCCR2B &= ~_BV(CS21);
+            TCCR2B &= ~_BV(CS20);
             OCR2A = 250 - 1;
-            TIMSK2 |= (1 << OCIE2A);
+            TIMSK2 |= _BV(OCIE2A);
         }
-
         sei();
 
         _isInit = true;
-
         return true;
     }
-
-
 
     void start() override
     {
@@ -81,16 +103,12 @@ public:
 
     }
 
-
-
     void stop() override
     {
         if      (_timer == P::Tim0) TCNT0 = 0;
         else if (_timer == P::Tim1) TCNT1 = 0;
         else if (_timer == P::Tim2) TCNT2 = 0;
     }
-
-
 
     void reset() override
     {
@@ -100,8 +118,6 @@ public:
         else if (_timer == P::Tim2) TCNT2 = 0;
     }
 
-
-
     void delay(uint32_t ms) override
     {
         if (!_isInit)
@@ -110,21 +126,13 @@ public:
 
         reset();
 
-
         _ms = 0;
-
 
         while (_ms < ms)
         {
             asm volatile("nop");
         }
 
-
-        // stop();
-    }
-
-    void pwm(uint16_t duty)
-    {
     }
 
     void callback(void (*cb)(uint32_t)) override
@@ -160,8 +168,6 @@ public:
     {
         return _ms;
     }
-
-
 
 private:
 
