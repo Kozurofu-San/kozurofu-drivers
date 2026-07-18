@@ -43,6 +43,7 @@ public:
         TWBR = cfg.divider;
 
         _speed = cfg.baudrate;  // Real I2C speed
+        printf("I2C speed %ld\n", cfg.baudrate);
         _isInit = true;
         return true;
     }
@@ -96,6 +97,7 @@ public:
     bool check(uint8_t address)
     {
         bool ret = false;
+        printf("I2C address 0x%X ", address);
         address <<= 1;
         start();
         write(address);
@@ -104,6 +106,7 @@ public:
             ret = true;
         }
         stop();
+        printf("%d\n", ret);
         return ret;
     }
 
@@ -124,8 +127,12 @@ public:
 
     bool init(uint8_t address)
     {
-        _address = address << 1;
-        return true;
+        if (_i2c.check(address))
+        {
+            _address = address << 1;
+            return true;
+        }
+        return false;
     }
 
     // Uses the address selected by sendCommand().

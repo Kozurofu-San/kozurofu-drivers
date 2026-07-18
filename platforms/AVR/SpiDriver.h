@@ -43,10 +43,10 @@ class SpiController
         uint8_t prescaler = 0;
         for (uint8_t i = 0; i < sizeof(Prescaler) / sizeof(Prescaler[0]); i++)
         {
-            baudrate = F_CPU >> Prescaler[0];
+            baudrate = F_CPU >> Prescaler[i];
             if (baudrate <= speed)
             {
-                prescaler = i + 3;
+            prescaler = i + 3;
                 break;
             }
             baudrate >>= 1;
@@ -66,24 +66,24 @@ class SpiController
     bool init(uint32_t speed, Mode mode = Mode::Master, Polarity polarity = Polarity::IdleLow, Phase phase = Phase::FirstEdge)
     {
         DDRB |=
-            _BV(PB3) |
-            _BV(PB5) |
-            _BV(PB2);    // Set MOSI, SCK, and SS as outputs
-        DDRB &= ~_BV(PB4);    // Set MISO as input
+            _BV(PB3) |  // MOSI
+            _BV(PB5) |  // SCK
+            _BV(PB2);   // SS
+        DDRB &= ~_BV(PB4);    // MISO
         auto cfg = calculatePrescaler(speed);
         if (!cfg.prescaler)
         {
             return false;
         }
-        SPCR =
+        SPCR = _BV(SPE) |
             static_cast<uint8_t>(mode) |
             static_cast<uint8_t>(polarity) |
             static_cast<uint8_t>(phase) |
-            (cfg.prescaler & 0x3); // Enable SPI, Set as Master, set clock rate
-        SPCR = cfg.prescaler >> 2;
-        SPCR = _BV(SPE);
+            (cfg.prescaler & 0x3);
+        SPSR = (cfg.prescaler >> 2) & _BV(SPI2X);
 
         _speed = cfg.baudrate;
+        printf("SPI speed %ld\n", cfg.baudrate);
         _isInit = true;
         return true;
     };
@@ -91,7 +91,7 @@ class SpiController
     uint8_t transfer(uint8_t data)
     {
         SPDR = data;
-        while (!(SPSR & (1 << SPIF)));
+        while (!(SPSR & _BV(SPIF)));
         return SPDR;
     }
 
@@ -130,7 +130,7 @@ class SpiDriver : public ICommunication
 
     void write(uint8_t *data, size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
-        for(uint8_t i = 0; i < len; i++)
+        for(size_t i = 0; i < len; i++)
         {
             _spi.transfer(data[i]);
         }
@@ -138,7 +138,7 @@ class SpiDriver : public ICommunication
 
     inline void read(uint8_t *data, size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
-        for(uint8_t i = 0; i < len; i++)
+        for(size_t i = 0; i < len; i++)
         {
             data[i] = _spi.transfer(0);
         }
@@ -178,7 +178,7 @@ class SpiDriver : public ICommunication
     private:
 
     SpiController &_spi;
-    IGpio *_cs;
+    IGpio *_cs = nullptr;
 };
 
 }
