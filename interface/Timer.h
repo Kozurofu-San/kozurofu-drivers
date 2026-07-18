@@ -3,7 +3,7 @@
 #ifdef AVR
 #include <stdint.h>
 #else
-#include <ctdint>
+#include <cstdint>
 #endif
 
 namespace driver

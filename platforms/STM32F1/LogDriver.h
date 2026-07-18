@@ -3,6 +3,7 @@
 #include "interface/Log.h"
 
 #include <stm32f1xx.h>
+
 #include <cstdarg>
 #include <cstdio>
 #include <cstdint>
@@ -16,13 +17,6 @@ class LogDriver : public ILog
 
     static constexpr uint32_t StLinkV2MaxSpeed = 2250000;
 
-    enum class MsgType
-    {
-        I,
-        W,
-        E
-    };
-
     /*
     * @param  portMask: 0xFFFFFFFF to enable all ports
     * @param  cpuCoreFreqHz: CPU core frequency in Hz
@@ -30,9 +24,16 @@ class LogDriver : public ILog
     * @retval None
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     */
-    LogDriver()
+    static LogDriver& getInstance()
     {
+        static LogDriver instance;
+        return instance;
     }
+
+    LogDriver(const LogDriver&) = delete;
+    LogDriver& operator=(const LogDriver&) = delete;
+    LogDriver(LogDriver&&) = delete;
+    LogDriver& operator=(LogDriver&&) = delete;
 
     /*
     * @param  portMask: 0xFFFFFFFF to enable all ports
@@ -58,55 +59,23 @@ class LogDriver : public ILog
         TPI->FFCR	= 0x00000100u;                          // Formatter and Flush Control Register
     }
 
-    void i(const char* message, ...) override
+    void print(uint8_t channel, const char* message, ...) override
     {
         #ifdef LOG
         va_list args;
         va_start(args, message);
         uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
         va_end(args);
-        printString(static_cast<uint8_t>(MsgType::I), _buffer);
+        printString(channel, _buffer);
         if (len > sizeof(_buffer))
         {
-            printString(static_cast<uint8_t>(MsgType::E), ErrorMsg);
+            printString(ILog::E, ErrorMsg);
             return;
         }
         #endif
     }
 
-    void w(const char* message, ...) override
-    {
-        #ifdef LOG
-        va_list args;
-        va_start(args, message);
-        uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
-        va_end(args);
-        printString(static_cast<uint8_t>(MsgType::W), _buffer);
-        if (len > sizeof(_buffer))
-        {
-            printString(static_cast<uint8_t>(MsgType::E), ErrorMsg);
-            return;
-        }
-        #endif
-    }
-
-    void e(const char* message, ...) override
-    {
-        #ifdef LOG
-        va_list args;
-        va_start(args, message);
-        uint32_t len = vsnprintf(_buffer, sizeof(_buffer), message, args);
-        va_end(args);
-        printString(static_cast<uint8_t>(MsgType::E), _buffer);
-        if (len > sizeof(_buffer))
-        {
-            printString(static_cast<uint8_t>(MsgType::E), ErrorMsg);
-            return;
-        }
-        #endif
-    }
-
-    void v(uint32_t channel, int32_t value) override
+    void value(uint8_t channel, int32_t value) override
     {
         #ifdef LOG
         if (((ITM->TCR & ITM_TCR_ITMENA_Msk) != 0UL) &&      /* ITM enabled */
@@ -121,18 +90,24 @@ class LogDriver : public ILog
         #endif
     }
 
-    bool readString(char* string) override
+    bool scan(char* string) override
     {
         return true;
     }
     
-    bool readNumber(int& number) override
+    bool scan(int& number) override
+    {
+        return true;
+    }
+
+    bool isInit() override
     {
         return true;
     }
 
     private:
 
+    LogDriver() = default;
     char _buffer[40];
     const char ErrorMsg[16] = "Buffer overflow";
 
@@ -150,7 +125,7 @@ class LogDriver : public ILog
         return (symbol);
     }
 
-    void printString(uint32_t channel, const char *symbol)
+    void printString(uint8_t channel, const char *symbol)
     {
         while (*symbol != 0)
         {

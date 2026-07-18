@@ -6,6 +6,7 @@
 #include <cstddef>
 
 #include "stm32f1xx.h"
+
 extern uint32_t SystemCoreClock;
 
 namespace driver
@@ -81,6 +82,11 @@ class GpioDriver : public IGpio
     inline size_t getPin() override
     {
         return _pin;
+    }
+
+    inline void setDir(Direction dir) override
+    {
+        
     }
 
     void write(bool state) override

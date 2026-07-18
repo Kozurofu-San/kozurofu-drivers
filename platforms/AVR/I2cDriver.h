@@ -7,11 +7,13 @@
 
 #include <avr/io.h>
 #include <util/twi.h>
+
 namespace driver
 {
 
 class I2cController
 {
+    
 public:
 
     struct Cfg

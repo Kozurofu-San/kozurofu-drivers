@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #else
-#include <ctdint>
-#include <stddef>
+#include <cstdint>
+#include <cstddef>
 #endif
 
 namespace driver

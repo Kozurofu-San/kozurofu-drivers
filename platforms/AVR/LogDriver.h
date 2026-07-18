@@ -32,7 +32,7 @@ class LogDriver : public ILog
         _uart = uart;
     }
 
-    void print(uint32_t channel, const char* message, ...) override
+    void print(uint8_t channel, const char* message, ...) override
     {
         va_list args;
         va_start(args, message);
@@ -41,7 +41,7 @@ class LogDriver : public ILog
         printString(channel, _buffer);
     }
 
-    void value([[maybe_unused]] uint32_t channel, [[maybe_unused]] int32_t value) override
+    void value([[maybe_unused]] uint8_t channel, [[maybe_unused]] int32_t value) override
     {
 
     }

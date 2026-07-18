@@ -7,12 +7,13 @@
 #include <cstdio>
 
 #include "stm32f1xx.h"
+
 extern uint32_t SystemCoreClock;
 
 namespace driver
 {
 
-class SpiController : public ICommunication
+class SpiController
 {
     public:
 
@@ -22,13 +23,13 @@ class SpiController : public ICommunication
         Slave = 0x0
     };
 
-    enum class ClockPolarity: uint32_t
+    enum class Polarity: uint32_t
     {
         IdleLow = 0x0,
         IdleHigh = 0x2
     };
 
-    enum class ClockPhase: uint32_t
+    enum class Phase: uint32_t
     {
         FirstEdge = 0x0,
         SecondEdge = 0x1
@@ -45,7 +46,7 @@ class SpiController : public ICommunication
     {
     }
 
-    bool init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, uint32_t speed)
+    bool init(uint32_t speed, Mode mode = Mode::Master, Polarity clockPolarity = Polarity::IdleLow, Phase clockPhase = Phase::FirstEdge, DataSize dataSize = DataSize::Bits8)
     {
         // Clock enable
         if      (_spi == SPI1) RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
@@ -92,118 +93,20 @@ class SpiController : public ICommunication
         return _isInit;
     };
 
-    void write(uint8_t *data, size_t len, size_t bytes = 1) override
-    {
-        if (_dmaTx)
-        {
-            // TODO: Implement DMA SPI write
-            // while (!(_spi->SR & SPI_SR_TXE))
-            // // *_dmaTxClearReg = _dmaTxInterruptFlag;
-            // _dmaTx->CR &= ~DMA_SxCR_EN;
-            // while (_dmaTx->CR & DMA_SxCR_EN);
-            // _dmaTx->M0AR = reinterpret_cast<uint32_t>(data);
-            // _dmaTx->NDTR = len;
-            // _dmaTx->CR = (_dmaTxChannel << DMA_SxCR_CHSEL_Pos)
-            //     | DMA_SxCR_MINC                 // Address increment
-            //     | (bytes >> 1) << DMA_SxCR_MSIZE_Pos
-            //     | DMA_SxCR_TCIE                 // Interrupt
-            //     | static_cast<uint32_t>(DmaDriver::Direction::MemoryToPeripheral)
-            //     ;
-            // _dmaTx->CR |= DMA_SxCR_EN;
-            // while(!(*_dmaTxStatusReg & _dmaTxInterruptFlag));
-            // *_dmaTxClearReg = _dmaTxInterruptFlag;
-        }
-        else
-        {
-            for (size_t i = 0; i < len; ++i)
-            {
-                while (!(_spi->SR & SPI_SR_TXE));
-                _spi->DR = data[i];
-                while (!(_spi->SR & SPI_SR_RXNE));
-                (void) _spi->DR; // Read data to clear RXNE flag
-            }
-        }
-    };
-
-    void read(uint8_t *data, size_t len, size_t bytes = 1) override
-    {
-        if (_dmaRx && _dmaTx)
-        {
-            // TODO: Implement DMA SPI read
-            // while (!(_spi->SR & SPI_SR_TXE))
-            // // *_dmaTxClearReg = _dmaTxInterruptFlag;
-            // // *_dmaRxClearReg = _dmaRxInterruptFlag;
-            // _dmaTx->CR &= ~DMA_SxCR_EN;
-            // while (_dmaTx->CR & DMA_SxCR_EN);
-            // _dmaRx->M0AR = reinterpret_cast<uint32_t>(data);
-            // _dmaRx->NDTR = len;
-            // _dmaRx->CR = (_dmaRxChannel << DMA_SxCR_CHSEL_Pos)
-            //     | DMA_SxCR_MINC                 // Address increment
-            //     | (bytes >> 1) << DMA_SxCR_MSIZE_Pos
-            //     | DMA_SxCR_TCIE                 // Interrupt
-            //     | static_cast<uint32_t>(DmaDriver::Direction::PeripheralToMemory)
-            //     ;
-
-            // // DMA TX
-            // static uint8_t dummy = 0;
-            // // while(!(*_dmaTxInterruptReg & _dmaTxInterruptFlag));
-            // _dmaTx->CR &= ~DMA_SxCR_EN;
-            // while (_dmaTx->CR & DMA_SxCR_EN);
-            // _dmaTx->M0AR = reinterpret_cast<uint32_t>(&dummy);
-            // _dmaTx->NDTR = len;
-            // _dmaTx->CR = (_dmaTxChannel << DMA_SxCR_CHSEL_Pos)
-            //     | DMA_SxCR_MINC                 // Address increment
-            //     | (bytes >> 1) << DMA_SxCR_MSIZE_Pos
-            //     | DMA_SxCR_TCIE                 // Interrupt
-            //     | static_cast<uint32_t>(DmaDriver::Direction::MemoryToPeripheral)
-            //     ;
-            // _dmaRx->CR |= DMA_SxCR_EN;
-            // _dmaTx->CR |= DMA_SxCR_EN;
-
-            // while (!(_spi->SR & SPI_SR_BSY));
-            // while(!(*_dmaTxStatusReg & _dmaTxInterruptFlag));
-            // while(!(*_dmaRxStatusReg & _dmaRxInterruptFlag));  // Wait for revieving ends
-            // _dmaTx->CR &= ~DMA_SxCR_EN;
-            // _dmaRx->CR &= ~DMA_SxCR_EN;
-            // (void)SPI1->DR;
-            // (void)SPI1->SR;
-            // *_dmaRxClearReg = _dmaRxInterruptFlag;
-            // *_dmaTxClearReg = _dmaTxInterruptFlag;
-        }
-        else
-        {
-            for (size_t i = 0; i < len; ++i)
-            {
-                while (!(_spi->SR & SPI_SR_TXE));
-                _spi->DR = 0x00;
-                while (!(_spi->SR & SPI_SR_RXNE));
-                data[i] = _spi->DR;
-            }
-        }
-    };
-
-    uint32_t sendCommand(uint32_t cmd) override
+    uint16_t transfer(uint16_t data)
     {
         while (!(_spi->SR & SPI_SR_TXE));
-        _spi->DR = cmd;
+        _spi->DR = data;
         while (!(_spi->SR & SPI_SR_RXNE));
-        return _spi->DR; // Read data to clear RXNE flag
-    }
+        return _spi->DR;
+    };
 
-    uint32_t getSpeed() const override
+    uint32_t getSpeed() const
     {
         return _speed;
     }
 
-    void enable() override
-    {
-    }
-
-    void disable() override
-    {
-    }
-
-    bool isInit() override
+    bool isInit()
     {
         return _isInit;
     }
@@ -251,7 +154,7 @@ class SpiDriver : public ICommunication
     {
     }
 
-    void init(IGpio* cs, uint8_t idleState)
+    void init(IGpio* cs = nullptr, uint8_t idleState = true)
     {
         _spi.getInstance()->CR1 &= ~SPI_CR1_SPE;
         if (cs)
@@ -271,19 +174,25 @@ class SpiDriver : public ICommunication
         }
     };
 
-    inline void write(uint8_t *data, size_t len, size_t bytes = 1) override
+    void write(uint8_t *data, size_t len, size_t bytes = 1) override
     {
-        _spi.write(data, len);
+        for (size_t i = 0; i < len; i++)
+        {
+            _spi.transfer(data[i]);
+        }
     };
 
-    inline void read(uint8_t *data, size_t len, size_t bytes = 1) override
+    void read(uint8_t *data, size_t len, size_t bytes = 1) override
     {
-        _spi.read(data, len);
+        for (size_t i = 0; i < len; i++)
+        {
+            data[i] = _spi.transfer(0);
+        }
     };
 
     inline uint32_t sendCommand(uint32_t cmd) override
     {
-        return _spi.sendCommand(cmd);
+        return _spi.transfer(cmd);
     }
 
     void enable() override
