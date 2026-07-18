@@ -13,20 +13,33 @@ class UartDriver: public ICommunication
 {
     public:
 
+    struct Cfg
+    {
+        uint16_t divider;
+        uint32_t baudrate;
+    };
+
+    static Cfg calculatePrescaler(uint32_t speed)
+    {
+        uint8_t divider = (F_CPU / (speed << 3)) - 1;
+        uint32_t baudrate = F_CPU / ((divider + 1) << 3);
+        return {divider, baudrate};
+    }
+
     UartDriver()
     {
     }
 
     bool init(uint32_t speed)
     {
-        // const uint16_t baudDivider = static_cast<uint16_t>(((F_CPU) / (speed * 8UL)) - 1UL);
-        UBRR0H = static_cast<uint8_t>(UART_BAUDRATE >> 8);
-        UBRR0L = static_cast<uint8_t>(UART_BAUDRATE);
+        Cfg cfg = calculatePrescaler(speed);
+        UBRR0 = cfg.divider;
         UCSR0A = _BV(U2X0);
         UCSR0B = _BV(TXEN0) | _BV(RXEN0);
         UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);
 
-        _speed = speed;
+        printf("UART0 speed is %ld Hz\n", cfg.baudrate);
+        _speed = cfg.baudrate;
         _isInit = true;
         return true;
     };

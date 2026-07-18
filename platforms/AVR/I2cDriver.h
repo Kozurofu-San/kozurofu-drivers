@@ -7,10 +7,6 @@
 
 #include <avr/io.h>
 #include <util/twi.h>
-
-#define I2C_DIV ((F_CPU / I2C_SPEED - 16) / 2)
-#define I2C_BAUDRATE (F_CPU / (16 + 2 * I2C_SPEED))
-
 namespace driver
 {
 
@@ -52,15 +48,14 @@ public:
     {
         TWDR = data;
         TWCR = _BV(TWEN) | _BV(TWINT);
-        while (!(TWCR & _BV(TWINT)));
+        wait();
     }
 
     // Read byte and return ACK (continue reading)
     uint8_t readAck()
     {
         TWCR = _BV(TWEN) | _BV(TWINT) | _BV(TWEA);
-        while (!(TWCR & _BV(TWINT)))
-            ;
+        wait();
         return TWDR;
     }
 
@@ -68,8 +63,7 @@ public:
     uint8_t readNack()
     {
         TWCR = _BV(TWEN) | _BV(TWINT);
-        while (!(TWCR & _BV(TWINT)))
-            ;
+        wait();
         return TWDR;
     }
 
@@ -81,7 +75,7 @@ public:
     void start()
     {
         TWCR = _BV(TWSTA) | _BV(TWEN) | _BV(TWINT);
-        while (!(TWCR & _BV(TWINT))); // Wait for transmission to complete
+        wait(); // Wait for transmission to complete
     }
 
     inline void stop()
@@ -112,8 +106,23 @@ public:
 
 private:
 
+    static bool wait()
+    {
+        uint16_t count = 0;
+        while (!(TWCR & _BV(TWINT)))
+        {
+            if (++count > Timeout)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     uint32_t _speed = 0;
     bool _isInit = false;
+
+    static constexpr uint8_t Timeout = 100;
 };
 
 class I2cDriver : public ICommunication
