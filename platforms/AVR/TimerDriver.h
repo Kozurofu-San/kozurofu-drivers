@@ -4,9 +4,6 @@
 #include "interface/Gpio.h"
 
 #include <avr/io.h>
-#include <avr/interrupt.h>
-
-#include <array>
 
 namespace driver
 {
@@ -14,38 +11,6 @@ namespace driver
 class TimerDriver : public ITimer
 {
 public:
-
-
-    struct TimerConfig
-    {
-        uint16_t div;
-        uint8_t cs;
-        uint16_t cnt;
-    };
-
-    template<uint32_t Fcpu,
-            uint32_t PeriodUs,
-            uint16_t MaxCounter = 256>
-    static constexpr TimerConfig makeTimerConfig()
-    {
-        constexpr std::array<uint16_t, 5> prescalers{1, 8, 64, 256, 1024};
-
-        uint8_t cs = 1;
-
-        for (auto div : prescalers)
-        {
-            uint32_t ticks = Fcpu * PeriodUs / 1'000'000UL / div;
-
-            if (ticks < MaxCounter)
-                return {div, cs, static_cast<uint16_t>(ticks - 1)};
-
-            ++cs;
-        }
-
-        return {1024, 5,
-                static_cast<uint16_t>(
-                    Fcpu * PeriodUs / 1'000'000UL / 1024 - 1)};
-    }
 
     enum class P
     {
@@ -59,35 +24,90 @@ public:
     {
     }
 
-    bool init(TimerConfig cfg)
+    struct Cfg
+    {
+        uint8_t cs;
+        uint16_t cnt;
+    };
+
+    static constexpr uint8_t Prescaler01[] = {0, 3, 6, 8, 10};
+    static constexpr uint8_t Prescaler2 [] = {0, 3, 5, 6, 7, 8, 10};
+    static constexpr uint16_t MaxCnt02 = (1UL << 8) - 1;
+    static constexpr uint16_t MaxCnt1 = (1UL << 16) - 1;
+
+    static Cfg calculatePrescaler(P timer, uint32_t us)
+    {
+        Cfg cfg = {0, 0};
+        uint16_t tick;
+        if (timer == P::Tim0)
+        {
+            for (uint8_t i = 0; i < sizeof(Prescaler01) / sizeof(Prescaler01[0]); i++)
+            {
+                tick = (F_CPU / 1'000'000UL) * us >> Prescaler01[i];
+                if (tick <= MaxCnt02)
+                {
+                    cfg.cs = i + 1;
+                    cfg.cnt = tick - 1;
+                    break;
+                }
+            }
+        }
+        else if (timer == P::Tim1)
+        {
+            for (uint8_t i = 0; i < sizeof(Prescaler01) / sizeof(Prescaler01[0]); i++)
+            {
+                tick = (F_CPU / 1'000'000UL) * us >> Prescaler01[i];
+                if (tick <= MaxCnt1)
+                {
+                    cfg.cs = i + 1;
+                    cfg.cnt = tick - 1;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            for (uint8_t i = 0; i < sizeof(Prescaler2) / sizeof(Prescaler2[0]); i++)
+            {
+                tick = (F_CPU / 1'000'000UL) * us >> Prescaler2[i];
+                if(tick <= MaxCnt02)
+                {
+                    cfg.cs = i + 1;
+                    cfg.cnt = tick - 1;
+                    break;
+                }
+            }
+        }
+        return cfg;
+    }
+    
+    bool init(uint32_t us)
     {
         // _speed = speed;
         _ms = 0;
         cli();
 
+        auto cfg = calculatePrescaler(_timer, us);
+
         if (_timer == P::Tim0)
         {
             TCCR0A |= _BV(WGM01);
-            TCCR0B |= _BV(CS01) | _BV(CS00);    // 16 MHz / 64 = 250 kHz
-            OCR0A = 250 - 1;
+            TCCR0B |= cfg.cs;
+            OCR0A = cfg.cnt;
             TIMSK0 |= _BV(OCIE0A);
         }
         else if (_timer == P::Tim1)
         {
             TCCR1A = 0;
-            TCCR1B |= _BV(WGM12) | _BV(CS01) | _BV(CS00);    // 16 MHz / 64 = 250 kHz
-            OCR1A = 250 - 1;
+            TCCR1B |= _BV(WGM12) | cfg.cs;
+            OCR1A = cfg.cnt;
             TIMSK1 |= _BV(OCIE1A);
         }
         else if (_timer == P::Tim2)
         {
-            TCCR2A |=  _BV(WGM21);    // 16 MHz / 64 = 250 kHz
-            TCCR2A &= ~_BV(WGM20);
-            TCCR2B &= ~_BV(WGM22);
-            TCCR2B |=  _BV(CS22);
-            TCCR2B &= ~_BV(CS21);
-            TCCR2B &= ~_BV(CS20);
-            OCR2A = 250 - 1;
+            TCCR2A |=  _BV(WGM21);
+            TCCR2B = cfg.cs;
+            OCR2A = cfg.cnt;
             TIMSK2 |= _BV(OCIE2A);
         }
         sei();
@@ -172,17 +192,10 @@ public:
 private:
 
     P _timer;
-
-
-    uint32_t _ms = 0;
-
-
+    uint32_t _ms;
     uint32_t _speed = 0;
-
     bool _isInit = false;
-
-
-    void (*_cb)(uint32_t) = nullptr;
+    void (*_cb)(uint32_t);
 };
 
 

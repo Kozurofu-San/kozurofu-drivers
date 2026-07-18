@@ -18,17 +18,31 @@ class I2cController
 {
 public:
 
+    struct Cfg
+    {
+        uint8_t divider;
+        uint32_t baudrate;
+    };
+
+    static Cfg calculatePrescaler(uint32_t speed)
+    {
+        uint8_t divider = (F_CPU / speed - 16) >> 1;
+        uint32_t baudrate = F_CPU / (16 + (divider << 1));
+        return {divider, baudrate};
+    }
+
     I2cController()
     {
     }
 
-    bool init()
+    bool init(uint32_t speed)
     {
         // Set SCL to 100kHz with 16MHz clock
+        auto cfg = calculatePrescaler(speed);
         TWSR = 0x00;            // Prescaler = 1
-        TWBR = I2C_DIV;         // (F_CPU / F_SCL - 16) / 2 = 72 (0x48)
+        TWBR = cfg.divider;
 
-        _speed = I2C_BAUDRATE;  // Real I2C speed
+        _speed = cfg.baudrate;  // Real I2C speed
         _isInit = true;
         return true;
     }

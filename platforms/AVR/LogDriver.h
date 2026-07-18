@@ -4,6 +4,7 @@
 #include "interface/Communication.h"
 
 #include <avr/io.h>
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -15,13 +16,6 @@ class LogDriver : public ILog
 {
     public:
 
-    /*
-    * @param  portMask: 0xFFFFFFFF to enable all ports
-    * @param  cpuCoreFreqHz: CPU core frequency in Hz
-    * @param  baudrate: SWO baudrate in Hz
-    * @retval None
-    * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
-    */
     static LogDriver& getInstance()
     {
         static LogDriver instance;
@@ -33,7 +27,7 @@ class LogDriver : public ILog
     LogDriver(LogDriver&&) = delete;
     LogDriver& operator=(LogDriver&&) = delete;
 
-    void init(ICommunication *uart)
+    void init(ICommunication *uart = nullptr)
     {
         _uart = uart;
     }
@@ -47,17 +41,17 @@ class LogDriver : public ILog
         printString(channel, _buffer);
     }
 
-    void value(uint32_t channel, int32_t value) override
+    void value([[maybe_unused]] uint32_t channel, [[maybe_unused]] int32_t value) override
     {
 
     }
     
-    bool scan(char* string) override
+    bool scan([[maybe_unused]] char* string) override
     {
         return true;
     }
     
-    bool scan(int& number) override
+    bool scan([[maybe_unused]] int& number) override
     {
         return true;
     }
@@ -67,7 +61,7 @@ class LogDriver : public ILog
         return true;
     }
 
-    bool printChar(char c)
+    void printChar(char c)
     {
         _uart->write(reinterpret_cast<uint8_t*>(c), 1);
     }
@@ -77,10 +71,15 @@ class LogDriver : public ILog
     LogDriver() = default;
     ICommunication *_uart;
     char _buffer[60];
-    const uint8_t crlf[2] = {'\r', '\n'};
+    const uint8_t crlf[6] = {'\r', '\n', 'I', 'W', 'E', ':'};
 
-    void printString(uint32_t channel, char *symbol)
+    void printString(uint8_t channel, char *symbol)
     {
+        if (channel < 3)
+        {
+            _uart->write(const_cast<uint8_t*>(&crlf[channel + 2]), 1);
+            _uart->write(const_cast<uint8_t*>(&crlf[5]), 1);
+        }
         while (*symbol != 0)
         {
             _uart->write(reinterpret_cast<uint8_t*>(symbol), 1);

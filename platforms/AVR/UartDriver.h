@@ -75,7 +75,7 @@ class UartDriver: public ICommunication
 
     private:
 
-    uint32_t _speed;
+    uint32_t _speed = 0;
     bool _isInit = false;
 };
 

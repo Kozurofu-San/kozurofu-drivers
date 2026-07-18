@@ -14,53 +14,87 @@ class SpiController
 
     enum class Mode: uint8_t
     {
-        Master  = 0,
+        Master  = _BV(MSTR),
         Slave   = 0
     };
 
-    enum class ClockPolarity: uint8_t
+    enum class Polarity: uint8_t
     {
         IdleLow     = 0,
-        IdleHigh    = 0
+        IdleHigh    = _BV(CPOL)
     };
 
-    enum class ClockPhase: uint8_t
+    enum class Phase: uint8_t
     {
         FirstEdge   = 0,
-        SecondEdge  = 0
+        SecondEdge  = _BV(CPHA)
     };
 
-    enum class Interrupt: uint8_t
+    struct Cfg
     {
-        None    = 0,
-        Tx      = 0,
-        Rx      = 0
+        uint8_t prescaler;
+        uint32_t baudrate;
     };
+
+    static constexpr uint8_t Prescaler[] = {1, 3, 5, 6};
+    static Cfg calculatePrescaler(uint32_t speed)
+    {
+        uint32_t baudrate = 0;
+        uint8_t prescaler = 0;
+        for (uint8_t i = 0; i < sizeof(Prescaler) / sizeof(Prescaler[0]); i++)
+        {
+            baudrate = F_CPU >> Prescaler[0];
+            if (baudrate <= speed)
+            {
+                prescaler = i + 3;
+                break;
+            }
+            baudrate >>= 1;
+            if (baudrate <= speed)
+            {
+                prescaler = i;
+                break;
+            }
+        }
+        return {prescaler, baudrate};
+    }
 
     SpiController()
     {
     }
 
-    bool init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, uint16_t speed, Interrupt interrupt = Interrupt::None)
+    bool init(uint32_t speed, Mode mode = Mode::Master, Polarity polarity = Polarity::IdleLow, Phase phase = Phase::FirstEdge)
     {
-    
-        DDRB |= (1 << PB3) | (1 << PB5) | (1 << PB2);    // Set MOSI, SCK, and SS as outputs
-        DDRB &= ~(1 << PB4);    // Set MISO as input
-        SPCR = (1 << SPE) | (1 << MSTR) | (1 << SPR0);    // Enable SPI, Set as Master, set clock rate fck/16
+        DDRB |=
+            _BV(PB3) |
+            _BV(PB5) |
+            _BV(PB2);    // Set MOSI, SCK, and SS as outputs
+        DDRB &= ~_BV(PB4);    // Set MISO as input
+        auto cfg = calculatePrescaler(speed);
+        if (!cfg.prescaler)
+        {
+            return false;
+        }
+        SPCR =
+            static_cast<uint8_t>(mode) |
+            static_cast<uint8_t>(polarity) |
+            static_cast<uint8_t>(phase) |
+            (cfg.prescaler & 0x3); // Enable SPI, Set as Master, set clock rate
+        SPCR = cfg.prescaler >> 2;
+        SPCR = _BV(SPE);
+
+        _speed = cfg.baudrate;
         _isInit = true;
         return true;
     };
 
-    void write(uint8_t *data, size_t len)
+    uint8_t transfer(uint8_t data)
     {
-        
-    };
+        SPDR = data;
+        while (!(SPSR & (1 << SPIF)));
+        return SPDR;
+    }
 
-    void read(uint8_t *data, size_t len)
-    {
-        
-    };
-    
     uint32_t getSpeed() const
     {
         return _speed;
@@ -73,7 +107,7 @@ class SpiController
     
     private:
 
-    uint32_t _speed;
+    uint32_t _speed = 0;
     bool _isInit = false;
 };
 
@@ -96,25 +130,39 @@ class SpiDriver : public ICommunication
 
     void write(uint8_t *data, size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
-        _spi.write(data, len);
+        for(uint8_t i = 0; i < len; i++)
+        {
+            _spi.transfer(data[i]);
+        }
     };
 
-    void read(uint8_t *data, size_t len, [[maybe_unused]] size_t bytes = 1) override
+    inline void read(uint8_t *data, size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
-        _spi.read(data, len);
+        for(uint8_t i = 0; i < len; i++)
+        {
+            data[i] = _spi.transfer(0);
+        }
     };
     
-    uint32_t sendCommand(uint32_t cmd) override
+    inline uint32_t sendCommand([[maybe_unused]] uint32_t cmd) override
     {
         return 0;
     }
     
     void enable() override
     {
+        if (_cs)
+        {
+            _cs->write(0);
+        }
     }
 
     void disable() override
     {
+        if (_cs)
+        {
+            _cs->write(1);
+        }
     }
 
     inline uint32_t getSpeed() const override
@@ -130,7 +178,7 @@ class SpiDriver : public ICommunication
     private:
 
     SpiController &_spi;
-    IGpio *_cs = nullptr;
+    IGpio *_cs;
 };
 
 }

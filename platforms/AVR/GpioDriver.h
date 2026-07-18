@@ -2,11 +2,8 @@
 
 #include "interface/Gpio.h"
 
-#include <avr/interrupt.h>
 #include <avr/io.h>
-
-#undef REG
-#define REG(p, bias) (*(volatile uint16_t *)((uint16_t)p + (uint16_t)& bias - (uint16_t)& P1IN))
+#include <avr/interrupt.h>
 
 namespace driver
 {
@@ -58,7 +55,7 @@ public:
         _pinMask = static_cast<uint8_t>(_BV(pin));
     }
 
-    bool init(Mode mode, Pull pull, Interrupt interrupt = Interrupt::None)
+    bool init(Mode mode, Pull pull, [[maybe_unused]] Interrupt interrupt = Interrupt::None)
     {
         // Set pin mode
         this->mode(_port, _pin, mode);
@@ -81,6 +78,11 @@ public:
 
         _isInit = true;
         return true;
+    }
+
+    inline void setDir(Direction dir) override
+    {
+        _port->DDR = dir;
     }
 
     void write(bool state) override
@@ -149,7 +151,7 @@ private:
     size_t _pin;
     uint8_t _pinMask = 0;
     bool _isInit = false;
-    void (*_cb)(uint32_t) = nullptr;
+    void (*_cb)(uint32_t);
 };
 
 }
