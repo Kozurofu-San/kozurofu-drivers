@@ -118,6 +118,7 @@ class Lcd1602Driver: public ILog
     void writeNibble(Type isData, uint8_t nibble)
     {
         uint8_t data = ((nibble & 0xF) << 4) | _bl | static_cast<uint8_t>(isData);
+        writePins(data | Lcd1602::EN);
         writePins(data);
         writePins(data | Lcd1602::EN);
         writePins(data);
@@ -135,7 +136,7 @@ class Lcd1602Driver: public ILog
         write(Type::Cmd, Lcd1602::DdramAdSet | rowOffsets[col]);
         while (*str)
         {
-            write(Type::Cmd, *str++);
+            write(Type::Data, *str++);
         }
     }
 

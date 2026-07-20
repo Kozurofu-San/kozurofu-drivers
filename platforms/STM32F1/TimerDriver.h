@@ -80,23 +80,24 @@ class TimerDriver : public ITimer
     }
 
     void reset() override
-    {}
-
-    void delay(uint32_t ms) override
     {
-        if (_timer->CR1 & TIM_CR1_CEN)
+        _timer->CNT = 0;
+    }
+
+    void delay(uint32_t units) override
+    {
+        if (!_isInit)
+            return;
+        _ms = 0;
+        reset();
+        start();
+
+        while (_ms < units)
         {
-            uint32_t start = _ms;
-            while (_ms - start < ms);
+            asm volatile("nop");
         }
-        else
-        {
-            _timer->CR1 |= TIM_CR1_CEN;
-            _timer->DIER = 0;
-            
-            _timer->DIER = TIM_DIER_UIE;
-            _timer->CR1 &= ~TIM_CR1_CEN;
-        }
+
+        stop();
     }
 
     inline uint32_t now() override

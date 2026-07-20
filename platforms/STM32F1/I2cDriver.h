@@ -56,6 +56,7 @@ public:
     {
         I2C1->DR = addressRW;              // Send Slave Address with Write (0)
         while (!(I2C1->SR1 & I2C_SR1_ADDR));    // Wait for ADDR (Address sent) flag
+        // (void)I2C1->SR2;
     }
 
     void clearFlag()

@@ -143,7 +143,6 @@ public:
         if (!_isInit)
             return;
 
-
         reset();
 
         _ms = 0;
@@ -163,10 +162,10 @@ public:
     void interrupt()
     {
         _ms++;
-
-
         if (_cb)
-            _cb(_ms);
+        {
+            _cb(0);
+            }
     }
 
     uint32_t getSpeed() override
