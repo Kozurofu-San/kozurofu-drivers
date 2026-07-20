@@ -7,7 +7,7 @@
 #include "timers.h"
 
 
-#ifdef STM32F1
+#if defined(STM32F1)
     #include "stm32f1xx.h"
 #elif defined(STM32F4)
     #include "stm32f4xx.h"
@@ -35,6 +35,13 @@ class TimerFreertos : public ITimer
 
         _isInit = true;
         return _isInit;
+    }
+
+    void setPeriod(Time time){
+
+    }
+    Time getPeriod(){
+        return {0, Units::s};
     }
 
     

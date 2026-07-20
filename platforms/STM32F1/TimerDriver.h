@@ -12,21 +12,14 @@ class TimerDriver : public ITimer
 {
     public:
 
-    enum class Mode
-    {
-        Normal = 0,
-        Pwm = 1,
-    };
-
     TimerDriver(TIM_TypeDef *timer)
         : _timer(timer) {}
 
-    bool init(Mode mode, uint32_t period)
+    bool init(Time time)
     {
+
         // Clock
-        uint32_t busPrescalerPos = 
-            ( ( _timer == TIM1  )
-            ) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
+        uint32_t busPrescalerPos = (( _timer == TIM1 )) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
         uint32_t busPrescaler = (RCC->CFGR >> busPrescalerPos) & 0x7;
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
         _speed = SystemCoreClock / busPrescaler;
@@ -36,6 +29,7 @@ class TimerDriver : public ITimer
             return false;
         }
 
+        // RM 3
         RCC->APB1ENR |= (_timer == TIM2 ) ? RCC_APB1ENR_TIM2EN  :
                         (_timer == TIM3 ) ? RCC_APB1ENR_TIM3EN  :
                         (_timer == TIM4 ) ? RCC_APB1ENR_TIM4EN  :
@@ -45,25 +39,29 @@ class TimerDriver : public ITimer
                         0;
         
         // Config
-        if (mode == Mode::Normal)
-        {
-            _timer->CR1 = TIM_CR1_ARPE; // Auto reload
-            _timer->PSC = (_speed / 1000) - 1;  // 1 ms
-            _timer->DIER = TIM_DIER_UIE;
-            _timer->ARR = period;
-            _timer->SR = 0;
+        _timer->CR1 = TIM_CR1_ARPE; // Auto reload
+        _timer->PSC = (_speed / pow(10, -time.unit)) - 1;  // 1 ms
+        _timer->DIER = TIM_DIER_UIE;
+        _timer->ARR = time.value;
+        _timer->SR = 0;
 
-            uint32_t irq = (_timer == TIM1 ) ? TIM1_TRG_COM_TIM11_IRQn  :
-                        (_timer == TIM2 ) ? TIM2_IRQn  :
-                        (_timer == TIM3 ) ? TIM3_IRQn  :
-                        (_timer == TIM4 ) ? TIM4_IRQn  :
-                        0;
-            NVIC_SetPriority(static_cast<IRQn_Type>(irq), 5);
-            NVIC_EnableIRQ(static_cast<IRQn_Type>(irq));
-        }
+        uint32_t irq = (_timer == TIM1 ) ? TIM1_TRG_COM_TIM11_IRQn  :
+                    (_timer == TIM2 ) ? TIM2_IRQn  :
+                    (_timer == TIM3 ) ? TIM3_IRQn  :
+                    (_timer == TIM4 ) ? TIM4_IRQn  :
+                    0;
+        NVIC_SetPriority(static_cast<IRQn_Type>(irq), 5);
+        NVIC_EnableIRQ(static_cast<IRQn_Type>(irq));
 
         _isInit = true;
         return true;
+    }
+
+    void setPeriod(Time time){
+
+    }
+    Time getPeriod(){
+        return {0, Units::s};
     }
 
     inline void clearInterrupt()

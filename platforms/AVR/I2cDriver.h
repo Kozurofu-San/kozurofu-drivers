@@ -54,17 +54,9 @@ public:
     }
 
     // Read byte and return ACK (continue reading)
-    uint8_t readAck()
+    uint8_t read(bool ack)
     {
-        TWCR = _BV(TWEN) | _BV(TWINT) | _BV(TWEA);
-        wait();
-        return TWDR;
-    }
-
-    // Read byte and return NACK (stop reading)
-    uint8_t readNack()
-    {
-        TWCR = _BV(TWEN) | _BV(TWINT);
+        TWCR = _BV(TWEN) | _BV(TWINT) | (ack << TWEA);
         wait();
         return TWDR;
     }
@@ -149,7 +141,10 @@ public:
     // Uses the address selected by sendCommand().
     void write(uint8_t* data, [[maybe_unused]] size_t len, [[maybe_unused]] size_t bytes = 1) override
     {
-        _i2c.write(*data);
+        for (size_t i = 0; i < len; ++i)
+        {
+            _i2c.write(*data);
+        }
     }
 
     // Uses the address selected by sendCommand().

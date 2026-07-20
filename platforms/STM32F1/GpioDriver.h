@@ -99,6 +99,7 @@ class GpioDriver : public IGpio
         return (_port->IDR & (1 << _pin)) != 0;
     }
 
+    // RM 9.1.11
     static void mode(GPIO_TypeDef *port, size_t pin, Mode mode)
     {
         RCC->APB2ENR |= RCC_APB2ENR_AFIOEN;
@@ -119,6 +120,7 @@ class GpioDriver : public IGpio
         }
     }
 
+    // RM 9.3
     static void remap(size_t periph, bool on)
     {
         if (on)

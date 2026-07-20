@@ -6,17 +6,23 @@
 #include "interface/Gpio.h"
 #include "interface/Timer.h"
 #include "interface/Communication.h"
+#include "interface/I2c.h"
 
 #include <stdint.h>
 
 namespace driver
 {
 
+template <typename T>
+requires std::same_as<T, II2c> ||
+        std::same_as<T, ICommunication>
 class Lcd1602Driver: public ILog
 {
+    static_assert(std::same_as<T, II2c> || std::same_as<T, ICommunication>,
+                  "Interface must be I2C or Parallel");
     public:
 
-    Lcd1602Driver(ICommunication &p, ITimer &timer, IGpio *backlight = nullptr)
+    explicit Lcd1602Driver(T &p, ITimer &timer, IGpio *backlight = nullptr)
         : _p(p), _timer(timer), _backlight(backlight) {}
 
     bool init()
@@ -32,32 +38,33 @@ class Lcd1602Driver: public ILog
         {
             _backlight->write(1);
         }
+        _bl = Lcd1602::BL;
 
         // Init sequence
         _timer.delay(50);
 
-        writeNibble(0x3, Type::Cmd);
+        writeNibble(Type::Cmd, 0x3);
         _timer.delay(5);
 
-        writeNibble(0x3, Type::Cmd);
+        writeNibble(Type::Cmd, 0x3);
         _timer.delay(150);
         
-        writeNibble(0x3, Type::Cmd);
-        writeNibble(0x2, Type::Cmd);
+        writeNibble(Type::Cmd, 0x3);
+        writeNibble(Type::Cmd, 0x2);
 
-        writeCmdData(Lcd1602::FunctionSet | Lcd1602::DisplaySwitch, Type::Cmd); // 0x28
-        writeCmdData(Lcd1602::DisplaySwitch, Type::Cmd);                        // 0x08
-        writeCmdData(Lcd1602::ScreenClear, Type::Cmd);                          // 0x01
+        write(Type::Cmd, Lcd1602::FunctionSet | Lcd1602::DisplaySwitch); // 0x28
+        write(Type::Cmd, Lcd1602::DisplaySwitch);                        // 0x08
+        write(Type::Cmd, Lcd1602::ScreenClear);                          // 0x01
         _timer.delay(2);
 
-        writeCmdData(Lcd1602::InputSet | Lcd1602::CursorReturn, Type::Cmd);     // 0x06
-        writeCmdData(Lcd1602::InputSet | Lcd1602::DisplaySwitch, Type::Cmd);    // 0x0C
+        write(Type::Cmd, Lcd1602::InputSet | Lcd1602::CursorReturn);     // 0x06
+        write(Type::Cmd, Lcd1602::InputSet | Lcd1602::DisplaySwitch);    // 0x0C
 
         _isInit = true;
         return true;
     }
     
-    void print(uint32_t channel, const char* message, ...) override
+    void print(uint8_t channel, const char* message, ...) override
     {
         va_list args;
         va_start(args, message);
@@ -66,9 +73,8 @@ class Lcd1602Driver: public ILog
         printString(channel, _buffer);
     }
 
-    void value([[maybe_unused]] uint32_t channel, [[maybe_unused]] int32_t value) override
+    void value([[maybe_unused]] uint8_t channel, [[maybe_unused]] int32_t value) override
     {
-
     }
     
     bool scan([[maybe_unused]] char* string) override
@@ -93,37 +99,43 @@ class Lcd1602Driver: public ILog
         Data = Lcd1602::RS
     };
 
-    // Write to LCD GPIO
-    void write(uint8_t data)
+    void writePins(uint8_t data)
     {
-        _p.enable();        // Start
-        _p.sendCommand(0);  // Send address, RW = 0
-        _p.write(&data, 1); // Write data
-        _p.disable();       // Stop
+        if constexpr (std::same_as<T, II2c>)
+        {
+            _p.start();
+            _p.address(II2c::Cmd::Write);
+            _p.write(data);
+            _p.stop();
+        }
+        else if constexpr (std::same_as<T, ICommunication>)
+        {
+            _p.write(data);
+        }
     }
 
     // Write one nibble
-    void writeNibble(uint8_t nibble, Type isData)
+    void writeNibble(Type isData, uint8_t nibble)
     {
-        uint8_t data = ((nibble & 0xF) << 4) | Lcd1602::BL | static_cast<uint8_t>(isData);
-        write(data);
-        write(data | Lcd1602::EN);
-        write(data);
+        uint8_t data = ((nibble & 0xF) << 4) | _bl | static_cast<uint8_t>(isData);
+        writePins(data);
+        writePins(data | Lcd1602::EN);
+        writePins(data);
     }
 
     // Write cmd or data
-    void writeCmdData(uint8_t data, Type isData)
+    void write(Type isData, uint8_t data)
     {
-        writeNibble(data >> 4, isData);
-        writeNibble(data & 0xF, isData);
+        writeNibble(isData, data >> 4);
+        writeNibble(isData, data & 0xF);
     }
 
     void printString(uint8_t col, char *str)
     {
-        writeCmdData(Lcd1602::DdramAdSet | rowOffsets[col], Type::Cmd);
+        write(Type::Cmd, Lcd1602::DdramAdSet | rowOffsets[col]);
         while (*str)
         {
-            writeCmdData(*str++, Type::Data);
+            write(Type::Cmd, *str++);
         }
     }
 
@@ -133,9 +145,10 @@ class Lcd1602Driver: public ILog
             0x40
         };
 
-    ICommunication &_p;
+    T &_p;
     ITimer& _timer;
     IGpio* _backlight;
+    uint8_t _bl;
 
     char _buffer[20];
 

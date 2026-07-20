@@ -19,7 +19,7 @@ class SpiController
 
     enum class Mode: uint32_t
     {
-        Master = 0x4,
+        Master = SPI_CR1_MSTR,
         Slave = 0x0
     };
 
@@ -58,7 +58,7 @@ class SpiController
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
         uint32_t busSpeed = SystemCoreClock / busPrescaler;
         uint32_t desiredPrescaler = busSpeed / speed;
-        if ((desiredPrescaler < 2) || (desiredPrescaler > 256))
+        if ((desiredPrescaler < DivMin) || (desiredPrescaler > DivMax))
         {
             printf("Desired speed %lu is out of limits %lu - %lu", speed, busSpeed / DivMax, busSpeed / DivMin);
             return false;
