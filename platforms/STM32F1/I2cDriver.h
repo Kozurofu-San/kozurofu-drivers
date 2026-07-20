@@ -36,15 +36,26 @@ public:
             return false;
         }
         
-        // Reset
-        I2C1->CR1 = I2C_CR1_SWRST;
-        I2C1->CR1 &= ~I2C_CR1_SWRST;
+        if (speed == 0 || speed > 400'000)
+        {
+            return false;
+        }
 
-        I2C1->CR2 = busSpeed;       // Set peripheral clock frequency in MHz
-        I2C1->CCR = SystemCoreClock / speed / busPrescaler / 2;
-        if (speed == 100'000) I2C1->TRISE = busSpeed + 1;
-        else if (speed == 400'000) I2C1->TRISE = busSpeed * 300 / 1000 + 1;
-        I2C1->CR1 |= I2C_CR1_PE;    // Enable I2C module
+        // Reset and configure the selected peripheral.
+        _i2c->CR1 = I2C_CR1_SWRST;
+        _i2c->CR1 = 0;
+        _i2c->CR2 = busSpeed;       // Peripheral clock frequency in MHz
+        if (speed <= 100'000)
+        {
+            _i2c->CCR = (busSpeed * 1'000'000U) / (speed * 2U);
+            _i2c->TRISE = busSpeed + 1U;
+        }
+        else
+        {
+            _i2c->CCR = I2C_CCR_FS | ((busSpeed * 1'000'000U) / (speed * 3U));
+            _i2c->TRISE = (busSpeed * 300U) / 1000U + 1U;
+        }
+        _i2c->CR1 = I2C_CR1_PE;     // Enable I2C module
 
         _speed = speed;
         printf("I2C speed %ld\n", _speed);
@@ -54,32 +65,39 @@ public:
 
     inline void address(uint8_t addressRW)
     {
-        I2C1->DR = addressRW;              // Send Slave Address with Write (0)
-        while (!(I2C1->SR1 & I2C_SR1_ADDR));    // Wait for ADDR (Address sent) flag
-        // (void)I2C1->SR2;
+        if (!_transferOk) return;
+        _i2c->DR = addressRW;
+        _transferOk = waitFor(I2C_SR1_ADDR);
     }
 
     void clearFlag()
     {
-        // Clear ADDR flag by reading SR1 and SR2
-        [[maybe_unused]] volatile uint32_t temp = I2C1->SR1;
-        temp = I2C1->SR2;
-        while (!(I2C1->SR1 & I2C_SR1_TXE)); // Wait for TXE (Transmitter Empty) flag
+        // ADDR is cleared only by the SR1, then SR2 read sequence.
+        if (_i2c->SR1 & I2C_SR1_ADDR)
+        {
+            [[maybe_unused]] volatile uint32_t temp = _i2c->SR1;
+            temp = _i2c->SR2;
+        }
     }
 
     void write(uint8_t data)
     {
+        if (!_transferOk) return;
         clearFlag();
-        I2C1->DR = data;    // Send Data
-        while (!(I2C1->SR1 & I2C_SR1_BTF));     // Wait for BTF (Byte Transfer Finished)
+        _i2c->DR = data;
+        _transferOk = waitFor(I2C_SR1_BTF);
     }
 
     // Read byte and return ACK (continue reading)
     uint8_t read(bool ack)
     {
-        I2C1->CR1 &= ~I2C_CR1_ACK;
-        I2C1->CR1 |= I2C_CR1_STOP;
-        return 0;
+        if (!_transferOk) return 0;
+        if (ack) _i2c->CR1 |= I2C_CR1_ACK;
+        else     _i2c->CR1 &= ~I2C_CR1_ACK;
+        clearFlag();
+        if (!ack) stop();
+        if (!waitFor(I2C_SR1_RXNE)) return 0;
+        return _i2c->DR;
     }
 
     uint32_t getSpeed() const
@@ -89,13 +107,14 @@ public:
 
     void start()
     {
-        I2C1->CR1 |= I2C_CR1_START;         // Generate START condition
-        while (!(I2C1->SR1 & I2C_SR1_SB));  // Wait for SB (Start Bit) flag to be set
+        _transferOk = true;
+        _i2c->CR1 |= I2C_CR1_START;
+        _transferOk = waitFor(I2C_SR1_SB);
     }
 
     inline void stop()
     {
-        I2C1->CR1 |= I2C_CR1_STOP;          // Generate STOP condition
+        _i2c->CR1 |= I2C_CR1_STOP;
     }
 
     inline bool isInit()
@@ -110,36 +129,26 @@ public:
 
     bool check(uint8_t addr)
     {
-        bool ret = false;
         printf("I2C address 0x%X ", addr);
         addr <<= 1;
         start();
         address(addr);
-        
-        if (I2C1->SR1 & I2C_SR1_ADDR) {
-            // Device acknowledged! Address is active.
-            // Clear ADDR flag by reading SR1 and SR2
-            uint32_t temp = I2C1->SR1;
-            temp = I2C1->SR2;
-            ret = true;
-        } else if (I2C1->SR1 & I2C_SR1_AF) {
-            // No device answered, NACK received
-            // Clear AF flag
-            I2C1->SR1 &= ~I2C_SR1_AF;
-        }
+        const bool ret = _transferOk;
+        if (ret) clearFlag();
         stop();
+        _i2c->SR1 &= ~ErrorFlags;
         printf("%d\n", ret);
         return ret;
     }
 
 private:
 
-    static bool wait()
+    bool waitFor(uint32_t flag)
     {
-        uint16_t count = 0;
-        while (false)
+        uint32_t count = Timeout;
+        while ((_i2c->SR1 & flag) == 0U)
         {
-            if (++count > Timeout)
+            if ((_i2c->SR1 & ErrorFlags) != 0U || --count == 0U)
             {
                 return false;
             }
@@ -150,10 +159,13 @@ private:
     I2C_TypeDef *_i2c;
     uint32_t _speed = 0;
     bool _isInit = false;
+    bool _transferOk = false;
 
     static constexpr uint8_t DivMin = 2;   // MHz
     static constexpr uint8_t DivMax = 36;  // MHz
-    static constexpr uint8_t Timeout = 100; // Times
+    static constexpr uint32_t Timeout = 1'000'000;
+    static constexpr uint32_t ErrorFlags = I2C_SR1_AF | I2C_SR1_BERR |
+                                           I2C_SR1_ARLO | I2C_SR1_OVR;
 };
 
 class I2cDriver: public II2c
@@ -193,7 +205,7 @@ class I2cDriver: public II2c
 
     uint8_t read() override
     {
-        return 0;
+        return _i2c.read(false);
     };
     
     inline uint32_t getSpeed() const override
@@ -202,7 +214,7 @@ class I2cDriver: public II2c
     }
     void setAddress(uint8_t address) override
     {
-        _address = address;
+        _address = address << 1;
     }
     uint8_t getAddress() override
     {

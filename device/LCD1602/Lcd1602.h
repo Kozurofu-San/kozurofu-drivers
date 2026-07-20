@@ -39,6 +39,7 @@ class Lcd1602Driver: public ILog
             _backlight->write(1);
         }
         _bl = Lcd1602::BL;
+        // _bl = 0;
 
         // Init sequence
         _timer.delay(50);
@@ -118,7 +119,7 @@ class Lcd1602Driver: public ILog
     void writeNibble(Type isData, uint8_t nibble)
     {
         uint8_t data = ((nibble & 0xF) << 4) | _bl | static_cast<uint8_t>(isData);
-        writePins(data | Lcd1602::EN);
+        // writePins(data | Lcd1602::EN);
         writePins(data);
         writePins(data | Lcd1602::EN);
         writePins(data);
