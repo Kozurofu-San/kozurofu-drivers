@@ -163,7 +163,7 @@ public:
     // Uses the address selected by sendCommand().
     uint8_t read(bool last) override
     {
-        _i2c.read(!last);
+        return _i2c.read(!last);
     }
 
     uint32_t getSpeed() const override

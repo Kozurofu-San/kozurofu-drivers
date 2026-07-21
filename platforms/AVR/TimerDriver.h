@@ -108,7 +108,7 @@ public:
         return true;
     }
 
-    void setPeriod(Time time)
+    void setPeriod([[maybe_unused]] Time time)
     {
 
     }
