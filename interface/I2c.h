@@ -15,6 +15,14 @@ class II2c
 {
     public:
 
+    enum Address
+    {
+        PCF8574 = 0x27,
+        AT24    = 0x50,
+        SI5351  = 0x60,
+        ADS1115 = 0x48,
+    };
+
     enum Cmd: bool
     {
         Read = 1,

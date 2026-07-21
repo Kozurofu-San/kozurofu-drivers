@@ -161,7 +161,7 @@ public:
     }
 
     // Uses the address selected by sendCommand().
-    uint8_t read(bool last) override
+    uint8_t read(bool last = false) override
     {
         return _i2c.read(!last);
     }
