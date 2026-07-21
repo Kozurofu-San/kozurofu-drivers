@@ -203,9 +203,9 @@ class I2cDriver: public II2c
         _i2c.write(data);
     };
 
-    uint8_t read() override
+    uint8_t read(bool last) override
     {
-        return _i2c.read(false);
+        return _i2c.read(!last);
     };
     
     inline uint32_t getSpeed() const override

@@ -36,7 +36,7 @@ class ITimer
     virtual void stop() = 0;
     virtual void reset() = 0;
 
-    virtual void delay(uint32_t ms) = 0;
+    virtual void delay(uint32_t value) = 0;
     virtual uint32_t now() = 0;
 
     virtual void callback(void (*cb)(uint32_t)) = 0;

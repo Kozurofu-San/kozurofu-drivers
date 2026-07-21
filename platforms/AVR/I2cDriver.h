@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Communication.h"
+#include "interface/I2c.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -119,7 +119,7 @@ private:
     static constexpr uint8_t Timeout = 100;
 };
 
-class I2cDriver : public ICommunication
+class I2cDriver : public II2c
 {
 public:
 
@@ -138,25 +138,32 @@ public:
         return false;
     }
 
-    // Uses the address selected by sendCommand().
-    void write(uint8_t* data, [[maybe_unused]] size_t len, [[maybe_unused]] size_t bytes = 1) override
+    void start() override
     {
-        for (size_t i = 0; i < len; ++i)
-        {
-            _i2c.write(*data);
-        }
+        _i2c.start();
     }
 
-    // Uses the address selected by sendCommand().
-    void read([[maybe_unused]] uint8_t* data, [[maybe_unused]] size_t len, [[maybe_unused]] size_t bytes = 1) override
+    void stop() override
     {
+        _i2c.stop();
     }
 
     // Select a 7-bit I2C address for subsequent write()/read() calls.
-    uint32_t sendCommand([[maybe_unused]] uint32_t readBit) override
+    void address(bool cmd) override
     {
-        _i2c.write(readBit |= _address);
-        return 0;
+        _i2c.write(cmd |= _address);
+    }
+
+    // Uses the address selected by sendCommand().
+    void write(uint8_t data) override
+    {
+        _i2c.write(data);
+    }
+
+    // Uses the address selected by sendCommand().
+    uint8_t read(bool last) override
+    {
+        _i2c.read(!last);
     }
 
     uint32_t getSpeed() const override
@@ -164,22 +171,17 @@ public:
         return _i2c.getSpeed();
     }
 
-    void enable() override
-    {
-        _i2c.start();
-    }
-
-    void disable() override
-    {
-        _i2c.stop();
-    }
-
     bool isInit() override
     {
         return _i2c.isInit();
     }
 
-    uint8_t getInstance()
+    void setAddress(uint8_t addr)
+    {
+        _address = addr << 1;
+    }
+
+    uint8_t getAddress()
     {
         return _address >> 1;
     }

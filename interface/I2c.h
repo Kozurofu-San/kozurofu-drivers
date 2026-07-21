@@ -26,9 +26,9 @@ class II2c
     virtual void start()  = 0;
     virtual void stop() = 0;
 
-    virtual void address(bool Cmd) = 0;
+    virtual void address(bool cmd) = 0;
     virtual void write(uint8_t data) = 0;
-    virtual uint8_t read() = 0;
+    virtual uint8_t read(bool last) = 0;
 
     virtual void setAddress(uint8_t address) = 0;
     virtual uint8_t getAddress() = 0;

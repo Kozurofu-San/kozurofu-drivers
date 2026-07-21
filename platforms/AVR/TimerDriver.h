@@ -5,6 +5,8 @@
 
 #include <avr/io.h>
 
+#include <math.h>
+
 namespace driver
 {
 
@@ -35,15 +37,16 @@ public:
     static constexpr uint16_t MaxCnt02 = (1UL << 8) - 1;
     static constexpr uint16_t MaxCnt1 = (1UL << 16) - 1;
 
-    static Cfg calculatePrescaler(P timer, uint32_t us)
+    static Cfg calculatePrescaler(P timer, Time &time)
     {
         Cfg cfg = {0, 0};
         uint16_t tick;
+        uint32_t mul = F_CPU / pow(10, -time.unit);
         if (timer == P::Tim0)
         {
             for (uint8_t i = 0; i < sizeof(Prescaler01) / sizeof(Prescaler01[0]); i++)
             {
-                tick = (F_CPU / 1'000'000UL) * us >> Prescaler01[i];
+                tick = mul * us >> Prescaler01[i];
                 if (tick <= MaxCnt02)
                 {
                     cfg.cs = i + 1;
@@ -56,7 +59,7 @@ public:
         {
             for (uint8_t i = 0; i < sizeof(Prescaler01) / sizeof(Prescaler01[0]); i++)
             {
-                tick = (F_CPU / 1'000'000UL) * us >> Prescaler01[i];
+                tick = mul * us >> Prescaler01[i];
                 if (tick <= MaxCnt1)
                 {
                     cfg.cs = i + 1;
@@ -69,7 +72,7 @@ public:
         {
             for (uint8_t i = 0; i < sizeof(Prescaler2) / sizeof(Prescaler2[0]); i++)
             {
-                tick = (F_CPU / 1'000'000UL) * us >> Prescaler2[i];
+                tick = mul * us >> Prescaler2[i];
                 if(tick <= MaxCnt02)
                 {
                     cfg.cs = i + 1;
@@ -81,13 +84,12 @@ public:
         return cfg;
     }
     
-    bool init(uint32_t us)
+    bool init(Time time)
     {
-        // _speed = speed;
-        _ms = 0;
+        _cnt = 0;
         cli();
 
-        auto cfg = calculatePrescaler(_timer, us);
+        auto cfg = calculatePrescaler(_timer, time);
 
         if (_timer == P::Tim0)
         {
@@ -116,6 +118,15 @@ public:
         return true;
     }
 
+    void setPeriod(Time time)
+    {
+
+    }
+    Time getPeriod()
+    {
+        return {0, ITimer::s};
+    }
+
     void start() override
     {
         if (!_isInit)
@@ -125,29 +136,27 @@ public:
 
     void stop() override
     {
-        if      (_timer == P::Tim0) TCNT0 = 0;
-        else if (_timer == P::Tim1) TCNT1 = 0;
-        else if (_timer == P::Tim2) TCNT2 = 0;
+        
     }
 
     void reset() override
     {
-        _ms = 0;
+        _cnt = 0;
         if      (_timer == P::Tim0) TCNT0 = 0;
         else if (_timer == P::Tim1) TCNT1 = 0;
         else if (_timer == P::Tim2) TCNT2 = 0;
     }
 
-    void delay(uint32_t ms) override
+    void delay(uint32_t value) override
     {
         if (!_isInit)
             return;
 
         reset();
 
-        _ms = 0;
+        _cnt = 0;
 
-        while (_ms < ms)
+        while (_cnt < value)
         {
             asm volatile("nop");
         }
@@ -161,11 +170,11 @@ public:
 
     void interrupt()
     {
-        _ms++;
+        _cnt++;
         if (_cb)
         {
             _cb(0);
-            }
+        }
     }
 
     uint32_t getSpeed() override
@@ -178,20 +187,15 @@ public:
         return _isInit;
     }
 
-    inline void load(uint32_t ms)
+    inline uint32_t now() override
     {
-        _ms = ms;
-    }
-
-    inline uint32_t now()
-    {
-        return _ms;
+        return _cnt;
     }
 
 private:
 
     P _timer;
-    uint32_t _ms;
+    uint32_t _cnt;
     uint32_t _speed = 0;
     bool _isInit = false;
     void (*_cb)(uint32_t);
