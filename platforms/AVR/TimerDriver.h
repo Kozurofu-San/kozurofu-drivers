@@ -161,7 +161,7 @@ public:
 
     void interrupt()
     {
-        _cnt++;
+        _cnt = _cnt + 1;
         if (_cb)
         {
             _cb(0);
