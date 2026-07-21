@@ -5,8 +5,6 @@
 
 #include <avr/io.h>
 
-#include <math.h>
-
 namespace driver
 {
 
@@ -37,51 +35,38 @@ public:
     static constexpr uint16_t MaxCnt02 = (1UL << 8) - 1;
     static constexpr uint16_t MaxCnt1 = (1UL << 16) - 1;
 
-    static Cfg calculatePrescaler(P timer, Time &time)
+    static Cfg calculatePrescaler(P timer, const Time &time)
     {
-        Cfg cfg = {0, 0};
-        uint16_t tick;
-        uint32_t mul = F_CPU / pow(10, -time.unit);
-        if (timer == P::Tim0)
+        const uint32_t unitsPerSecond =
+            time.unit == ns ? 1'000'000'000UL :
+            time.unit == us ? 1'000'000UL :
+            time.unit == ms ? 1'000UL : 1UL;
+        const uint64_t timerTicks =
+            (static_cast<uint64_t>(F_CPU) * time.value) / unitsPerSecond;
+
+        const auto findConfig = [timerTicks](const uint8_t* prescalers, uint8_t count, uint16_t maxCount) -> Cfg
         {
-            for (uint8_t i = 0; i < sizeof(Prescaler01) / sizeof(Prescaler01[0]); i++)
+            for (uint8_t i = 0; i < count; ++i)
             {
-                tick = mul * us >> Prescaler01[i];
-                if (tick <= MaxCnt02)
+                const uint32_t ticks = timerTicks >> prescalers[i];
+                if (ticks > 0 && ticks <= static_cast<uint32_t>(maxCount) + 1)
                 {
-                    cfg.cs = i + 1;
-                    cfg.cnt = tick - 1;
-                    break;
+                    return {static_cast<uint8_t>(i + 1), static_cast<uint16_t>(ticks - 1)};
                 }
             }
+            return {0, 0};
+        };
+
+        if (timer == P::Tim0)
+        {
+            return findConfig(Prescaler01, sizeof(Prescaler01) / sizeof(Prescaler01[0]), MaxCnt02);
         }
         else if (timer == P::Tim1)
         {
-            for (uint8_t i = 0; i < sizeof(Prescaler01) / sizeof(Prescaler01[0]); i++)
-            {
-                tick = mul * us >> Prescaler01[i];
-                if (tick <= MaxCnt1)
-                {
-                    cfg.cs = i + 1;
-                    cfg.cnt = tick - 1;
-                    break;
-                }
-            }
+            return findConfig(Prescaler01, sizeof(Prescaler01) / sizeof(Prescaler01[0]), MaxCnt1);
         }
-        else
-        {
-            for (uint8_t i = 0; i < sizeof(Prescaler2) / sizeof(Prescaler2[0]); i++)
-            {
-                tick = mul * us >> Prescaler2[i];
-                if(tick <= MaxCnt02)
-                {
-                    cfg.cs = i + 1;
-                    cfg.cnt = tick - 1;
-                    break;
-                }
-            }
-        }
-        return cfg;
+
+        return findConfig(Prescaler2, sizeof(Prescaler2) / sizeof(Prescaler2[0]), MaxCnt02);
     }
     
     bool init(Time time)
@@ -90,6 +75,11 @@ public:
         cli();
 
         auto cfg = calculatePrescaler(_timer, time);
+        if (cfg.cs == 0)
+        {
+            sei();
+            return false;
+        }
 
         if (_timer == P::Tim0)
         {
@@ -153,6 +143,7 @@ public:
             return;
 
         reset();
+        start();
 
         _cnt = 0;
 
@@ -160,7 +151,7 @@ public:
         {
             asm volatile("nop");
         }
-
+        stop();
     }
 
     void callback(void (*cb)(uint32_t)) override
@@ -195,10 +186,10 @@ public:
 private:
 
     P _timer;
-    uint32_t _cnt;
+    volatile uint32_t _cnt;
     uint32_t _speed = 0;
     bool _isInit = false;
-    void (*_cb)(uint32_t);
+    void (*_cb)(uint32_t) = nullptr;
 };
 
 

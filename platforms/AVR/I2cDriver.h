@@ -151,7 +151,7 @@ public:
     // Select a 7-bit I2C address for subsequent write()/read() calls.
     void address(bool cmd) override
     {
-        _i2c.write(cmd |= _address);
+        _i2c.write(_address | static_cast<uint8_t>(cmd));
     }
 
     // Uses the address selected by sendCommand().

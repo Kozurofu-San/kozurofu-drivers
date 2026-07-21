@@ -38,7 +38,7 @@ class Lcd1602Driver: public ILog
     bool init()
     {
         // Init check
-        if (!_p.isInit() && !_timer.isInit())
+        if (!_p.isInit() || !_timer.isInit())
         {
             return false;
         }
