@@ -9,17 +9,26 @@
 #include "interface/I2c.h"
 
 #include <stdint.h>
-// #include <concepts>
 
 namespace driver
 {
 
+template <typename Left, typename Right>
+struct Lcd1602Same
+{
+    static constexpr bool value = false;
+};
+
+template <typename Type>
+struct Lcd1602Same<Type, Type>
+{
+    static constexpr bool value = true;
+};
+
 template <typename T>
-requires std::same_as<T, II2c> ||
-        std::same_as<T, ICommunication>
 class Lcd1602Driver: public ILog
 {
-    static_assert(std::same_as<T, II2c> || std::same_as<T, ICommunication>,
+    static_assert(Lcd1602Same<T, II2c>::value || Lcd1602Same<T, ICommunication>::value,
                   "Interface must be I2C or Parallel");
     public:
 
@@ -103,16 +112,16 @@ class Lcd1602Driver: public ILog
 
     void writePins(uint8_t data)
     {
-        if constexpr (std::same_as<T, II2c>)
+        if constexpr (Lcd1602Same<T, II2c>::value)
         {
             _p.start();
             _p.address(II2c::Cmd::Write);
             _p.write(data);
             _p.stop();
         }
-        else if constexpr (std::same_as<T, ICommunication>)
+        else if constexpr (Lcd1602Same<T, ICommunication>::value)
         {
-            _p.write(data);
+            _p.write(&data, 1);
         }
     }
 
