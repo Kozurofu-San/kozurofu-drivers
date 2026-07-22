@@ -1,12 +1,7 @@
 #pragma once
 
-#ifdef AVR
-#include <stdint.h>
-#include <stddef.h>
-#else
 #include <cstdint>
 #include <cstddef>
-#endif
 
 namespace driver
 {
@@ -36,7 +31,7 @@ class II2c
 
     virtual void address(bool cmd) = 0;
     virtual void write(uint8_t data) = 0;
-    virtual uint8_t read(bool last) = 0;
+    virtual uint8_t read(bool last = false) = 0;
 
     virtual void setAddress(uint8_t address) = 0;
     virtual uint8_t getAddress() = 0;

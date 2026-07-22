@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Communication.h"
+#include "interface/Spi.h"
 #include "interface/Gpio.h"
 
 #include <cmath>
@@ -139,7 +139,7 @@ class SpiController
     static constexpr uint16_t DivMax = 256;
 };
     
-class SpiDriver : public ICommunication
+class SpiDriver : public ISpi
 {
     public:
 
@@ -174,7 +174,7 @@ class SpiDriver : public ICommunication
         }
     };
 
-    void write(uint8_t *data, size_t len, size_t bytes = 1) override
+    void write(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; i++)
         {
@@ -182,18 +182,13 @@ class SpiDriver : public ICommunication
         }
     };
 
-    void read(uint8_t *data, size_t len, size_t bytes = 1) override
+    void read(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; i++)
         {
             data[i] = _spi.transfer(0);
         }
     };
-
-    inline uint32_t sendCommand(uint32_t cmd) override
-    {
-        return _spi.transfer(cmd);
-    }
 
     void enable() override
     {

@@ -19,25 +19,25 @@ class SystemDriver : public ISystem
 {
     public:
 
-    ResetReason getValue() override
+    ResetReason getReasonValue() override
     {
         ResetReason ret;
         uint32_t reason = RCC-> CSR;
 
-        if      ( reason & RCC_CSR_PORRSTF)  { ret = ResetReason::PowerOn   ; _reasonIdx = 0; }
-        else if ( reason & RCC_CSR_LPWRRSTF) { ret = ResetReason::Brownout  ; _reasonIdx = 1; }
-        else if ( reason & RCC_CSR_IWDGRSTF) { ret = ResetReason::IndWdt    ; _reasonIdx = 2; }
-        else if ( reason & RCC_CSR_WWDGRSTF) { ret = ResetReason::WinWdt    ; _reasonIdx = 3; }
-        else if ( reason & RCC_CSR_SFTRSTF)  { ret = ResetReason::Sw        ; _reasonIdx = 4; }
-        else if ( reason & RCC_CSR_PINRSTF)  { ret = ResetReason::Ext       ; _reasonIdx = 5; }
-        else                                 { ret = ResetReason::Unknown   ; _reasonIdx = 6; }
+        if      ( reason & RCC_CSR_PORRSTF  ) { ret = ResetReason::PowerOn   ; _reasonIdx = 0; }
+        else if ( reason & RCC_CSR_LPWRRSTF ) { ret = ResetReason::Brownout  ; _reasonIdx = 1; }
+        else if ( reason & RCC_CSR_IWDGRSTF ) { ret = ResetReason::IndWdt    ; _reasonIdx = 2; }
+        else if ( reason & RCC_CSR_WWDGRSTF ) { ret = ResetReason::WinWdt    ; _reasonIdx = 3; }
+        else if ( reason & RCC_CSR_SFTRSTF  ) { ret = ResetReason::Sw        ; _reasonIdx = 4; }
+        else if ( reason & RCC_CSR_PINRSTF  ) { ret = ResetReason::Ext       ; _reasonIdx = 5; }
+        else                                  { ret = ResetReason::Unknown   ; _reasonIdx = 6; }
 
         return ret;
     }
 
-    const std::string_view& getString() override
+    const char* getReasonString() override
     {
-        getValue();
+        getReasonValue();
         return resetReasonString[_reasonIdx];
     }
 
@@ -48,7 +48,8 @@ class SystemDriver : public ISystem
     
     uint64_t getChipId() override
     {
-        return static_cast<uint64_t>(DBGMCU->IDCODE);
+        uint32_t *uid = (uint32_t *)UID_BASE;
+        return static_cast<uint64_t>(static_cast<uint64_t>(uid[2]) << 32 | uid[1]);
     }
     
     void restart() override
@@ -92,7 +93,7 @@ class SystemDriver : public ISystem
 
     private:
 
-    static constexpr std::array<std::string_view, 7> resetReasonString =
+    static constexpr const char* const resetReasonString[] =
     {
         "PowerOn",
         "Brownout",

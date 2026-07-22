@@ -36,9 +36,9 @@ class At24 : public IMemory
             return false; // Speed is too high for this memory
         }
 
-        // Keep the address selected by the application as the first 256-byte
-        // block address. AT24C04 uses the least significant address bit for A8.
-        _baseAddress = _p.getAddress() & 0xFEU;
+        // // Keep the address selected by the application as the first 256-byte
+        // // block address. AT24C04 uses the least significant address bit for A8.
+        // _baseAddress = _p.getAddress() & 0xFEU;
         _isInit = true;
         return true;
     }
@@ -46,7 +46,7 @@ class At24 : public IMemory
     void write(uint8_t *data, uint32_t address, size_t len) override
     {
         _p.start();
-        _p.address(II2c::Cmd::Write);
+        _p.address(II2c::Cmd::Write | ((address >> 8U) << 1));
         _p.write(address);
         for (uint32_t i = 0; i < len; i++)
         {
@@ -63,15 +63,14 @@ class At24 : public IMemory
             const size_t bytesToBlockEnd = 256U - (address & 0xFFU);
             const size_t chunk = (len < bytesToBlockEnd) ? len : bytesToBlockEnd;
 
-            _p.setAddress(_baseAddress | ((address >> 8U) & 0x01U));
             _p.start();
-            _p.address(II2c::Cmd::Write);
+            _p.address(II2c::Cmd::Write | ((address >> 8U) << 1));
             _p.write(static_cast<uint8_t>(address));
 
             // A repeated START must be followed by SLA+R. Without it STM32F1
             // remains in start/address phase and RXNE can never be set.
             _p.start();
-            _p.address(II2c::Cmd::Read);
+            _p.address(II2c::Cmd::Read | ((address >> 8U) << 1));
             for (size_t i = 0; i < chunk; ++i)
             {
                 data[i] = _p.read(i == (chunk - 1U));
@@ -86,6 +85,10 @@ class At24 : public IMemory
 
     bool writeBlock(const uint8_t *data, uint32_t sector, uint32_t len) override
     {
+        if (sector >= SectorSize)
+        {
+            return false;
+        }
         _p.start();
         _p.address(II2c::Cmd::Write | (sector << 1));
         _p.write(sector);
@@ -95,18 +98,34 @@ class At24 : public IMemory
         }
         _p.stop();
         _timer.delay(5);
+        return true;
     }
 
     bool readBlock(uint8_t *data, uint32_t sector, uint32_t len) override
     {
+        return true;
     }
 
     void erase() override
     {
     }
 
-    void eraseSector(uint32_t sector)
+    bool eraseSector(uint32_t sector)
     {
+        if (sector >= SectorSize)
+        {
+            return false;
+        }
+        _p.start();
+        _p.address(II2c::Cmd::Write | (sector << 1));
+        _p.write(sector);
+        for (uint32_t i = 0; i < PageSize; i++)
+        {
+            _p.write(0xFF);
+        }
+        _p.stop();
+        _timer.delay(5);
+        return true;
     }
 
     bool isInit() override

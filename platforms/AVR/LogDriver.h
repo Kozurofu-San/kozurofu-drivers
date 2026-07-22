@@ -1,7 +1,7 @@
 #pragma once
 
 #include "interface/Log.h"
-#include "interface/Communication.h"
+#include "interface/Uart.h"
 
 #include <avr/io.h>
 
@@ -27,7 +27,7 @@ class LogDriver : public ILog
     LogDriver(LogDriver&&) = delete;
     LogDriver& operator=(LogDriver&&) = delete;
 
-    void init(ICommunication *uart = nullptr)
+    void init(IUart *uart = nullptr)
     {
         _uart = uart;
     }
@@ -69,7 +69,7 @@ class LogDriver : public ILog
     private:
 
     LogDriver() = default;
-    ICommunication *_uart;
+    IUart *_uart;
     char _buffer[60];
     const uint8_t crlf[6] = {'\r', '\n', 'I', 'W', 'E', ':'};
 

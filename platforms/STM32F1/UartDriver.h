@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Communication.h"
+#include "interface/Uart.h"
 
 #include "stm32f1xx.h"
 extern uint32_t SystemCoreClock;
@@ -8,7 +8,7 @@ extern uint32_t SystemCoreClock;
 namespace driver
 {
 
-class UartDriver : public ICommunication
+class UartDriver : public IUart
 {
     public:
 
@@ -60,7 +60,7 @@ class UartDriver : public ICommunication
         return true;
     }
 
-    void write(uint8_t *data, size_t len, size_t bytes = 1) override
+    void write(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; ++i)
         {
@@ -69,7 +69,7 @@ class UartDriver : public ICommunication
         }
     };
 
-    void read(uint8_t *data, size_t len, size_t bytes = 1) override
+    void read(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; ++i)
         {
@@ -77,11 +77,6 @@ class UartDriver : public ICommunication
             *data++ = _uart->DR;
         }
     };
-
-    uint32_t sendCommand(uint32_t cmd) override
-    {
-        return cmd;
-    }
 
     USART_TypeDef* getInstance()
     {
@@ -91,14 +86,6 @@ class UartDriver : public ICommunication
     uint32_t getSpeed() const override
     {
         return _speed;
-    }
-
-    void enable() override
-    {
-    }
-
-    void disable() override
-    {
     }
 
     bool isInit() override

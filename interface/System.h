@@ -1,8 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <functional>
-#include <string>
 
 namespace driver
 {
@@ -51,8 +49,8 @@ class ISystem
 
     virtual ~ISystem() = default;
 
-    virtual ResetReason getValue() = 0;
-    virtual const std::string_view& getString() = 0;
+    virtual ResetReason getReasonValue() = 0;
+    virtual const char* getReasonString() = 0;
     
     virtual uint32_t getCpuSpeed() = 0;
     virtual uint64_t getChipId() = 0;
