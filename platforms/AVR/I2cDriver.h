@@ -2,9 +2,6 @@
 
 #include "interface/I2c.h"
 
-#include <stddef.h>
-#include <stdint.h>
-
 #include <avr/io.h>
 #include <util/twi.h>
 

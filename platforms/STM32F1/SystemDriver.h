@@ -2,9 +2,10 @@
 
 #include "interface/System.h"
 
-#include "stm32f1xx.h"
 #include <cstdint>
 #include <cstddef>
+
+#include "stm32f1xx.h"
 
 extern "C" {
     void* _sbrk(int);
@@ -46,10 +47,10 @@ class SystemDriver : public ISystem
         return SystemCoreClock;
     }
     
-    uint64_t getChipId() override
+    uint32_t getChipId() override
     {
         uint32_t *uid = (uint32_t *)UID_BASE;
-        return static_cast<uint64_t>(static_cast<uint64_t>(uid[2]) << 32 | uid[1]);
+        return uid[2];
     }
     
     void restart() override

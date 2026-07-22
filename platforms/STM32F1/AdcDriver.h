@@ -2,9 +2,10 @@
 
 #include "interface/VoltageGet.h"
 
-#include "stm32f1xx.h"
 #include <cstdint>
 #include <cstddef>
+
+#include "stm32f1xx.h"
 
 namespace driver
 {

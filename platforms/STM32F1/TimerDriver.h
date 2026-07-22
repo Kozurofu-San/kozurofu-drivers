@@ -3,6 +3,7 @@
 #include "interface/Timer.h"
 
 #include "stm32f1xx.h"
+
 extern uint32_t SystemCoreClock;
 
 namespace driver

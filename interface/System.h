@@ -53,7 +53,7 @@ class ISystem
     virtual const char* getReasonString() = 0;
     
     virtual uint32_t getCpuSpeed() = 0;
-    virtual uint64_t getChipId() = 0;
+    virtual uint32_t getChipId() = 0;
     virtual void restart() = 0;
 
     virtual void updateMemoryInfo() = 0;
