@@ -22,6 +22,15 @@ class WatchdogDriver : public ITimer
         return _isInit;
     }
 
+    void setPeriod([[maybe_unused]] Time time) override
+    {
+
+    }
+    Time getPeriod() override
+    {
+        return {0, ITimer::s};
+    }
+
     void start() override
     {
         init();
@@ -40,7 +49,7 @@ class WatchdogDriver : public ITimer
         wdt_reset(); 
     }
 
-    void delay(uint32_t ms) override
+    void delay([[maybe_unused]] uint32_t ms) override
     {
         
     }
@@ -50,7 +59,7 @@ class WatchdogDriver : public ITimer
         return 0;
     }
     
-    void callback(void (*cb)(uint32_t)) override
+    void callback([[maybe_unused]] void (*cb)(uint32_t)) override
     {
         
     }
