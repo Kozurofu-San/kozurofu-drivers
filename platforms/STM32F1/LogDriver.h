@@ -28,8 +28,13 @@ class LogDriver : public ILog
         : _p(p)
     {}
 
-    void init()
+    bool init()
     {
+        if (!_p.isInit())
+        {
+            return false;
+        }
+        return true;
     }
 
     void print(uint8_t channel, const char* message, ...) override
@@ -83,14 +88,12 @@ class LogDriver : public ILog
     {
         while (*symbol != 0)
         {
-            // ITM_SendCharToChannel(channel, *symbol);
             if constexpr (std::same_as<T, IItm>)
             {
                 _p.writeChar(channel, *symbol);
             }
             symbol++;
         }
-        // ITM_SendCharToChannel(channel, '\n');
         if constexpr (std::same_as<T, IItm>)
         {
             _p.writeChar(channel, '\n');

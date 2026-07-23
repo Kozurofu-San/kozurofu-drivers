@@ -24,7 +24,7 @@ class ItmDriver : public IItm
     }
     
     /*
-    * @param  portMask: 0xFFFFFFFF to enable all ports
+    * @param  portMask: 0xFFFFFFFF to enable all 32 ports
     * @retval None
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     * Init OK
@@ -38,13 +38,16 @@ class ItmDriver : public IItm
         TPI->SPPR	= 0x00000002u;                          // Selected PIN Protocol Register: Select which protocol to use for trace output (2: SWO)
         TPI->ACPR	= swoPrescaler;                         // Async Clock Prescaler Register: Scale the baud rate of the asynchronous output
         ITM->LAR	= 0xC5ACCE55u;                          // ITM Lock Access Register: C5ACCE55 enables more write access to Control Register 0xE00 :: 0xFFC
-        ITM->TCR	= 0x0001000Du;                          // ITM Trace Control Register
+        // ITM, timestamp/sync packets, the trace bus and SWO output.
+        // SWOENA is required for asynchronous output through the TPIU.
+        ITM->TCR	= (1UL << 16U) | ITM_TCR_SWOENA_Msk |
+                      ITM_TCR_ITMENA_Msk | (1UL << 2U) | (1UL << 3U);
         ITM->TPR	= ITM_TPR_PRIVMASK_Msk;                 // ITM Trace Privilege Register: All stimulus ports
         ITM->TER	= portMask;                             // ITM Trace Enable Register: Enabled tracing on stimulus ports. One bit per stimulus port.
         DWT->CTRL	= 0x400003FEu;                          // Data Watchpoint and Trace Register
         TPI->FFCR	= 0x00000100u;                          // Formatter and Flush Control Register
         
-        _speed = SystemCoreClock / (swoPrescaler + 1);
+        _speed = SystemCoreClock / (TPI->ACPR + 1);
         _isInit = true;
         return true;
     }
@@ -86,7 +89,6 @@ class ItmDriver : public IItm
     bool isChannelReady(uint32_t channel)
     {
         if (channel >= 32U ||
-            (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == 0U ||
             (ITM->TCR & ITM_TCR_ITMENA_Msk) == 0U ||
             (ITM->TER & (1UL << channel)) == 0U)
         {
