@@ -36,28 +36,79 @@ class Dht22 : ITemperature, IHumidity
         _isInit = true;
         return true;
     }
+int16_t getTemperature() override
+{
+    uint8_t data[5] = {};
+    size_t timeout;
 
-    int16_t getTemperature () override
+    // Start signal
+    _p.setDir(IGpio::Direction::Output);
+    _p.write(0);
+    _timer.delay(2'000);     // 2 ms
+    _p.write(1);
+
+    // Release bus
+    _p.setDir(IGpio::Direction::Input);
+
+    // Sensor response
+    timeout = 100;
+    while (_p.read() && --timeout)
+        _timer.delay(1);
+    if (!timeout)
+        return -1;
+
+    timeout = 100;
+    while (!_p.read() && --timeout)
+        _timer.delay(1);
+    if (!timeout)
+        return -1;
+
+    timeout = 100;
+    while (_p.read() && --timeout)
+        _timer.delay(1);
+    if (!timeout)
+        return -1;
+
+    // Read 40 bits
+    for (size_t i = 0; i < 40; ++i)
     {
-        uint64_t ret = 0;
+        // Wait for LOW (≈50 us)
+        timeout = 100;
+        while (!_p.read() && --timeout)
+            _timer.delay(1);
 
-        // Send request
-        _p.write(1);
-        _p.write(0);
-        _timer.delay(5000);
-        _p.write(1);
+        if (!timeout)
+            return -1;
 
-        // Wait for data is ready
-        _p.setDir(IGpio::Direction::Input);
-        while(_p.read() == 1);
-        while(_p.read() == 0);
-        _timer.delay(50);
+        // Measure HIGH duration
+        size_t t = 0;
+        while (_p.read())
+        {
+            _timer.delay(1);
+            if (++t > 100)
+                return -1;
+        }
 
-        // Get data
-
-        return ret;
+        data[i / 8] <<= 1;
+        if (t > 40)          // ≈70 us -> 1, ≈26 us -> 0
+            data[i / 8] |= 1;
     }
 
+    // Checksum
+    if ((uint8_t)(data[0] + data[1] + data[2] + data[3]) != data[4])
+        return -1;
+
+    uint16_t raw = (uint16_t(data[2]) << 8) | data[3];
+
+    bool negative = raw & 0x8000;
+    raw &= 0x7FFF;
+
+    int16_t temperature = static_cast<int16_t>(raw);
+    if (negative)
+        temperature = -temperature;
+
+    return temperature;
+}
     uint16_t getHumidity () override
     {
         return 0;
