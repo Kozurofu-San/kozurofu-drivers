@@ -6,11 +6,11 @@
 namespace driver
 {
 
-class ICommunication
+class IParallel
 {
     public:
 
-    virtual ~ICommunication() = default;
+    virtual ~IParallel() = default;
 
     // For communication
     virtual void write(uint8_t *data, size_t len, size_t bytes = 1) = 0;

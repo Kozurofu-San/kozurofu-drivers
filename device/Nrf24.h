@@ -5,7 +5,6 @@
 #include "Nrf24Const.h"
 
 #include <cstdint>
-#include <functional>
 
 namespace driver
 {

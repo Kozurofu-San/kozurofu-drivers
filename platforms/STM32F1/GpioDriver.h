@@ -86,7 +86,21 @@ class GpioDriver : public IGpio
 
     inline void setDir(Direction dir) override
     {
-        
+        uint8_t conf = (dir == Direction::Input) ? 0x8 : 0x7;   // Magic numbers
+        if (_pin < 8)
+        {
+            _port->CRL &= ~(0xF << (_pin * 4));
+            _port->CRL |= conf << (_pin * 4);
+        }
+        else
+        {
+            _port->CRH &= ~(0xF << ((_pin - 8) * 4));
+            _port->CRH |= conf << ((_pin - 8) * 4);
+        }
+        if (dir == Direction::Input)
+        {
+            _port->BSRR = 1 << _pin;
+        }
     }
 
     void write(bool state) override

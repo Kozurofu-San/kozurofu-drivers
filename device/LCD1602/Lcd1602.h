@@ -5,10 +5,10 @@
 #include "interface/Log.h"
 #include "interface/Gpio.h"
 #include "interface/Timer.h"
-#include "interface/Communication.h"
+#include "interface/Parallel.h"
 #include "interface/I2c.h"
 
-#include <stdint.h>
+#include <cstdint>
 #include <concepts>
 
 namespace driver
@@ -16,10 +16,10 @@ namespace driver
 
 template <typename T>
 requires std::same_as<T, II2c> ||
-         std::same_as<T, ICommunication>
+         std::same_as<T, IParallel>
 class Lcd1602Driver: public ILog
 {
-    static_assert(std::same_as<T, II2c> || std::same_as<T, ICommunication>,
+    static_assert(std::same_as<T, II2c> || std::same_as<T, IParallel>,
                 "Interface must be I2C or Parallel");
     public:
 
@@ -110,7 +110,7 @@ class Lcd1602Driver: public ILog
             _p.write(data);
             _p.stop();
         }
-        else if constexpr (std::same_as<T, ICommunication>)
+        else if constexpr (std::same_as<T, IParallel>)
         {
             _p.write(&data, 1);
         }

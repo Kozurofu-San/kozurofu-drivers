@@ -5,8 +5,6 @@
 #include "interface/Timer.h"
 
 #include <cstdint>
-#include <cstring>
-#include <functional>
 
 namespace driver
 {
@@ -14,8 +12,6 @@ namespace driver
 class At24 : public IMemory
 {
     public:
-
-    static constexpr uint32_t MaxSpeed = 400'000;
 
     At24(II2c &p, ITimer &timer)
         : _p(p), _timer(timer)
@@ -154,8 +150,9 @@ class At24 : public IMemory
 
     bool _isInit = false;
     uint8_t _baseAddress = 0;
+    uint32_t _sectorCount = 0;
     static constexpr uint16_t SectorSize = 2;
     static constexpr uint16_t PageSize = 256;
-    uint32_t _sectorCount = 0;
+    static constexpr uint32_t MaxSpeed = 400'000;   // Hz
 };
 }
