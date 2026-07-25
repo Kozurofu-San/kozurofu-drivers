@@ -22,6 +22,7 @@ class TimerDriver : public ITimer
         {
             return false;
         }
+        _units = time.unit;
 
         // TIMxCLK is PCLKx when the APB prescaler is 1, otherwise 2 * PCLKx.
         uint32_t busPrescalerPos = (( _timer == TIM1 )) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
@@ -49,8 +50,7 @@ class TimerDriver : public ITimer
         RCC->APB2ENR |= (_timer == TIM1 ) ? RCC_APB2ENR_TIM1EN  :
                         0;
         
-        const uint32_t unitsPerSecond = (time.unit == Units::ns) ? 1'000'000'000U :
-                                        (time.unit == Units::us) ? 1'000'000U :
+        const uint32_t unitsPerSecond = (time.unit == Units::us) ? 1'000'000U :
                                         (time.unit == Units::ms) ? 1'000U : 1U;
         const uint64_t periodTicks = (static_cast<uint64_t>(_speed) * time.value) / unitsPerSecond;
         if (periodTicks == 0U)
@@ -59,8 +59,21 @@ class TimerDriver : public ITimer
         }
 
         // Choose a prescaler which makes ARR fit in the 16-bit timer.
-        const uint32_t divider = static_cast<uint32_t>((periodTicks + 0xFFFFU) / 0x10000U);
-        const uint32_t reload = static_cast<uint32_t>(periodTicks / divider);
+        uint32_t divider;
+        uint32_t reload;
+        if (time.unit == ITimer::us)
+        {
+            // Free-running counter for polling delays.  PSC defines one CNT
+            // increment per configured microsecond; ARR must not be a tiny
+            // period, otherwise CNT wraps before delay() can observe it.
+            divider = periodTicks;
+            reload = 0x10000U;
+        }
+        else
+        {
+            divider = static_cast<uint32_t>((periodTicks + 0xFFFFU) / 0x10000U);
+            reload = static_cast<uint32_t>(periodTicks / divider);
+        }
 
         // Config. UG transfers PSC/ARR from their preload registers before CEN.
         _timer->CR1 = 0U;
@@ -69,15 +82,18 @@ class TimerDriver : public ITimer
         _timer->ARR = reload - 1U;
         _timer->EGR = TIM_EGR_UG;
         _timer->SR = 0;
-        _timer->DIER = TIM_DIER_UIE;
 
-        uint32_t irq = (_timer == TIM1 ) ? TIM1_TRG_COM_TIM11_IRQn  :
-                    (_timer == TIM2 ) ? TIM2_IRQn  :
-                    (_timer == TIM3 ) ? TIM3_IRQn  :
-                    (_timer == TIM4 ) ? TIM4_IRQn  :
-                    0;
-        NVIC_SetPriority(static_cast<IRQn_Type>(irq), 5);
-        NVIC_EnableIRQ(static_cast<IRQn_Type>(irq));
+        if (time.unit != ITimer::us)
+        {
+            _timer->DIER = TIM_DIER_UIE;
+            uint32_t irq = (_timer == TIM1 ) ? TIM1_TRG_COM_TIM11_IRQn  :
+                        (_timer == TIM2 ) ? TIM2_IRQn  :
+                        (_timer == TIM3 ) ? TIM3_IRQn  :
+                        (_timer == TIM4 ) ? TIM4_IRQn  :
+                        0;
+            NVIC_SetPriority(static_cast<IRQn_Type>(irq), 5);
+            NVIC_EnableIRQ(static_cast<IRQn_Type>(irq));
+        }
 
         _isInit = true;
         return true;
@@ -92,8 +108,7 @@ class TimerDriver : public ITimer
 
     inline void clearInterrupt()
     {
-        // Status flags are cleared by writing zero.  Keep non-update flags intact.
-        _timer->SR = ~TIM_SR_UIF;
+        _timer->SR = ~TIM_SR_UIF;   // Status flags are cleared by writing zero.  Keep non-update flags intact.
     }
 
     inline void start() override
@@ -113,16 +128,34 @@ class TimerDriver : public ITimer
 
     void delay(uint32_t value) override
     {
-        uint32_t start = _cnt;
-        while ((uint32_t)(_cnt - start) < value)
+        if (_units == ITimer::us)
         {
-            asm volatile("nop");
+            const uint16_t start = static_cast<uint16_t>(_timer->CNT);
+            while (static_cast<uint16_t>(static_cast<uint16_t>(_timer->CNT) - start) < value)
+            {
+                asm volatile("nop");
+            }
+        }
+        else
+        {
+            const uint32_t start = _cnt;
+            while (static_cast<uint32_t>(_cnt - start) < value)
+            {
+                asm volatile("nop");
+            }
         }
     }
 
     inline uint32_t now() override
     {
-        return _cnt;
+        if (_units == ITimer::us)
+        {
+            return _timer->CNT;
+        }
+        else
+        {
+            return _cnt;
+        }
     }
     
     void callback(void (*cb)(uint32_t)) override
@@ -152,9 +185,9 @@ class TimerDriver : public ITimer
     private:
 
     TIM_TypeDef *_timer;
-    // Updated by the timer ISR and polled by delay().
-    volatile uint32_t _cnt = 0;
+    volatile uint32_t _cnt = 0;     // Updated by the timer ISR and polled by delay()
     uint32_t _speed = 0;
+    ITimer::Units _units;
 
     bool _isInit = false;
     void (*_cb)(uint32_t) = nullptr;
