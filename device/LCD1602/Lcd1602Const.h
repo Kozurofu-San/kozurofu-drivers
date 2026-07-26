@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 class Lcd1602
 {
     public:

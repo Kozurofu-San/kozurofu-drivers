@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Communication.h"
+#include "interface/Spi.h"
 #include "interface/Timer.h"
 #include "Nrf24Const.h"
 
@@ -15,7 +15,7 @@ class Nrf24Driver
 
     static constexpr uint32_t MaxSpeed = 10000000; // 10 MHz
 
-    Nrf24Driver(ICommunication &p, ITimer &timer)
+    Nrf24Driver(ISpi &p, ITimer &timer)
         : _p(p), _timer(timer)
     {
     }
@@ -70,7 +70,7 @@ class Nrf24Driver
         _p.disable();
     }
 
-    ICommunication &_p;
+    ISpi &_p;
     ITimer &_timer;
 
     uint8_t _buffer[20];

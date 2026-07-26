@@ -8,7 +8,6 @@
 #include "interface/Parallel.h"
 #include "interface/I2c.h"
 
-#include <cstdint>
 #include <concepts>
 
 namespace driver

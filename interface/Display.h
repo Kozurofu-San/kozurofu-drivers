@@ -1,6 +1,7 @@
 #pragma once
 
-#include <ctdint>
+#include <cstdint>
+#include <cstddef>
 
 namespace driver
 {

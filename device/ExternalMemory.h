@@ -1,7 +1,7 @@
 #pragma once
 
 #include "interface/Memory.h"
-#include "interface/Parallel.h"
+#include "interface/Spi.h"
 #include "interface/Timer.h"
 #include "ExternalMemoryConst.h"
 
@@ -17,7 +17,7 @@ class ExternalMemoryDriver : public IMemory
     static constexpr uint32_t MaxSpeed = 133000000; // 133 MHz for W25Q16
     static constexpr uint8_t Manufacturer = 0xEF;
 
-    ExternalMemoryDriver(IParallel &p, ITimer &timer)
+    ExternalMemoryDriver(ISpi &p, ITimer &timer)
         : _p(p), _timer(timer)
     {
     }
@@ -210,7 +210,7 @@ class ExternalMemoryDriver : public IMemory
         _p.disable();
     }
 
-    IParallel &_p;
+    ISpi &_p;
     ITimer &_timer;
 
     uint8_t _buffer[20];

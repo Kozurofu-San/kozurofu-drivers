@@ -5,7 +5,7 @@
 #include "interface/Display.h"
 #include "interface/Gpio.h"
 #include "interface/Timer.h"
-#include "interface/Communication.h"
+#include "interface/Parallel.h"
 
 #include "stm32f4xx.h"
 #include <type_traits>
@@ -22,7 +22,7 @@ class Ili9341Driver: public IDisplay
     static constexpr uint32_t MaxSpeed = 10'000'000;    // Hz
     static constexpr uint32_t Id = 0x419300;
 
-    Ili9341Driver(ICommunication &p, ITimer &timer, IGpio *backlight = nullptr)
+    Ili9341Driver(IParallel &p, ITimer &timer, IGpio *backlight = nullptr)
         : _p(p), _timer(timer), _backlight(backlight) {}
 
     bool init(uint32_t x, uint32_t y)
@@ -158,7 +158,7 @@ class Ili9341Driver: public IDisplay
         _p.disable();
     }
 
-    ICommunication& _p;
+    IParallel& _p;
     ITimer& _timer;
     IGpio* _backlight;
 

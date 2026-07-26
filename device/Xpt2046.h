@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Communication.h"
+#include "interface/Spi.h"
 #include "interface/Touchscreen.h"
 #include "interface/Gpio.h"
 #include "interface/Timer.h"
@@ -29,7 +29,7 @@ class Xpt2046Driver: public ITouchScreen
 
     static constexpr uint32_t MaxSpeed = 2500000; // 2.5 MHz
 
-    Xpt2046Driver(ICommunication &p, IGpio &irq, ITimer &timer)
+    Xpt2046Driver(ISpi &p, IGpio &irq, ITimer &timer)
         : _p(p), _irq(irq), _timer(timer)
         {}
 
@@ -94,7 +94,7 @@ class Xpt2046Driver: public ITouchScreen
 
     private:
 
-    ICommunication &_p;
+    ISpi &_p;
     IGpio &_irq;
     ITimer &_timer;
 

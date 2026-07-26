@@ -41,6 +41,8 @@ class Dht22 : ITemperature, IHumidity
     {
         size_t timeout;
         
+        // https://iarduino.ru/lib/8d409ea88290dbd0f509419ad49a982e.pdf
+
         // Start signal
         _p.setDir(IGpio::Direction::Output);
         _p.write(0);
