@@ -40,8 +40,6 @@ class Dht22 : ITemperature, IHumidity
     bool read(uint8_t *data)
     {
         size_t timeout;
-
-        const size_t Timeout = 1000;
         
         // Start signal
         _p.setDir(IGpio::Direction::Output);
@@ -148,5 +146,7 @@ class Dht22 : ITemperature, IHumidity
     uint8_t _data[5];
 
     bool _isInit = false;
+
+    static const size_t Timeout = 1000;
 };
 }

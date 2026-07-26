@@ -19,7 +19,7 @@ class GpioDriver : public IGpio
     enum class Mode: uint8_t
     {
         Analog = 0x0,
-        Input = 0x4,
+        Input = 0x8,
         OutputPushpull = 0x3,
         OutputOpendrain = 0x7,
         AlternatePushpull = 0xB,
@@ -40,6 +40,8 @@ class GpioDriver : public IGpio
 
     bool init(Mode mode, Speed speed)
     {
+        _speed = speed;
+
         // Clock enable
         uint32_t rccPort = 0;
         if (_port == GPIOA) rccPort = RCC_APB2ENR_IOPAEN;
@@ -52,18 +54,7 @@ class GpioDriver : public IGpio
         // Default "0" state
         _port->BRR = 1 << _pin;
 
-        // Configure mode
-        uint8_t conf = (mode == Mode::Input) ? static_cast<uint8_t>(mode) : ((static_cast<uint8_t>(mode) & 0xC) | static_cast<uint8_t>(speed));
-        if (_pin < 8)
-        {
-            _port->CRL &= ~(0xF << (_pin * 4));
-            _port->CRL |= conf << (_pin * 4);
-        }
-        else
-        {
-            _port->CRH &= ~(0xF << ((_pin - 8) * 4));
-            _port->CRH |= conf << ((_pin - 8) * 4);
-        }
+        setDir(mode == Mode::Input ? Direction::Input : Direction::Output);
 
         _isInit = true;
         return _isInit;
@@ -84,9 +75,9 @@ class GpioDriver : public IGpio
         return _pin;
     }
 
-    inline void setDir(Direction dir) override
+    void setDir(Direction dir) override
     {
-        uint8_t conf = (dir == Direction::Input) ? 0x8 : 0x7;   // Magic numbers
+        uint8_t conf = (dir == Direction::Input) ? static_cast<uint8_t>(Mode::Input) : ((static_cast<uint8_t>(Mode::OutputPushpull) & 0xC) | static_cast<uint8_t>(_speed));
         if (_pin < 8)
         {
             _port->CRL &= ~(0xF << (_pin * 4));
@@ -103,12 +94,12 @@ class GpioDriver : public IGpio
         }
     }
 
-    void write(bool state) override
+    inline void write(bool state) override
     {
         state ? (_port->BSRR = 1 << _pin) : (_port->BRR = 1 << _pin);
     }
 
-    bool read() override
+    inline bool read() override
     {
         return (_port->IDR & (1 << _pin)) != 0;
     }
@@ -179,6 +170,8 @@ class GpioDriver : public IGpio
 
     GPIO_TypeDef *_port;
     size_t _pin;
+
+    Speed _speed;
     
     void (*_cb)(uint32_t) = nullptr;
     bool _isInit = false;
