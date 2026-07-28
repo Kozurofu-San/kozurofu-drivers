@@ -57,6 +57,7 @@ class Si5351Driver: public IGenerator
         {
             _msDiv[i] = 0;
             _rDiv[i]  = 1;
+            _outputFrequency[i] = 0;
         }
 
         return _isInit;
@@ -181,6 +182,7 @@ class Si5351Driver: public IGenerator
         // Save for setPhase()
         _msDiv[channel] = a;
         _rDiv[channel]  = rDiv;
+        _outputFrequency[channel] = frequency;
 
         // Write MultiSynth
         setupMultisynth(channel, a, b, c, rDiv, divBy4);
@@ -206,7 +208,7 @@ class Si5351Driver: public IGenerator
 
     void setPhase(size_t channel, uint16_t phase) override
     {
-        if (!_isInit || channel > 2 || _msDiv[channel] == 0)
+        if (!_isInit || channel > 2 || _outputFrequency[channel] == 0)
             return;
 
         uint32_t degrees = phase % 360;
@@ -230,13 +232,22 @@ class Si5351Driver: public IGenerator
         }
 
         // ----- Обычный фазовый сдвиг через регистр 165+ -----
-        uint32_t ms_r = _msDiv[channel] * _rDiv[channel];
-        uint32_t ph   = (degrees * ms_r + 45) / 90;   // округление
+        // One PHOFF LSB is TVCO / 4.  Therefore the required value is
+        // phase * fVCO / (90 * fOUT).  Use the actual PLL/output ratio,
+        // rather than only the integer part of the MultiSynth divider.
+        uint32_t ph = static_cast<uint32_t>(
+            ((uint64_t)degrees * _pllFrequency +
+             (uint64_t)45 * _outputFrequency[channel]) /
+            ((uint64_t)90 * _outputFrequency[channel]));
 
         if (ph > 127)
             ph = 127;
 
         writeByte(Si5351::CLKxPhaseOffset + channel, static_cast<uint8_t>(ph));
+
+        // PHOFF is an initial offset; latch the new value by restarting the
+        // PLL after all synchronous outputs have been configured.
+        writeByte(Si5351::PLLReset, Si5351::PLLA_RST);
     }
 
     void setPower(size_t channel, int32_t power) override
@@ -294,6 +305,7 @@ class Si5351Driver: public IGenerator
     uint32_t _pllFrequency = 900'000'000UL;
     uint32_t _msDiv[3] = {};
     uint32_t _rDiv[3] = {1, 1, 1};
+    uint32_t _outputFrequency[3] = {};
 
     static constexpr uint16_t Timeout = 1000;
     static constexpr uint32_t XtalFrequency = 25'000'000UL;
