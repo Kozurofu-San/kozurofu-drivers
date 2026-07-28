@@ -107,15 +107,14 @@ public:
 
     void start()
     {
-        // A new START issued immediately after STOP works while stepping in
-        // the debugger, but can arrive before the STOP condition has reached
-        // the bus at full speed.  Wait for the peripheral to finish STOP
-        // before beginning a new transaction.  Do not wait for a repeated
-        // START: in that case the STOP bit is not set.
+        // Do not use CR1.STOP as a completion flag: it is a command bit and
+        // may still be set after the bus has become idle.  SR2.BUSY reflects
+        // the actual bus state.  A repeated START has no pending STOP and
+        // must proceed without this wait.
         if (_i2c->CR1 & I2C_CR1_STOP)
         {
             uint32_t count = Timeout;
-            while ((_i2c->CR1 & I2C_CR1_STOP) != 0U)
+            while ((_i2c->SR2 & I2C_SR2_BUSY) != 0U)
             {
                 if (--count == 0U)
                 {
@@ -123,6 +122,7 @@ public:
                     return;
                 }
             }
+            _i2c->CR1 &= ~I2C_CR1_STOP;
         }
 
         // Error flags from a failed transaction otherwise make every

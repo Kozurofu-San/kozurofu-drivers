@@ -55,9 +55,7 @@ class Si5351Driver: public IGenerator
         // Reset the stored dividers
         for (size_t i = 0; i < 3; ++i)
         {
-            _msDiv[i] = 0;
-            _rDiv[i]  = 1;
-            _outputFrequency[i] = 0;
+            _phaseDivider[i] = 0;
         }
 
         return _isInit;
@@ -112,26 +110,19 @@ class Si5351Driver: public IGenerator
             // Max R, when MS ≥ 8
             // (minimal MS → maximal phase range)
             rDiv = 128;
-            uint64_t ms = 0;
-
-            while (rDiv >= 1)
+            const uint32_t divider = _pllFrequency / frequency;
+            while (rDiv > 1 && divider / rDiv < 8)
             {
-                ms = (uint64_t)_pllFrequency / ((uint64_t)frequency * rDiv);
-                if (ms >= 8)
-                    break;
                 rDiv >>= 1;
             }
 
-            if (rDiv == 0)
-                rDiv = 1;
-
             // Too little divider → reconfigure PLL to lower frequency
-            if (ms < 8)
+            if (divider < 8)
             {
                 uint32_t targetMs = 8;
-                if ((uint64_t)frequency * 8 > 900000000ULL)
+                if (frequency > 900000000UL / 8)
                     targetMs = 6;
-                if ((uint64_t)frequency * 6 > 900000000ULL)
+                if (frequency > 900000000UL / 6)
                     targetMs = 4;
 
                 uint32_t vco = frequency * targetMs;
@@ -158,18 +149,15 @@ class Si5351Driver: public IGenerator
             }
             else
             {
-                // Fixed point calculation of a, b, c for fractional multisynth
-                uint64_t num = _pllFrequency;
-                uint64_t den = (uint64_t)frequency * rDiv;
+                // Fixed-point calculation of a, b, c for fractional
+                // MultiSynth. den is at most fVCO / 8, so it fits in 32 bits.
+                const uint32_t den = frequency * rDiv;
 
-                a = static_cast<uint32_t>(num / den);
-                uint64_t rem = num % den;
+                a = _pllFrequency / den;
+                const uint32_t rem = _pllFrequency % den;
 
-                c = 1000000UL;                       // A good compromise between precision and register size
-                // c = 1048575UL;                    // Maximal precision (20 bits) but may cause overflow in b calculation
-
-                // b = round(rem * c / den)
-                b = static_cast<uint32_t>((rem * c + den / 2) / den);
+                c = FractionalDenominator;
+                b = scaleFraction(rem, den);
 
                 if (b >= c)
                 {
@@ -179,10 +167,9 @@ class Si5351Driver: public IGenerator
             }
         }
 
-        // Save for setPhase()
-        _msDiv[channel] = a;
-        _rDiv[channel]  = rDiv;
-        _outputFrequency[channel] = frequency;
+        // One phase step is TVCO/4.  This is the total output divider used
+        // by setPhase(), rounded to an integer phase step.
+        _phaseDivider[channel] = _pllFrequency / frequency;
 
         // Write MultiSynth
         setupMultisynth(channel, a, b, c, rDiv, divBy4);
@@ -208,7 +195,7 @@ class Si5351Driver: public IGenerator
 
     void setPhase(size_t channel, uint16_t phase) override
     {
-        if (!_isInit || channel > 2 || _outputFrequency[channel] == 0)
+        if (!_isInit || channel > 2 || _phaseDivider[channel] == 0)
             return;
 
         uint32_t degrees = phase % 360;
@@ -232,13 +219,8 @@ class Si5351Driver: public IGenerator
         }
 
         // ----- Обычный фазовый сдвиг через регистр 165+ -----
-        // One PHOFF LSB is TVCO / 4.  Therefore the required value is
-        // phase * fVCO / (90 * fOUT).  Use the actual PLL/output ratio,
-        // rather than only the integer part of the MultiSynth divider.
-        uint32_t ph = static_cast<uint32_t>(
-            ((uint64_t)degrees * _pllFrequency +
-             (uint64_t)45 * _outputFrequency[channel]) /
-            ((uint64_t)90 * _outputFrequency[channel]));
+        // One PHOFF LSB is TVCO / 4, hence phase * divider / 90.
+        uint32_t ph = (degrees * _phaseDivider[channel] + 45) / 90;
 
         if (ph > 127)
             ph = 127;
@@ -303,12 +285,13 @@ class Si5351Driver: public IGenerator
     bool _isInit = false;
 
     uint32_t _pllFrequency = 900'000'000UL;
-    uint32_t _msDiv[3] = {};
-    uint32_t _rDiv[3] = {1, 1, 1};
-    uint32_t _outputFrequency[3] = {};
+    uint32_t _phaseDivider[3] = {};
 
     static constexpr uint16_t Timeout = 1000;
     static constexpr uint32_t XtalFrequency = 25'000'000UL;
+    // 2^19 provides sub-2 ppm divider precision while allowing the fraction
+    // to be computed with 32-bit arithmetic on Cortex-M3.
+    static constexpr uint32_t FractionalDenominator = 524'288UL;
 
     //---------------------------------------------------------------------
     // PLL configuration
@@ -402,6 +385,25 @@ class Si5351Driver: public IGenerator
             ++code;
         }
         return code;
+    }
+
+    // Returns round(remainder * 2^19 / denominator) without 64-bit division.
+    // The running remainder is always smaller than denominator, so doubling
+    // it cannot overflow for a valid Si5351 MultiSynth configuration.
+    static uint32_t scaleFraction(uint32_t remainder, uint32_t denominator)
+    {
+        uint32_t result = 0;
+        for (uint32_t bit = FractionalDenominator >> 1; bit != 0; bit >>= 1)
+        {
+            remainder <<= 1;
+            if (remainder >= denominator)
+            {
+                remainder -= denominator;
+                result |= bit;
+            }
+        }
+
+        return result + (remainder >= (denominator + 1) / 2);
     }
 
     //---------------------------------------------------------------------
