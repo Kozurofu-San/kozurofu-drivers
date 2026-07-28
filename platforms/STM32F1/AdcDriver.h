@@ -143,13 +143,13 @@ class AdcDriver : public IVoltageGet
         volatile uint32_t *ptr = &_adc->JDR1;
         for (size_t i = 0; i < _channelCount; ++i)
         {
-            _channels[i].data = *(ptr + i) << 4;     // Put data to reg
+            _channels[i].data = *(ptr + i);     // Put data to reg
         }
     }
 
     int32_t getVoltage(size_t channel) override
     {
-        return _channels[channel].data * 3300 / 65535;
+        return _channels[channel].data * 3300 / 4095;
     }
 
     int32_t getRawValue(size_t channel) override
