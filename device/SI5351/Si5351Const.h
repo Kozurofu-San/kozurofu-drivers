@@ -113,24 +113,6 @@ class Si5351
     static constexpr uint8_t PLLAParameters         = 26;
     static constexpr uint8_t PLLBParameters         = 34;
 
-    static constexpr uint8_t MSNA_P3_15_8           = 26;
-    static constexpr uint8_t MSNA_P3_7_0            = 27;
-    static constexpr uint8_t MSNA_P1_17_16          = 28;
-    static constexpr uint8_t MSNA_P1_15_8           = 29;
-    static constexpr uint8_t MSNA_P1_7_8            = 30;
-    static constexpr uint8_t MSNA_P3_19_16_P2_19_16 = 31;
-    static constexpr uint8_t MSNA_P2_15_8           = 32;
-    static constexpr uint8_t MSNA_P2_7_0            = 33;
-
-    static constexpr uint8_t MSNB_P3_15_8           = 34;
-    static constexpr uint8_t MSNB_P3_7_0            = 35;
-    static constexpr uint8_t MSNB_P1_17_16          = 36;
-    static constexpr uint8_t MSNB_P1_15_8           = 37;
-    static constexpr uint8_t MSNB_P1_7_8            = 38;
-    static constexpr uint8_t MSNB_P3_19_16_P2_19_16 = 39;
-    static constexpr uint8_t MSNB_P2_15_8           = 40;
-    static constexpr uint8_t MSNB_P2_7_0            = 41;
-
     // ---- Multisynth0 Parameters (registers 42–49) ----
     static constexpr uint8_t MSxParameters          = 42;
 
@@ -170,7 +152,7 @@ class Si5351
     static constexpr uint8_t SpreadSpectrumParameters = 149;
 
     // CLK Initial Phase Offset
-    static constexpr uint8_t CLKxInitialPhaseOffset   = 165;
+    static constexpr uint8_t CLKxPhaseOffset   = 165;
 
     // PLL Reset
     static constexpr uint8_t PLLReset   = 177;

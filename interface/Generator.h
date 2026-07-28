@@ -12,11 +12,9 @@ class IGenerator
 
     virtual ~IGenerator() = default;
 
-    virtual void setFrequency(size_t channel, uint32_t frequency, uint16_t phase) = 0;
-    virtual uint32_t getFrequency (size_t channel) = 0;
-
+    virtual void setFrequency(size_t channel, uint32_t frequency) = 0;
+    virtual void setPhase(size_t channel, uint16_t phase) = 0;
     virtual void setPower(size_t channel, int32_t power) = 0;
-    virtual int32_t getPower (size_t channel) = 0;
 
     virtual void reset() = 0;
 
