@@ -71,8 +71,8 @@ class Si5351
                                                                 // or FBA_INT / FBB_INT for CLK6/CLK7
         static constexpr uint8_t MS_SRC                = 1 << 5;   // MultiSynth Source Select (0=PLLA, 1=PLLB/VCXO)
         static constexpr uint8_t CLK_INV               = 1 << 4;   // Output Clock x Invert
-        static constexpr uint8_t CLK_SRC_PLLA          = MS_SRC;
-        static constexpr uint8_t CLK_SRC_PLLB          = 0x00;
+        static constexpr uint8_t CLK_SRC_PLLA          = 0x00;
+        static constexpr uint8_t CLK_SRC_PLLB          = MS_SRC;
         static constexpr uint8_t CLK_SRC_MASK          = 0x0C;     // Output Clock x Input Source [3:2]
         static constexpr uint8_t CLK_SRC_XTAL          = 0x00;     // 00: XTAL
         static constexpr uint8_t CLK_SRC_CLKIN         = 0x04;     // 01: CLKIN

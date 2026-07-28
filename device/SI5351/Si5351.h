@@ -27,31 +27,38 @@ class Si5351Driver: public IGenerator
         // ID
         uint8_t status = readByte(Si5351::DeviceStatus);    // status = 0x11
 
-        // Init sequence
-        do
+        // SYS_INIT is set while the device performs its power-up sequence.
+        // Do not configure the PLL until it has cleared.
+        while (status & Si5351::SYS_INIT)
         {
+            _timer.delay(1);
             status = readByte(Si5351::DeviceStatus);
-        } while (!(status & Si5351::SYS_INIT));     // status = 0xF8
+        }
 
-        writeByte(Si5351::CrystalInternalLoadCapacitance, Si5351::InternalCL8pF);
+        _isInit = writeByte(Si5351::CrystalInternalLoadCapacitance, Si5351::InternalCL8pF);
 
         // Disable all outputs during configuration
-        writeByte(Si5351::OutputEnableControl, 0xFF);
+        _isInit &= writeByte(Si5351::OutputEnableControl, 0xFF);
+        // Use register 3 for output enable; do not let the external OE pin
+        // accidentally hold the output disabled.
+        _isInit &= writeByte(Si5351::OEBPinEnableControl, 0xFF);
 
         // Power down all clock outputs
-        writeByte(Si5351::CLKxControl + 0, Si5351::CLK_PDN);
-        writeByte(Si5351::CLKxControl + 1, Si5351::CLK_PDN);
-        writeByte(Si5351::CLKxControl + 2, Si5351::CLK_PDN);
+        _isInit &= writeByte(Si5351::CLKxControl + 0, Si5351::CLK_PDN);
+        _isInit &= writeByte(Si5351::CLKxControl + 1, Si5351::CLK_PDN);
+        _isInit &= writeByte(Si5351::CLKxControl + 2, Si5351::CLK_PDN);
         
-        // Configure PLLA to 900 MHz
         setupPLL(
             Si5351::PLLAParameters,
-            36,     // a
-            0,      // b
-            1);     // c
+            PllFrequency / XtalFrequency,
+            0,
+            1);
+        _isInit &= writeByte(Si5351::PLLReset, Si5351::PLLA_RST);
 
         // Disable spread spectrum
-        writeByte(Si5351::SpreadSpectrumParameters, 0);
+        _isInit &= writeByte(Si5351::SpreadSpectrumParameters, 0);
+
+        // reset();
 
         _frequency[0] = 0;
         _frequency[1] = 0;
@@ -61,9 +68,7 @@ class Si5351Driver: public IGenerator
         _power[1] = 0;
         _power[2] = 0;
 
-
-        _isInit = true;
-        return true;
+        return _isInit;
     }
     
     void setFrequency(size_t channel, uint32_t frequency, uint16_t phase = 0) override
@@ -77,9 +82,16 @@ class Si5351Driver: public IGenerator
         if (frequency == 0)
             return;
 
-        constexpr uint32_t PLL_FREQ = 900000000UL;
+        uint32_t rDiv = 1;
+        uint32_t div = PllFrequency / frequency;
 
-        uint32_t div = PLL_FREQ / frequency;
+        // MS0..MS5 accept integer dividers only in the 4..900 range.
+        // The R divider extends the low-frequency range by powers of two.
+        while (div > 900 && rDiv < 128)
+        {
+            rDiv <<= 1;
+            div = PllFrequency / (frequency * rDiv);
+        }
 
         if (div < 4)
             div = 4;
@@ -87,10 +99,12 @@ class Si5351Driver: public IGenerator
         if (div > 900)
             div = 900;
 
-        setupMultisynth(channel, div);
+        setupMultisynth(channel, div, rDiv);
 
         writeByte(Si5351::CLKxControl + channel, 
-            Si5351::CLK_SRC_XTAL |
+            // Bits 3:2 must select MultiSynth; CLK_SRC_XTAL routes the
+            // crystal directly to the pin and ignores the divider settings.
+            Si5351::CLK_SRC_MS |
             Si5351::CLK_SRC_PLLA |
             Si5351::CLK_IDRV_8mA |
             Si5351::MS_INT);
@@ -100,7 +114,7 @@ class Si5351Driver: public IGenerator
         enable &= ~(1 << channel);
         writeByte(Si5351::OutputEnableControl, enable);
 
-        _frequency[channel] = PLL_FREQ / div;
+        _frequency[channel] = PllFrequency / (div * rDiv);
     }
 
     uint32_t getFrequency(size_t channel) override
@@ -177,11 +191,14 @@ class Si5351Driver: public IGenerator
     int32_t _power[3];
 
     static constexpr uint16_t Timeout = 1000;
+    static constexpr uint32_t XtalFrequency = 25'000'000UL;
+    static constexpr uint32_t PllFrequency = 900'000'000UL;
 
     //---------------------------------------------------------------------
     // PLL configuration
     //---------------------------------------------------------------------
 
+    // f_vco = f_in * (a + b / c)
     void setupPLL(uint8_t reg,
                   uint32_t a,
                   uint32_t b,
@@ -216,7 +233,8 @@ class Si5351Driver: public IGenerator
     //---------------------------------------------------------------------
 
     void setupMultisynth(uint8_t channel,
-                         uint32_t div)
+                         uint32_t div,
+                         uint32_t rDiv)
     {
         uint32_t P1 = 128 * div - 512;
         uint32_t P2 = 0;
@@ -227,7 +245,8 @@ class Si5351Driver: public IGenerator
         data[0] = (P3 >> 8) & 0xFF;
         data[1] = P3 & 0xFF;
 
-        data[2] = (P1 >> 16) & 0x03;
+        data[2] = ((rDividerCode(rDiv) & 0x07) << 4) |
+                  ((P1 >> 16) & 0x03);
 
         data[3] = (P1 >> 8) & 0xFF;
         data[4] = P1 & 0xFF;
@@ -243,6 +262,17 @@ class Si5351Driver: public IGenerator
             Si5351::MSxParameters + channel * Si5351::MSN,
             data,
             8);
+    }
+
+    static uint8_t rDividerCode(uint32_t rDiv)
+    {
+        uint8_t code = 0;
+        while (rDiv > 1)
+        {
+            rDiv >>= 1;
+            ++code;
+        }
+        return code;
     }
 
     //---------------------------------------------------------------------
@@ -261,39 +291,45 @@ class Si5351Driver: public IGenerator
         return ret;
     }
 
-    void read(uint8_t reg, uint8_t *data, size_t len)
+    bool read(uint8_t reg, uint8_t *data, size_t len)
     {
+        bool ret;
         _p.start();
-        _p.address(II2c::Cmd::Write);
+        ret = _p.address(II2c::Cmd::Write);
         _p.write(reg);
         _p.start();
-        _p.address(II2c::Cmd::Read);
+        ret &= _p.address(II2c::Cmd::Read);
         while (len--)
         {
             *data++ = _p.read(len == 1);
         }
         _p.stop();
+        return ret;
     }
 
-    void writeByte(uint8_t reg, uint8_t data)
+    bool writeByte(uint8_t reg, uint8_t data)
     {
+        bool ret;
         _p.start();
-        _p.address(II2c::Cmd::Write);
+        ret = _p.address(II2c::Cmd::Write);
         _p.write(reg);
         _p.write(data);
         _p.stop();
+        return ret;
     }
 
-    void write(uint8_t reg, uint8_t *data, size_t len)
+    bool write(uint8_t reg, uint8_t *data, size_t len)
     {
+        bool ret;
         _p.start();
-        _p.address(II2c::Cmd::Write);
+        ret = _p.address(II2c::Cmd::Write);
         _p.write(reg);
         while (len--)
         {
             _p.write(*data++);
         }
         _p.stop();
+        return ret;
     }
 };
 

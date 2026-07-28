@@ -63,11 +63,11 @@ public:
         return true;
     }
 
-    inline void address(uint8_t addressRW)
+    inline bool address(uint8_t addressRW)
     {
-        if (!_transferOk) return;
+        if (!_transferOk) return false;
         _i2c->DR = addressRW;
-        _transferOk = waitFor(I2C_SR1_ADDR);
+        return _transferOk = waitFor(I2C_SR1_ADDR);
     }
 
     void clearFlag()
@@ -107,6 +107,27 @@ public:
 
     void start()
     {
+        // A new START issued immediately after STOP works while stepping in
+        // the debugger, but can arrive before the STOP condition has reached
+        // the bus at full speed.  Wait for the peripheral to finish STOP
+        // before beginning a new transaction.  Do not wait for a repeated
+        // START: in that case the STOP bit is not set.
+        if (_i2c->CR1 & I2C_CR1_STOP)
+        {
+            uint32_t count = Timeout;
+            while ((_i2c->CR1 & I2C_CR1_STOP) != 0U)
+            {
+                if (--count == 0U)
+                {
+                    _transferOk = false;
+                    return;
+                }
+            }
+        }
+
+        // Error flags from a failed transaction otherwise make every
+        // following waitFor() fail immediately.
+        _i2c->SR1 &= ~ErrorFlags;
         _transferOk = true;
         _i2c->CR1 |= I2C_CR1_START;
         _transferOk = waitFor(I2C_SR1_SB);
@@ -193,9 +214,9 @@ class I2cDriver: public II2c
         _i2c.stop();
     }
 
-    inline void address(bool rw) override
+    inline bool address(bool rw) override
     {
-        _i2c.address(_address | rw);
+        return _i2c.address(_address | rw);
     }
 
     inline void write(uint8_t data) override
