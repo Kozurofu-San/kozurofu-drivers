@@ -6,6 +6,26 @@
 
 #include <cstdint>
 
+/* // EEPROM AT24
+
+#include "device/AT24/At24.h"
+
+    I2cController i2c1 {I2C1};
+    I2cDriver i2c_mem {i2c1};
+    At24 mem {i2c_mem, timer};
+    
+    // I2C
+    GpioDriver::remap(AFIO_MAPR_I2C1_REMAP, false);
+    GpioDriver::mode(GPIOB, 7, GpioDriver::Mode::AlternateOpendrain);   // SDA
+    GpioDriver::mode(GPIOB, 6, GpioDriver::Mode::AlternateOpendrain);   // SCL
+    CHECK(p.i2c1.init(100'000));
+
+    // EEPROM
+    CHECK(p.i2c1.check(II2c::Address::AT24));
+    CHECK(p.i2c_mem.init(II2c::Address::AT24));
+    CHECK(p.mem.init());
+*/
+
 namespace driver
 {
 

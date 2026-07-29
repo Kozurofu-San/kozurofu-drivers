@@ -10,6 +10,35 @@
 
 #include <concepts>
 
+/* // LCD1602
+
+#include "device/LCD1602/Lcd1602.h"
+
+    I2cController i2c1 {I2C1};
+    I2cDriver i2c_lcd {i2c1};
+    TimerDriver timer_ms {TIM2};
+    Lcd1602Driver<II2c> lcd {i2c_lcd, timer_ms};
+
+    // I2C
+    GpioDriver::remap(AFIO_MAPR_I2C1_REMAP, false);
+    GpioDriver::mode(GPIOB, 7, GpioDriver::Mode::AlternateOpendrain);   // SDA
+    GpioDriver::mode(GPIOB, 6, GpioDriver::Mode::AlternateOpendrain);   // SCL
+    CHECK(p.i2c1.init(100'000));
+
+    // Timer
+    CHECK(p.timer_ms.init({1, ITimer::Units::ms}));
+    p.timer_lcd.start();
+
+    // LCD
+    CHECK(p.i2c1.check(II2c::Address::PCF8574));
+    CHECK(p.i2c_lcd.init(II2c::Address::PCF8574));
+    CHECK(p.lcd.init());
+
+    // Example
+    p.lcd.print(0, "String %u%c ", 1, xDF);
+    p.lcd.print(1, "String %u ", 2);
+*/
+
 namespace driver
 {
 

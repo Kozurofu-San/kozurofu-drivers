@@ -6,6 +6,39 @@
 #include "interface/Timer.h"
 #include "interface/I2c.h"
 
+/* // Clock generator
+
+#include "device/SI5351/Si5351.h"
+
+    I2cController i2c2 {I2C2};
+    I2cDriver i2c_clock {i2c2};
+    Si5351Driver clock {i2c_clock, timer_ms};
+
+    // I2C
+    GpioDriver::remap(AFIO_MAPR_I2C1_REMAP, false);
+    GpioDriver::mode(GPIOB, 11, GpioDriver::Mode::AlternateOpendrain);   // SDA
+    GpioDriver::mode(GPIOB, 10, GpioDriver::Mode::AlternateOpendrain);   // SCL
+    CHECK(p.i2c2.init(400'000));
+
+    // Timer
+    CHECK(p.timer_ms.init({1, ITimer::Units::ms}));
+    p.timer_ms.start();
+
+    // Clock generator
+    CHECK(p.i2c2.check(II2c::Address::SI5351));
+    CHECK(p.i2c_clock.init(II2c::Address::SI5351));
+    CHECK(p.clock.init());
+
+    // Example
+    p.clock.setFrequency(0, 1'000'000);
+    p.clock.setFrequency(1, 1'000'000);
+    p.clock.setPhase(0, 0);
+    p.clock.setPhase(1, 30);
+    p.clock.reset();
+    p.clock.setPower(0, 2);
+    p.clock.setPower(0, 8);
+*/
+
 namespace driver
 {
 

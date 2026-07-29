@@ -7,6 +7,24 @@
 
 #include <cstdint>
 
+/* // Temperature / Humidity sensor
+
+#include "device/DHT22/Dht22.h"
+
+    GpioDriver gpio_tempHum {GPIOB, 8};
+    TimerDriver timer_us {TIM3};
+    Dht22 tempHum {gpio_tempHum, timer_us};
+    
+    // Timer
+    p.timer_us.init({1, ITimer::Units::us});
+    p.timer_us.start();
+
+    // Temperature / Humidity sensor
+    p.gpio_tempHum.init(GpioDriver::Mode::OutputPushpull, GpioDriver::Speed::High);
+    p.gpio_tempHum.write(1);    // Sleep
+    p.tempHum.init();
+*/
+
 namespace driver
 {
 
