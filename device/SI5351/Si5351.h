@@ -94,13 +94,13 @@ class Si5351Driver: public IGenerator
         return _isInit;
     }
     
-    void setFrequency(size_t channel, uint32_t frequency) override
+    bool setFrequency(uint32_t frequency, size_t channel = 0) override
     {
         if (!_isInit)
-            return;
+            return false;
 
         if (channel > 2)
-            return;
+            return false;
 
         // Range 8 kHz … 160 MHz
         if (frequency < 8000UL)
@@ -224,12 +224,13 @@ class Si5351Driver: public IGenerator
 
         if (pllChanged)
             writeByte(Si5351::PLLReset, Si5351::PLLA_RST);
+        return true;
     }
 
-    void setPhase(size_t channel, uint16_t phase) override
+    bool setPhase(uint16_t phase, size_t channel = 0) override
     {
         if (!_isInit || channel > 2 || _phaseDivider[channel] == 0)
-            return;
+            return false;
 
         uint32_t degrees = phase % 360;
 
@@ -243,7 +244,7 @@ class Si5351Driver: public IGenerator
 
             // Фазовый регистр обнуляем
             writeByte(Si5351::CLKxPhaseOffset + channel, 0);
-            return;
+            return true;
         }
         else
         {
@@ -263,12 +264,13 @@ class Si5351Driver: public IGenerator
         // PHOFF is an initial offset; latch the new value by restarting the
         // PLL after all synchronous outputs have been configured.
         writeByte(Si5351::PLLReset, Si5351::PLLA_RST);
+        return true;
     }
 
-    void setPower(size_t channel, int32_t power) override
+    bool setPower(int32_t power, size_t channel = 0) override
     {
         if (channel > 2)
-            return;
+            return false;
 
         uint8_t reg = readByte(Si5351::CLKxControl + channel);
 
@@ -295,6 +297,12 @@ class Si5351Driver: public IGenerator
         }
 
         writeByte(Si5351::CLKxControl + channel, reg);
+        return true;
+    }
+
+    bool turn(Turn on) override
+    {
+        return true;
     }
 
     void reset() override

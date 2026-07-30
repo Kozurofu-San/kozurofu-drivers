@@ -58,19 +58,83 @@ class Hmc830Driver: public IGenerator
         _p.enable();
         _timer.delay(100);
         _p.disable();
-        return _isInit;
+
+        uint32_t id = read(Hmc830::ID);
+
+        write(Hmc830::OpenMode, 1 << Hmc830::SoftReset);
+        write(Hmc830::REFDIV, 40);
+        write(Hmc830::SDCFG, 
+            1 << Hmc830::frac_bypass |
+            1 << Hmc830::AutoSeed |
+            1 << Hmc830::clkrq_refdiv_sel |
+            0 << Hmc830::SD_Enable);
+        write(Hmc830::LockDetect, 
+            1 << Hmc830::Enable_Internal_Lock_Detect |
+            1 << Hmc830::Lock_Detect_Window_type |
+            1 << Hmc830::LD_Digital_Window_duration |
+            3 << Hmc830::LD_Digital_Timer_Freq_Control |
+            0 << Hmc830::LD_Timer_Test_Mode |
+            0 << Hmc830::Auto_Relock_One_Try);
+        write(Hmc830::AnalogEn, 0xC1BEFF);
+        write(Hmc830::ChargePump, 
+            (1000U / 20) << Hmc830::CP_DN_Gain |
+            (1000U / 20) << Hmc830::CP_UP_Gain |
+            (100U / 5)   << Hmc830::Offset_Magnitude);
+        write(Hmc830::ChargePump, 
+            (1000U / 20) << Hmc830::CP_DN_Gain |
+            (1000U / 20) << Hmc830::CP_UP_Gain |
+            (100U / 5)   << Hmc830::Offset_Magnitude);
+
+        _isInit = true;
+        return true;
     }
     
-    void setFrequency(size_t channel, uint32_t frequency) override
+    bool setFrequency(uint32_t frequency, size_t channel = 0) override
     {
+        uint32_t intg;
+        uint8_t div = 0;
+        uint8_t stage = 0;
+
+        // Divider calculation
+        if ((frequency >= 25) & (frequency < 1500))
+        {
+            while (frequency * div < 1500)
+            {
+                div += 2;
+            }
+        }
+        else if ((frequency >= 1500) & (frequency < 3000))
+        {
+            div = 1;
+        }
+        else return false;
+        
+        if (div <= 2)
+        {
+            stage = 1;
+        }
+
+        intg = frequency * div / (XtalFrequency / 40);  // If FPD = 1 MHz
+        _vco.div = div;
+        _vco.stage = stage;
+        _vco.intg = intg;
+
+        return true;
     }
 
-    void setPhase(size_t channel, uint16_t phase) override
+    bool setPhase(uint16_t phase, size_t channel = 0) override
     {
+        return false;
     }
 
-    void setPower(size_t channel, int32_t power) override
+    bool setPower(int32_t power, size_t channel = 0) override
     {
+        return false;
+    }
+
+    bool turn(Turn on) override
+    {
+        return false;
     }
 
     void reset() override
@@ -89,9 +153,18 @@ class Hmc830Driver: public IGenerator
 
     bool _isInit = false;
 
+    // VCO variables
+    struct vcoReg_s{
+        uint32_t intg: 19 = 2000;
+        uint32_t div: 6 = 1;
+        uint32_t gain: 2 = 0;
+        uint32_t stage: 1 = 1;
+    } _vco;
+
     static constexpr uint16_t Timeout = 1000;
     static constexpr uint32_t XtalFrequency = 40'000'000UL;
     static constexpr uint8_t Read = 0x80;
+
 
     uint32_t read(uint8_t reg)
     {

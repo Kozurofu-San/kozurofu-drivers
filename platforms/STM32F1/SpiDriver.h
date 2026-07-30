@@ -168,10 +168,7 @@ class SpiDriver : public ISpi
         }
         _spi.getInstance()->CR1 |= SPI_CR1_SPE;
 
-        if (idleState)
-        {
-            _idleState = idleState;
-        }
+        _idleState = idleState;
     };
 
     inline uint8_t transfer(uint8_t data) override
