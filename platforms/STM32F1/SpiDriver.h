@@ -174,7 +174,12 @@ class SpiDriver : public ISpi
         }
     };
 
-    void write(uint8_t *data, size_t len) override
+    inline uint8_t transfer(uint8_t data) override
+    {
+        return _spi.transfer(data);
+    }
+
+    inline void write(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; i++)
         {
@@ -182,7 +187,7 @@ class SpiDriver : public ISpi
         }
     };
 
-    void read(uint8_t *data, size_t len) override
+    inline void read(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; i++)
         {
