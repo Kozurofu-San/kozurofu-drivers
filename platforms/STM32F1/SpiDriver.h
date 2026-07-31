@@ -157,18 +157,22 @@ class SpiDriver : public ISpi
     void init(IGpio* cs = nullptr, uint8_t idleState = true)
     {
         _spi.getInstance()->CR1 &= ~SPI_CR1_SPE;
+        _idleState = idleState;
         if (cs)
         {
             _cs = cs;
-            _spi.getInstance()->CR2 |= SPI_CR2_SSOE;  // Soft Chip Select
+            // A supplied GPIO is a software-controlled CS.  SSOE would
+            // hand PA4/NSS to the SPI peripheral and keep it asserted for
+            // the whole time SPI is enabled, preventing devices such as the
+            // HMC830 from latching individual 32-bit transfers on SEN.
+            _spi.getInstance()->CR2 &= ~SPI_CR2_SSOE;
+            _cs->write(_idleState);
         }
         else
         {
-            _spi.getInstance()->CR2 &= ~SPI_CR2_SSOE; // Hard Chip Select
+            _spi.getInstance()->CR2 |= SPI_CR2_SSOE;  // Hardware NSS output
         }
         _spi.getInstance()->CR1 |= SPI_CR1_SPE;
-
-        _idleState = idleState;
     };
 
     inline uint8_t transfer(uint8_t data) override

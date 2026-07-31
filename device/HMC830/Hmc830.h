@@ -6,52 +6,27 @@
 #include "interface/Timer.h"
 #include "interface/Spi.h"
 
-/* // Clock generator
-
-#include "device/HMC830/Hmc830.h"
-
-    I2cController i2c2 {I2C2};
-    I2cDriver i2c_clock {i2c2};
-    Si5351Driver clock {i2c_clock, timer_ms};
-
-    // I2C
-    GpioDriver::remap(AFIO_MAPR_I2C1_REMAP, false);
-    GpioDriver::mode(GPIOB, 11, GpioDriver::Mode::AlternateOpendrain);   // SDA
-    GpioDriver::mode(GPIOB, 10, GpioDriver::Mode::AlternateOpendrain);   // SCL
-    CHECK(p.i2c2.init(400'000));
-
-    // Timer
-    CHECK(p.timer_ms.init({1, ITimer::Units::ms}));
-    p.timer_ms.start();
-
-    // Clock generator
-    CHECK(p.i2c2.check(II2c::Address::SI5351));
-    CHECK(p.i2c_clock.init(II2c::Address::SI5351));
-    CHECK(p.clock.init());
-
-    // Example
-    p.clock.setFrequency(0, 1'000'000);
-    p.clock.setFrequency(1, 1'000'000);
-    p.clock.setPhase(0, 0);
-    p.clock.setPhase(1, 30);
-    p.clock.reset();
-    p.clock.setPower(0, 2);
-    p.clock.setPower(0, 8);
-*/
-
 namespace driver
 {
 
 class Hmc830Driver: public IGenerator
 {
-    public:
+
+public:
+
+    enum Mode: uint8_t
+    {
+        Fractional = 0,
+        Integer    = 1
+    };
 
     Hmc830Driver(ISpi &p, ITimer &timer)
         : _p(p), _timer(timer) {}
 
-    bool init()
+    bool init(Mode mode = Mode::Integer)
     {
-        
+        _vco.mode = mode;
+
         // HMC mode: rise SEN -> rise CLK
         // Open mode: rise CLK -> rise SEN
         _timer.delay(100);
@@ -60,65 +35,127 @@ class Hmc830Driver: public IGenerator
         _p.disable();
 
         uint32_t id = read(Hmc830::ID);
+        printf("HMC830 ID 0x%lX\n", id);
 
-        write(Hmc830::OpenMode, 1 << Hmc830::SoftReset);
-        write(Hmc830::REFDIV, 40);
-        write(Hmc830::SDCFG, 
-            1 << Hmc830::frac_bypass |
-            1 << Hmc830::AutoSeed |
-            1 << Hmc830::clkrq_refdiv_sel |
-            0 << Hmc830::SD_Enable);
-        write(Hmc830::LockDetect, 
-            1 << Hmc830::Enable_Internal_Lock_Detect |
-            1 << Hmc830::Lock_Detect_Window_type |
-            1 << Hmc830::LD_Digital_Window_duration |
-            3 << Hmc830::LD_Digital_Timer_Freq_Control |
-            0 << Hmc830::LD_Timer_Test_Mode |
+        // Main registers
+        write(Hmc830::OpenMode, Hmc830::SoftReset);         // R0
+        write(Hmc830::REFDIV, 40);                          // R2  → f_PFD = 1 MHz
+
+        // R6: integer vs fractional
+        if (mode == Mode::Integer)
+        {
+            write(Hmc830::SDCFG,
+                1 << Hmc830::frac_bypass      |   // bypass Σ-Δ
+                1 << Hmc830::AutoSeed         |
+                1 << Hmc830::clkrq_refdiv_sel |
+                0 << Hmc830::SD_Enable);          // Σ-Δ off
+        }
+        else
+        {
+            write(Hmc830::SDCFG,
+                0 << Hmc830::frac_bypass      |   // Σ-Δ in path
+                1 << Hmc830::AutoSeed         |
+                1 << Hmc830::clkrq_refdiv_sel |
+                1 << Hmc830::SD_Enable);          // Σ-Δ on
+        }
+
+        write(Hmc830::LockDetect,                           // R7
+            1 << Hmc830::Enable_Internal_Lock_Detect    |
+            1 << Hmc830::Lock_Detect_Window_type        |
+            1 << Hmc830::LD_Digital_Window_duration     |
+            3 << Hmc830::LD_Digital_Timer_Freq_Control  |
+            0 << Hmc830::LD_Timer_Test_Mode             |
             0 << Hmc830::Auto_Relock_One_Try);
-        write(Hmc830::AnalogEn, 0xC1BEFF);
-        write(Hmc830::ChargePump, 
-            (1000U / 20) << Hmc830::CP_DN_Gain |
-            (1000U / 20) << Hmc830::CP_UP_Gain |
-            (100U / 5)   << Hmc830::Offset_Magnitude);
-        write(Hmc830::ChargePump, 
-            (1000U / 20) << Hmc830::CP_DN_Gain |
-            (1000U / 20) << Hmc830::CP_UP_Gain |
-            (100U / 5)   << Hmc830::Offset_Magnitude);
+        write(Hmc830::AnalogEn, 0xC1BEFF);                  // R8
+        write(Hmc830::ChargePump,                           // R9
+            (1000U / 20) << Hmc830::CP_DN_Gain  |
+            (1000U / 20) << Hmc830::CP_UP_Gain  |
+            (100U  /  5) << Hmc830::Offset_Magnitude);
+        write(Hmc830::VCOAutoCal,                           // R10
+            6 << Hmc830::Vtune_Resolution      |
+            1 << Hmc830::Wait_State_Set_Up     |
+            1 << Hmc830::FSM_VSPI_Clock_Select);
+        write(Hmc830::PD, 0x07C061);                        // R11
+        write(Hmc830::FineFrequencyCorrection, 0);          // R12
+
+        // VCO subregisters
+        write(Hmc830::GPO_SPI_RDIV,                         // R15
+            1 << Hmc830::LDO_Driver_Always_On |
+            1 << Hmc830::gpo_select);
+        turn(Turn::On);                                     // R5 → VCO R1
+        setVcoParameters();
+        write(Hmc830::GPO_SPI_RDIV,                         // R15
+            1 << Hmc830::LDO_Driver_Always_On |
+            1 << Hmc830::gpo_select);
+        write(Hmc830::VCOSPI, 0x60A0);                      // R5 → VCO R4
+        write(Hmc830::VCOSPI, 0x1628);                      // R5 → VCO R5
+        write(Hmc830::VCOSPI, 0x7FB0);                      // R5 → VCO R6
+
+        // Main registers
+        write(Hmc830::VCOSPI, 0);
+        write(Hmc830::FrequencyInteger,    _vco.intg);
+        write(Hmc830::FrequencyFractional, _vco.frac);      // R04
+
+        _timer.delay(1000);
 
         _isInit = true;
         return true;
     }
-    
+
     bool setFrequency(uint32_t frequency, size_t channel = 0) override
     {
-        uint32_t intg;
-        uint8_t div = 0;
-        uint8_t stage = 0;
+        // 25 MHz … 3 GHz
+        if (frequency < 25'000'000UL || frequency > 3'000'000'000UL)
+            return false;
 
-        // Divider calculation
-        if ((frequency >= 25) & (frequency < 1500))
+        uint8_t  div   = 1;
+        uint8_t  stage = 1;
+
+        // Output divider: VCO must be in [1.5 … 3] GHz
+        if (frequency < 1'500'000'000UL)
         {
-            while (frequency * div < 1500)
-            {
+            div = 2;
+            while ((uint64_t)frequency * div < 1'500'000'000ULL && div < 62)
                 div += 2;
+
+            if ((uint64_t)frequency * div > 3'000'000'000ULL)
+                return false;
+
+            stage = 0;   // divider mode
+        }
+        // else: fundamental, div=1, stage=1
+
+        const uint32_t f_pfd = XtalFrequency / 40;          // 1 MHz
+        const uint64_t f_vco = (uint64_t)frequency * div;
+
+        // N = f_vco / f_pfd
+        uint32_t intg = static_cast<uint32_t>(f_vco / f_pfd);
+        uint32_t frac = 0;
+
+        if (_vco.mode == Mode::Fractional)
+        {
+            // FRAC = round( (f_vco % f_pfd) * 2^24 / f_pfd )
+            const uint64_t rem = f_vco % f_pfd;
+            frac = static_cast<uint32_t>(
+                (rem * FracModulus + f_pfd / 2) / f_pfd);
+
+            if (frac >= FracModulus)   // Borrow to integer
+            {
+                frac = 0;
+                intg++;
             }
         }
-        else if ((frequency >= 1500) & (frequency < 3000))
-        {
-            div = 1;
-        }
-        else return false;
-        
-        if (div <= 2)
-        {
-            stage = 1;
-        }
 
-        intg = frequency * div / (XtalFrequency / 40);  // If FPD = 1 MHz
-        _vco.div = div;
+        // Range of N (fractional ≥ 20, integer ≥ 16…; up to ~524287)
+        if (intg < 20 || intg > 524287)
+            return false;
+
+        _vco.div   = div;
         _vco.stage = stage;
-        _vco.intg = intg;
+        _vco.intg  = intg;
+        _vco.frac  = frac;
 
+        setVcoParameters();
         return true;
     }
 
@@ -134,7 +171,33 @@ class Hmc830Driver: public IGenerator
 
     bool turn(Turn on) override
     {
-        return false;
+        if (on == Turn::On)
+        {
+            write(Hmc830::VCOSPI,                               // R5 → VCO R1
+                0 << Hmc830::VCO_Subsystem_ID |
+                Hmc830::VCO_Enables << Hmc830::VCO_Subsystem_register_address |
+                (
+                    1 << Hmc830::Master_Enable_VCO_Subsystem    |
+                    1 << Hmc830::Manual_Mode_PLL_buffer_enable  |
+                    1 << Hmc830::Manual_Mode_RF_buffer_enable   |
+                    1 << Hmc830::Manual_Mode_Divide_by_1_enable |
+                    1 << Hmc830::Manual_Mode_RF_Divider_enable
+                ) << Hmc830::VCO_Subsystem_data);
+        }
+        else
+        {
+            write(Hmc830::VCOSPI,                               // R5 → VCO R1
+                0 << Hmc830::VCO_Subsystem_ID |
+                Hmc830::VCO_Enables << Hmc830::VCO_Subsystem_register_address |
+                (
+                    0 << Hmc830::Master_Enable_VCO_Subsystem    |
+                    0 << Hmc830::Manual_Mode_PLL_buffer_enable  |
+                    0 << Hmc830::Manual_Mode_RF_buffer_enable   |
+                    0 << Hmc830::Manual_Mode_Divide_by_1_enable |
+                    0 << Hmc830::Manual_Mode_RF_Divider_enable
+                ) << Hmc830::VCO_Subsystem_data);
+        }
+        return true;
     }
 
     void reset() override
@@ -146,54 +209,75 @@ class Hmc830Driver: public IGenerator
         return _isInit;
     }
 
-    private:
-
-    ISpi &_p;
-    ITimer& _timer;
+private:
+    ISpi   &_p;
+    ITimer &_timer;
 
     bool _isInit = false;
 
-    // VCO variables
-    struct vcoReg_s{
-        uint32_t intg: 19 = 2000;
-        uint32_t div: 6 = 1;
-        uint32_t gain: 2 = 0;
-        uint32_t stage: 1 = 1;
+    struct vcoReg_s
+    {
+        uint32_t frac  : 24 = 0;      // 0 … 0xFFFFFF
+        uint32_t div   :  6 = 1;
+        uint32_t gain  :  2 = 0;
+        uint32_t intg  : 19 = 2000;
+        uint32_t stage :  1 = 1;
+        uint32_t mode  :  1 = 1;      // 0 = Fractional, 1 = Integer
     } _vco;
 
-    static constexpr uint16_t Timeout = 1000;
-    static constexpr uint32_t XtalFrequency = 40'000'000UL;
-    static constexpr uint8_t Read = 0x80;
+    static constexpr uint16_t Timeout        = 1000;
+    static constexpr uint32_t XtalFrequency  = 40'000'000UL;
+    static constexpr uint32_t FracModulus    = 1UL << 24;   // 16777216
+    static constexpr uint8_t  Read           = 0x80;
 
+    void setVcoParameters()
+    {
+        // VCO R2 — divider / gain / stage
+        write(Hmc830::VCOSPI,
+            0 << Hmc830::VCO_Subsystem_ID |
+            Hmc830::VCO_Biases << Hmc830::VCO_Subsystem_register_address |
+            (
+                _vco.div   << Hmc830::RF_Divide_ratio               |
+                _vco.gain  << Hmc830::RF_output_buffer_gain_control |
+                _vco.stage << Hmc830::Divider_output_stage_gain_control
+            ) << Hmc830::VCO_Subsystem_data);
+
+        // VCO R3 — RF buffer
+        write(Hmc830::VCOSPI,
+            0 << Hmc830::VCO_Subsystem_ID |
+            Hmc830::VCO_Config << Hmc830::VCO_Subsystem_register_address |
+            (
+                1 << Hmc830::RF_buffer_SE_enable |
+                0 << Hmc830::Manual_RFO_Mode
+            ) << Hmc830::VCO_Subsystem_data);
+
+        write(Hmc830::VCOSPI, 0);   // Address subsystem reset
+
+        write(Hmc830::FrequencyInteger,    _vco.intg);   // R03
+        write(Hmc830::FrequencyFractional, _vco.frac);   // R04
+    }
 
     uint32_t read(uint8_t reg)
     {
         _p.enable();
-        uint8_t data = _p.transfer((reg << 1)|  Read);
-        data <<= 8;
-        data |= _p.transfer(0);
-        data <<= 8;
-        data |= _p.transfer(0);
-        data <<= 8;
-        data |= _p.transfer(0);
+        uint32_t data = _p.transfer((reg << 1) | Read);
+        data = (data << 8) | _p.transfer(0);
+        data = (data << 8) | _p.transfer(0);
+        data = (data << 8) | _p.transfer(0);
         data &= 0xFFFFFF;
-
         _p.disable();
         return data;
     }
 
     bool write(uint8_t reg, uint32_t data)
     {
-        bool ret;
         _p.enable();
         data <<= 1;
-        data |= reg << 25;
-        for (size_t i = 24; i >= 0; i -= 8)
-        {
-            _p.transfer(data >> i);
-        }
+        data |= static_cast<uint32_t>(reg) << 25;
+        for (int i = 24; i >= 0; i -= 8)
+            _p.transfer(static_cast<uint8_t>(data >> i));
         _p.disable();
-        return ret;
+        return true;
     }
 };
 

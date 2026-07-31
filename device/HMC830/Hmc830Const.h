@@ -165,6 +165,12 @@ class Hmc830
     static constexpr uint8_t Manual_Mode_RF_Divider_enable  = 4;    // Enables the RF output divider in manual mode.
 
     static constexpr uint8_t VCO_Biases = 0x02;
-    static constexpr uint8_t VCO_Config = 0x03;
+    static constexpr uint8_t RF_Divide_ratio                    = 0;
+    static constexpr uint8_t RF_output_buffer_gain_control      = 6;
+    static constexpr uint8_t Divider_output_stage_gain_control  = 8;
 
+    static constexpr uint8_t VCO_Config = 0x03;
+    static constexpr uint8_t RF_buffer_SE_enable    = 0;            // 1 - Single ended, 0 - differential output
+    static constexpr uint8_t Manual_RFO_Mode        = 2;            // 0 - AutoRFO mode controls output buffers and RF divider enables according to RF divider setting in VCO_Reg 02h[5:0]
+    static constexpr uint8_t RF_buffer_bias         = 3;
 };
