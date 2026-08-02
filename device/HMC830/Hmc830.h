@@ -6,6 +6,37 @@
 #include "interface/Timer.h"
 #include "interface/Spi.h"
 
+/* // RF generator
+
+#include "device/Hmc830/Hmc830.h"
+
+    SpiController spi1 {SPI1};
+    GpioDriver gpio_rfgen_cs {GPIOA, 4};
+    SpiDriver spi_rfgen {spi1};
+    Hmc830Driver rfgen {spi_rfgen, timer_us};
+
+    // SPI1
+    GpioDriver::remap(AFIO_MAPR_SPI1_REMAP, false);
+    GpioDriver::mode(GPIOA, 4, GpioDriver::Mode::AlternatePushpull); // NSS
+    GpioDriver::mode(GPIOA, 5, GpioDriver::Mode::AlternatePushpull); // SCK
+    GpioDriver::mode(GPIOA, 6, GpioDriver::Mode::Input);             // MISO
+    GpioDriver::mode(GPIOA, 7, GpioDriver::Mode::AlternatePushpull); // MOSI
+    CHECK(p.spi1.init(1'000'000));
+
+    // Timer
+    CHECK(p.timer_us.init({1, ITimer::Units::us}));
+    p.timer_us.start();
+
+    // RF generator
+    p.gpio_rfgen_cs.init(GpioDriver::Mode::OutputPushpull, GpioDriver::Speed::High);
+    p.spi_rfgen.init(&p.gpio_rfgen_cs, 0);
+    p.rfgen.init(Hmc830Driver::Mode::Integer);
+
+    // Example
+    bool ret = p.rfgen.setFrequency(50'000'000);
+    p.rfgen.setPower(9);
+*/
+
 namespace driver
 {
 
