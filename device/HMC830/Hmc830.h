@@ -146,6 +146,18 @@ public:
         _vco.frac  = frac;
 
         setVcoParameters();
+
+        uint16_t timeout = Timeout;
+        uint32_t status;
+        do
+        {
+            status = read(0x10) & 0xFF;
+            if (status != 0x80)
+                break;
+            _timer.delay(1);
+        } while (timeout--);
+        if (!timeout) return false;
+        
         return true;
     }
 
@@ -163,7 +175,7 @@ public:
         else                 _vco.gain = 3;
 
         setVcoParameters();
-        return true;
+        return checkAutocal();
     }
 
     bool turn(Turn on) override
@@ -227,6 +239,23 @@ private:
     static constexpr uint32_t XtalFrequency  = 40'000'000UL;
     static constexpr uint32_t FracModulus    = 1UL << 24;   // 16777216
     static constexpr uint8_t  Read           = 0x80;
+
+    bool checkAutocal()
+    {
+        uint16_t timeout = Timeout;
+        uint32_t status;
+        do
+        {
+            status = read(Hmc830::VCOTune) & 0xFF;
+            if (status != Hmc830::AutoCal_Busy)
+                break;
+            _timer.delay(1);
+        } while (timeout--);
+
+        if (!timeout) return false;
+        
+        return true;
+    }
 
     void setVcoParameters()
     {

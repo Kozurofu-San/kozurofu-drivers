@@ -20,14 +20,14 @@ class Hmc830
 
     // R1 Enables Register
     static constexpr uint8_t Enables = 0x01;
-    static constexpr uint8_t chipen_pin_select          = 0;    // Selects whether device enable is controlled by the CHIP_EN pin or SPI.
-    static constexpr uint8_t chipen_from_spi            = 1;    // Software chip-enable control when SPI mode is selected.
-    static constexpr uint8_t Keep_bias_on               = 2;    // Keeps the internal bias generator powered during standby.
-    static constexpr uint8_t Keep_PD_on                 = 3;    // Keeps the phase detector powered.
-    static constexpr uint8_t Keep_CP_on                 = 4;    // Keeps the charge pump powered.
-    static constexpr uint8_t Keep_Ref_buf_on            = 5;    // Keeps the reference input buffer enabled.
-    static constexpr uint8_t Keep_VCO_on                = 6;    // Keeps the VCO circuitry powered.
-    static constexpr uint8_t Keep_GPO_driver_on         = 7;    // Keeps the GPO output driver active.
+    static constexpr uint8_t chipen_pin_select          = 1 << 0;    // Selects whether device enable is controlled by the CHIP_EN pin or SPI.
+    static constexpr uint8_t chipen_from_spi            = 1 << 1;    // Software chip-enable control when SPI mode is selected.
+    static constexpr uint8_t Keep_bias_on               = 1 << 2;    // Keeps the internal bias generator powered during standby.
+    static constexpr uint8_t Keep_PD_on                 = 1 << 3;    // Keeps the phase detector powered.
+    static constexpr uint8_t Keep_CP_on                 = 1 << 4;    // Keeps the charge pump powered.
+    static constexpr uint8_t Keep_Ref_buf_on            = 1 << 5;    // Keeps the reference input buffer enabled.
+    static constexpr uint8_t Keep_VCO_on                = 1 << 6;    // Keeps the VCO circuitry powered.
+    static constexpr uint8_t Keep_GPO_driver_on         = 1 << 7;    // Keeps the GPO output driver active.
 
     // R2 REFDIV Register
     static constexpr uint8_t REFDIV                     = 0x02;
@@ -132,7 +132,7 @@ class Hmc830
     // R16 VCO Tune Register
     static constexpr uint8_t VCOTune = 0x10;
     static constexpr uint8_t VCO_Switch_Setting     = 0;    // Current VCO band selected by calibration.
-    static constexpr uint8_t AutoCal_Busy           = 8;    // Indicates that automatic VCO calibration is in progress.
+    static constexpr uint8_t AutoCal_Busy           = 0x80; // Indicates that automatic VCO calibration is in progress.
 
     // R17 SAR Register
     static constexpr uint8_t SAR = 0x11;
