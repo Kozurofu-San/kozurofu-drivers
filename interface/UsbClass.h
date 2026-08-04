@@ -1,12 +1,12 @@
 #pragma once
 
-#include "device/UsbDeviceCore.h"          // SetupPacket, DeviceState и т.д.
-
 #include <cstdint>
 #include <cstddef>
 
 namespace driver
 {
+
+class UsbDeviceCore;
 
 class IUsbClass
 {
@@ -29,7 +29,6 @@ public:
 
     virtual ~IUsbClass() = default;
 
-    class UsbDeviceCore;
     /**
      * Called once when the class is registered in the device.
      * Here the class opens its endpoints and stores the device pointer.
