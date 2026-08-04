@@ -217,6 +217,8 @@ public:
     uint8_t getInterfaceNumber() const { return _iface; }
     uint8_t getEpIn()            const { return _epIn; }
     uint8_t getEpOut()           const { return _epOut; }
+    uint8_t getEpInMaxPacket()   const { return _epInMps; }
+    uint8_t getEpOutMaxPacket()  const { return _epOutMps; }
 
 private:
     // -------------------------------------------------------------------------
@@ -332,14 +334,18 @@ public:
                           const char* manufacturer,
                           const char* product,
                           const char* serial = "")
-        : m_hid(hid)
-        , m_vid(vid)
-        , m_pid(pid)
-        , m_manufacturer(manufacturer)
-        , m_product(product)
-        , m_serial(serial)
+        : _hid(hid)
+        , _vid(vid)
+        , _pid(pid)
+        , _manufacturer(manufacturer)
+        , _product(product)
+        , _serial(serial)
     {
         buildConfigurationDescriptor();
+        _deviceDesc[8]  = _vid & 0xFF;
+        _deviceDesc[9]  = _vid >> 8;
+        _deviceDesc[10] = _pid & 0xFF;
+        _deviceDesc[11] = _pid >> 8;
     }
 
     // -------------------------------------------------------------------------
@@ -354,12 +360,12 @@ public:
         switch (type)
         {
         case 0x01: // DEVICE
-            length = sizeof(m_deviceDesc);
-            return m_deviceDesc;
+            length = sizeof(_deviceDesc);
+            return _deviceDesc;
 
         case 0x02: // CONFIGURATION
-            length = m_configDescLen;
-            return m_configDesc;
+            length = _configDescLen;
+            return _configDesc;
 
         case 0x03: // STRING
             return getStringDescriptor(index, length);
@@ -367,12 +373,12 @@ public:
         case 0x21: // HID Descriptor (can be requested separately by some hosts)
             // Usually part of configuration, but we can return it if asked
             length = 9;
-            return &m_configDesc[/* offset of HID desc */ 18 + 9]; // see build
+            return &_configDesc[/* offset of HID desc */ 18 + 9]; // see build
 
         case 0x22: // HID REPORT DESCRIPTOR
         {
             size_t reportLen = 0;
-            const uint8_t* report = m_hid.getReportDescriptor(reportLen);
+            const uint8_t* report = _hid.getReportDescriptor(reportLen);
             length = reportLen;
             return report;
         }
@@ -397,7 +403,7 @@ private:
         // 27 - Endpoint IN Descriptor (7 bytes)
         // 34 - Endpoint OUT Descriptor (7 bytes) – optional
 
-        uint8_t* p = m_configDesc;
+        uint8_t* p = _configDesc;
         size_t   offset = 0;
 
         // ----- Configuration Descriptor -----
@@ -415,9 +421,9 @@ private:
         // ----- Interface Descriptor -----
         p[offset++] = 9;                    // bLength
         p[offset++] = 0x04;                 // bDescriptorType = INTERFACE
-        p[offset++] = m_hid.getInterfaceNumber(); // bInterfaceNumber
+        p[offset++] = _hid.getInterfaceNumber(); // bInterfaceNumber
         p[offset++] = 0;                    // bAlternateSetting
-        p[offset++] = (m_hid.getEpOut() != 0) ? 2 : 1; // bNumEndpoints
+        p[offset++] = (_hid.getEpOut() != 0) ? 2 : 1; // bNumEndpoints
         p[offset++] = 0x03;                 // bInterfaceClass = HID
         p[offset++] = 0x00;                 // bInterfaceSubClass (0 = no subclass)
         p[offset++] = 0x00;                 // bInterfaceProtocol (0 = none)
@@ -425,7 +431,7 @@ private:
 
         // ----- HID Descriptor -----
         size_t reportLen = 0;
-        m_hid.getReportDescriptor(reportLen);
+        _hid.getReportDescriptor(reportLen);
 
         p[offset++] = 9;                    // bLength
         p[offset++] = 0x21;                 // bDescriptorType = HID
@@ -440,18 +446,18 @@ private:
         // ----- Endpoint IN Descriptor -----
         p[offset++] = 7;                    // bLength
         p[offset++] = 0x05;                 // bDescriptorType = ENDPOINT
-        p[offset++] = m_hid.getEpIn();      // bEndpointAddress
+        p[offset++] = _hid.getEpIn();       // bEndpointAddress
         p[offset++] = 0x03;                 // bmAttributes = Interrupt
-        p[offset++] = static_cast<uint8_t>(_hid /* need mps */ 8 & 0xFF); // wMaxPacketSize
+        p[offset++] = _hid.getEpInMaxPacket(); // wMaxPacketSize
         p[offset++] = 0x00;
         p[offset++] = 1;                    // bInterval = 1 ms
 
         // ----- Optional Endpoint OUT Descriptor -----
-        if (m_hid.getEpOut() != 0)
+        if (_hid.getEpOut() != 0)
         {
             p[offset++] = 7;
             p[offset++] = 0x05;
-            p[offset++] = m_hid.getEpOut();
+            p[offset++] = _hid.getEpOut();
             p[offset++] = 0x03;             // Interrupt
             p[offset++] = 8;                // wMaxPacketSize low
             p[offset++] = 0x00;
@@ -459,9 +465,9 @@ private:
         }
 
         // Fill wTotalLength
-        m_configDesc[2] = static_cast<uint8_t>(offset & 0xFF);
-        m_configDesc[3] = static_cast<uint8_t>(offset >> 8);
-        m_configDescLen = offset;
+        _configDesc[2] = static_cast<uint8_t>(offset & 0xFF);
+        _configDesc[3] = static_cast<uint8_t>(offset >> 8);
+        _configDescLen = offset;
     }
 
     // -------------------------------------------------------------------------
@@ -483,9 +489,9 @@ private:
         }
 
         const char* src = nullptr;
-        if (index == 1) src = m_manufacturer;
-        else if (index == 2) src = m_product;
-        else if (index == 3) src = m_serial;
+        if (index == 1) src = _manufacturer;
+        else if (index == 2) src = _product;
+        else if (index == 3) src = _serial;
         else
         {
             length = 0;
@@ -512,7 +518,7 @@ private:
     // Device Descriptor (fixed)
     // -------------------------------------------------------------------------
 
-    uint8_t m_deviceDesc[18] = {
+    uint8_t _deviceDesc[18] = {
         18,         // bLength
         0x01,       // bDescriptorType = DEVICE
         0x00, 0x02, // bcdUSB = 2.00
@@ -533,24 +539,24 @@ private:
     // Members
     // -------------------------------------------------------------------------
 
-    const UsbHid& m_hid;
-    uint16_t      m_vid;
-    uint16_t      m_pid;
-    const char*   m_manufacturer;
-    const char*   m_product;
-    const char*   m_serial;
+    const UsbHid& _hid;
+    uint16_t      _vid;
+    uint16_t      _pid;
+    const char*   _manufacturer;
+    const char*   _product;
+    const char*   _serial;
 
-    uint8_t m_configDesc[64] = {};
-    size_t  m_configDescLen  = 0;
+    uint8_t _configDesc[64] = {};
+    size_t  _configDescLen  = 0;
 
     // Fill VID/PID in constructor body
     // (C++ doesn't allow it easily in member initializer for array)
     // Add this inside the constructor after buildConfigurationDescriptor():
     //
-    // m_deviceDesc[8]  = m_vid & 0xFF;
-    // m_deviceDesc[9]  = m_vid >> 8;
-    // m_deviceDesc[10] = m_pid & 0xFF;
-    // m_deviceDesc[11] = m_pid >> 8;
+    // _deviceDesc[8]  = _vid & 0xFF;
+    // _deviceDesc[9]  = _vid >> 8;
+    // _deviceDesc[10] = _pid & 0xFF;
+    // _deviceDesc[11] = _pid >> 8;
 };
 
 } // namespace driver

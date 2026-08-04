@@ -21,21 +21,6 @@ enum class DeviceState : uint8_t
     Suspended
 };
 
-struct SetupPacket
-{
-    uint8_t  bmRequestType;
-    uint8_t  bRequest;
-    uint16_t wValue;
-    uint16_t wIndex;
-    uint16_t wLength;
-
-    // Helpers
-    bool isHostToDevice() const { return (bmRequestType & 0x80) == 0; }
-    bool isDeviceToHost() const { return (bmRequestType & 0x80) != 0; }
-    uint8_t recipient()   const { return bmRequestType & 0x1F; }   // 0=device, 1=interface, 2=endpoint
-    uint8_t type()        const { return (bmRequestType >> 5) & 0x03; } // 0=standard, 1=class, 2=vendor
-};
-
 // Standard request codes (USB 2.0 Table 9-4)
 enum class StdRequest : uint8_t
 {
@@ -297,7 +282,7 @@ private:
     bool        _selfPowered   = false;   // can be set from descriptor
 
     // EP0 control transfer state
-    SetupPacket     _setup{};
+    IUsbClass::SetupPacket     _setup{};
     Ep0Stage        _ep0Stage   = Ep0Stage::Idle;
     const uint8_t*  _ep0DataPtr = nullptr;
     size_t          _ep0DataLen = 0;
