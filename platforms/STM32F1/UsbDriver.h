@@ -42,6 +42,11 @@ public:
         RCC->APB1ENR |= RCC_APB1ENR_USBEN;
         RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_AFIOEN;
 
+        // PA11 = USB_DM, PA12 = USB_DP.  The USB peripheral drives these
+        // pins; GPIO must not actively drive either line.
+        GPIOA->CRH &= ~((0xFU << 12) | (0xFU << 16));
+        GPIOA->CRH |=  (0x4U << 12) | (0x4U << 16); // input floating
+
         // Force USB reset
         _usb->CNTR = USB_CNTR_FRES;
         for (volatile int i = 0; i < 50; ) { i = i + 1; /* small delay */ }
@@ -58,12 +63,14 @@ public:
         _speed         = Speed::Full;
         _address       = 0;
         _isInit        = true;
+        _usb->DADDR   = USB_DADDR_EF;
 
         // Clear all endpoint registers and PMA allocation tracking
         for (int i = 0; i < NumEndpoints; ++i)
         {
             _epInfo[i] = EpInfo{};
-            EPnR(i) = 0;
+            _rxReady[i] = false;
+            EPnR(i) = static_cast<uint16_t>(i);
         }
 
         return true;
@@ -89,6 +96,25 @@ public:
 
         const bool isIn = (epAddr & 0x80) != 0;
         EpInfo& info = _epInfo[epNum];
+
+        if ((isIn && info.inUsed) || (!isIn && info.outUsed))
+        {
+            if (isIn)
+            {
+                info.txMaxPacket = maxPacket;
+                setEpType(epNum, type);
+                setTxCount(epNum, 0);
+                setTxStatus(epNum, EpStatus::Nak);
+            }
+            else
+            {
+                info.rxMaxPacket = maxPacket;
+                setEpType(epNum, type);
+                setRxCount(epNum, maxPacket);
+                setRxStatus(epNum, EpStatus::Valid);
+            }
+            return;
+        }
 
         // Allocate PMA buffer (word-aligned)
         const uint16_t allocSize = (maxPacket + 1u) & ~1u;   // round up to even
@@ -190,9 +216,9 @@ public:
         const uint16_t epr = EPnR(epNum);
 
         if (isIn)
-            return ((epr & USB_EPRX_STAT) >> 4) == static_cast<uint16_t>(EpStatus::Stall);
-        else
             return ((epr & USB_EPTX_STAT) >> 4) == static_cast<uint16_t>(EpStatus::Stall);
+        else
+            return ((epr & USB_EPRX_STAT) >> 12) == static_cast<uint16_t>(EpStatus::Stall);
     }
 
     void flushEndpoint(uint8_t epAddr) override
@@ -259,6 +285,7 @@ public:
         readPma(info.rxOffset, data, toRead);
 
         // Re-arm RX
+        _rxReady[epNum] = false;
         setRxCount(epNum, info.rxMaxPacket);
         setRxStatus(epNum, EpStatus::Valid);
         clearCtr(epNum, false);
@@ -294,8 +321,9 @@ public:
         if (epNum >= NumEndpoints || (epAddr & 0x80))
             return false;
 
-        // CTR_RX set means a packet has been received
-        return (EPnR(epNum) & USB_EP_CTR_RX) != 0;
+        // CTR_RX is acknowledged in the ISR for non-control endpoints;
+        // retain the event in software until the class reads the packet.
+        return _rxReady[epNum] || ((EPnR(epNum) & USB_EP_CTR_RX) != 0);
     }
 
     bool isConnected() const override
@@ -343,12 +371,39 @@ public:
         if (istr & USB_ISTR_SUSP)   flags |= 0x02;
         if (istr & USB_ISTR_WKUP)   flags |= 0x04;
         if (istr & USB_ISTR_SOF)    flags |= 0x08;
-        if (istr & USB_ISTR_CTR)    flags |= 0x10;  // any endpoint CTR
+        if (istr & USB_ISTR_CTR)
+        {
+            const uint8_t epNum = istr & USB_ISTR_EP_ID;
+            if (epNum == 0)
+            {
+                if ((istr & USB_ISTR_DIR) == 0)
+                {
+                    flags |= 0x20;               // EP0 IN complete
+                    clearCtr(0, true);
+                }
+                else if (EPnR(0) & USB_EP_SETUP)
+                    flags |= 0x10;               // SETUP received on EP0
+                else
+                    flags |= 0x40;               // EP0 OUT complete
+            }
+            else
+            {
+                const bool isIn = (istr & USB_ISTR_DIR) == 0;
+                if (!isIn)
+                    _rxReady[epNum] = true;
+                clearCtr(epNum, isIn);
+            }
+        }
+
+        if (istr & USB_ISTR_RESET)
+        {
+            for (auto& ready : _rxReady)
+                ready = false;
+        }
 
         // Clear the flags we report (write 0 to clear)
         _usb->ISTR = static_cast<uint16_t>(~(istr & (USB_ISTR_RESET | USB_ISTR_SUSP |
-                                                     USB_ISTR_WKUP  | USB_ISTR_SOF |
-                                                     USB_ISTR_CTR)));
+                                                     USB_ISTR_WKUP  | USB_ISTR_SOF)));
 
         return flags;
     }
@@ -385,6 +440,13 @@ public:
     USB_TypeDef* getInstance()
     {
         return _usb;
+    }
+
+    void debugPrint() const
+    {
+        printf("USB regs: ISTR=%04X CNTR=%04X DADDR=%04X FNR=%04X EP0R=%04X EP1R=%04X BTABLE=%04X\n",
+               _usb->ISTR, _usb->CNTR, _usb->DADDR, _usb->FNR,
+               EPnR(0), EPnR(1), _usb->BTABLE);
     }
 
 private:
@@ -426,34 +488,32 @@ private:
 
     void writePma(uint16_t offset, const uint8_t* data, size_t len)
     {
-        volatile uint16_t* dst = pmaPtr(offset);
         size_t i = 0;
         while (i + 1 < len)
         {
             uint16_t word = data[i] | (static_cast<uint16_t>(data[i + 1]) << 8);
-            *dst++ = word;
+            *pmaPtr(static_cast<uint16_t>(offset + i)) = word;
             i += 2;
         }
         if (i < len)
         {
-            *dst = data[i];
+            *pmaPtr(static_cast<uint16_t>(offset + i)) = data[i];
         }
     }
 
     void readPma(uint16_t offset, uint8_t* data, size_t len)
     {
-        volatile uint16_t* src = pmaPtr(offset);
         size_t i = 0;
         while (i + 1 < len)
         {
-            uint16_t word = *src++;
+            uint16_t word = *pmaPtr(static_cast<uint16_t>(offset + i));
             data[i]     = static_cast<uint8_t>(word & 0xFF);
             data[i + 1] = static_cast<uint8_t>(word >> 8);
             i += 2;
         }
         if (i < len)
         {
-            data[i] = static_cast<uint8_t>(*src & 0xFF);
+            data[i] = static_cast<uint8_t>(*pmaPtr(static_cast<uint16_t>(offset + i)) & 0xFF);
         }
     }
 
@@ -463,22 +523,18 @@ private:
 
     void setEpType(uint8_t epNum, EpType type)
     {
-        uint16_t epr = EPnR(epNum);
-        epr &= ~USB_EP_T_MASK;                  // clear type bits
-
+        const uint16_t epr = EPnR(epNum);
+        uint16_t typeBits = USB_EP_CONTROL;
         switch (type)
         {
-        case EpType::Control:     epr |= USB_EP_CONTROL;     break;
-        case EpType::Bulk:        epr |= USB_EP_BULK;        break;
-        case EpType::Interrupt:   epr |= USB_EP_INTERRUPT;   break;
-        case EpType::Isochronous: epr |= USB_EP_ISOCHRONOUS; break;
+        case EpType::Control:     typeBits = USB_EP_CONTROL;     break;
+        case EpType::Bulk:        typeBits = USB_EP_BULK;        break;
+        case EpType::Interrupt:   typeBits = USB_EP_INTERRUPT;   break;
+        case EpType::Isochronous: typeBits = USB_EP_ISOCHRONOUS; break;
         }
 
-        // Keep current STAT bits, clear DTOG and CTR bits carefully
-        epr ^= USB_EP_DTOG_RX | USB_EP_DTOG_TX; // toggle to keep actual toggles? (safer way below)
-        // Better approach used in most stacks:
-        EPnR(epNum) = (epr & (USB_EP_TYPE_MASK | USB_EP_KIND | USB_EPREG_MASK)) |
-                            USB_EP_CTR_RX | USB_EP_CTR_TX;
+        EPnR(epNum) = (epr & (USB_EP_CTR_RX | USB_EP_CTR_TX |
+                              USB_EP_KIND | USB_EPADDR_FIELD)) | typeBits;
     }
 
     void setTxStatus(uint8_t epNum, EpStatus status)
@@ -491,21 +547,21 @@ private:
         if ((current ^ desired) & 1) toggle |= USB_EPTX_DTOG1;
         if ((current ^ desired) & 2) toggle |= USB_EPTX_DTOG2;
 
-        epr = (epr & ~(USB_EPTX_STAT | USB_EP_DTOG_TX | USB_EP_CTR_TX)) | toggle | USB_EP_CTR_RX;
-        EPnR(epNum) = epr;
+        EPnR(epNum) = (epr & (USB_EP_CTR_RX | USB_EP_CTR_TX |
+                              USB_EP_T_FIELD | USB_EP_KIND | USB_EPADDR_FIELD)) | toggle;
     }
 
     void setRxStatus(uint8_t epNum, EpStatus status)
     {
         uint16_t epr = EPnR(epNum);
-        const uint16_t current = (epr & USB_EPRX_STAT) >> 4;
+        const uint16_t current = (epr & USB_EPRX_STAT) >> 12;
         const uint16_t desired = static_cast<uint16_t>(status);
         uint16_t toggle = 0;
         if ((current ^ desired) & 1) toggle |= USB_EPRX_DTOG1;
         if ((current ^ desired) & 2) toggle |= USB_EPRX_DTOG2;
 
-        epr = (epr & ~(USB_EPRX_STAT | USB_EP_DTOG_RX | USB_EP_CTR_RX)) | toggle | USB_EP_CTR_TX;
-        EPnR(epNum) = epr;
+        EPnR(epNum) = (epr & (USB_EP_CTR_RX | USB_EP_CTR_TX |
+                              USB_EP_T_FIELD | USB_EP_KIND | USB_EPADDR_FIELD)) | toggle;
     }
 
     void setTxAddr(uint8_t epNum, uint16_t addr)
@@ -549,15 +605,13 @@ private:
     void clearCtr(uint8_t epNum, bool isIn)
     {
         uint16_t epr = EPnR(epNum);
+        uint16_t ctr = epr & (USB_EP_CTR_RX | USB_EP_CTR_TX);
         if (isIn)
-            epr &= ~USB_EP_CTR_TX;              // writing 0 clears CTR_TX
+            ctr &= ~USB_EP_CTR_TX;
         else
-            epr &= ~USB_EP_CTR_RX;
+            ctr &= ~USB_EP_CTR_RX;
 
-        // Preserve other bits that must not be changed accidentally
-        epr |= USB_EP_CTR_RX | USB_EP_CTR_TX;   // keep the opposite CTR
-        epr &= ~(USB_EP_DTOG_RX | USB_EP_DTOG_TX); // do not toggle DTOG
-        EPnR(epNum) = epr;
+        EPnR(epNum) = (epr & (USB_EP_T_FIELD | USB_EP_KIND | USB_EPADDR_FIELD)) | ctr;
     }
 
     static inline volatile uint16_t &EPnR(uint8_t ep)
@@ -576,6 +630,7 @@ private:
     uint16_t     _pmaFreeOffset = 0;
 
     EpInfo       _epInfo[NumEndpoints];
+    volatile bool _rxReady[NumEndpoints] = {};
     
 };
 

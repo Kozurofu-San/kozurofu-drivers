@@ -238,17 +238,13 @@ private:
         if (reportId != 0)
             return false;                       // only ID 0 supported in this example
 
-        // In a real driver you would return the appropriate report buffer.
-        // Here we just STALL or send zeros for demonstration.
-        static uint8_t dummy[64] = {};
         size_t len = setup.wLength;
-        if (len > sizeof(dummy))
-            len = sizeof(dummy);
+        if (len > sizeof(_controlReport))
+            len = sizeof(_controlReport);
 
-        // TODO: start EP0 Data IN with dummy / real report
-        // m_device->startControlIn(dummy, len);
         (void)reportType;
-        return true;                            // mark as handled (implement control transfer)
+        _device->startControlIn(_controlReport, len);
+        return true;
     }
 
     bool handleSetReport(const SetupPacket& setup)
@@ -260,39 +256,41 @@ private:
         const uint8_t reportType = static_cast<uint8_t>(setup.wValue >> 8);
         (void)reportType;
 
-        // For now just accept and call callback with empty data
-        if (_outputCb)
-            _outputCb(nullptr, 0);
+        if (setup.wLength > sizeof(_controlReport))
+            return false;
 
-        // TODO: properly receive data stage and then Status IN
+        _device->startControlOut(_controlReport, sizeof(_controlReport),
+                                 [this](const uint8_t* data, size_t len)
+                                 {
+                                     if (_outputCb)
+                                         _outputCb(data, len);
+                                 });
         return true;
     }
 
     bool handleGetIdle(const SetupPacket& /*setup*/)
     {
-        // Return current idle rate (1 byte)
-        // TODO: m_device->startControlIn(&m_idleRate, 1);
+        _device->startControlIn(&_idleRate, 1);
         return true;
     }
 
     bool handleSetIdle(const SetupPacket& setup)
     {
         _idleRate = static_cast<uint8_t>(setup.wValue >> 8);
-        // TODO: status IN
+        _device->sendControlStatus();
         return true;
     }
 
     bool handleGetProtocol(const SetupPacket& /*setup*/)
     {
-        // 0 = Boot Protocol, 1 = Report Protocol
-        // TODO: m_device->startControlIn(&m_protocol, 1);
+        _device->startControlIn(&_protocol, 1);
         return true;
     }
 
     bool handleSetProtocol(const SetupPacket& setup)
     {
         _protocol = static_cast<uint8_t>(setup.wValue & 0xFF);
-        // TODO: status IN
+        _device->sendControlStatus();
         return true;
     }
 
@@ -314,6 +312,7 @@ private:
     uint8_t  _idleRate   = 0;
     uint8_t  _protocol   = 1;                  // 1 = Report Protocol
     bool     _configured = false;
+    uint8_t  _controlReport[64] = {};
 
     OutputReportCallback _outputCb;
 };
@@ -373,7 +372,7 @@ public:
         case 0x21: // HID Descriptor (can be requested separately by some hosts)
             // Usually part of configuration, but we can return it if asked
             length = 9;
-            return &_configDesc[/* offset of HID desc */ 18 + 9]; // see build
+            return &_configDesc[/* offset of HID desc */ 18];
 
         case 0x22: // HID REPORT DESCRIPTOR
         {

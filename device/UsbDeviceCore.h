@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <functional>
+#include <cstdio>
 
 namespace driver
 {
@@ -127,8 +128,10 @@ public:
         _ep0Stage      = Ep0Stage::Idle;
 
         // Enable common interrupts (adapt mask to your controller)
-        _usb.enableInterrupts(Irq::Reset | Irq::Suspend | Irq::Resume |
-                                Irq::Setup | Irq::Ep0In | Irq::Ep0Out);
+        // Suspend/resume needs dedicated low-power handling.  Do not enable
+        // those interrupts until it is implemented; otherwise an idle bus can
+        // repeatedly enter the ISR without making enumeration progress.
+        _usb.enableInterrupts(Irq::Reset | Irq::Setup | Irq::Ep0In | Irq::Ep0Out);
 
         notifyStateChange();
     }
@@ -154,6 +157,8 @@ public:
     void onInterrupt()
     {
         const uint32_t flags = _usb.getAndClearIrqFlags();
+        _debugLastFlags = flags;
+        _debugIrqCount = _debugIrqCount + 1;
 
         if (flags & Irq::Reset)
             handleReset();
@@ -200,6 +205,23 @@ public:
     }
 
     IUsbController& controller() { return _usb; }
+
+    void debugPrint() const
+    {
+        printf("USB core: irq=%lu flags=%08lX state=%u addr=%u cfg=%u setup=%02X %02X %04X %04X %04X\n",
+               static_cast<unsigned long>(_debugIrqCount),
+               static_cast<unsigned long>(_debugLastFlags),
+               static_cast<unsigned>(_state),
+               static_cast<unsigned>(_address),
+               static_cast<unsigned>(_configuration),
+               _setup.bmRequestType, _setup.bRequest, _setup.wValue,
+               _setup.wIndex, _setup.wLength);
+    }
+
+    void sendControlStatus()
+    {
+        statusIn();
+    }
 
     
     // -------------------------------------------------------------------------
@@ -288,6 +310,9 @@ private:
     size_t          _ep0DataLen = 0;
     size_t          _ep0DataPos = 0;
     bool            _ep0Zlp     = false;  // zero-length packet needed?
+    uint8_t         _ep0Reply[2] = {};
+    volatile uint32_t _debugIrqCount = 0;
+    volatile uint32_t _debugLastFlags = 0;
 
     static constexpr size_t MaxClasses = 4;
     IUsbClass* _classes[MaxClasses] = {};
@@ -468,13 +493,14 @@ private:
 
     void handleGetStatus()
     {
-        uint8_t status[2] = {0, 0};
+        _ep0Reply[0] = 0;
+        _ep0Reply[1] = 0;
 
         switch (_setup.recipient())
         {
         case 0: // Device
-            if (_selfPowered)   status[0] |= 0x01;
-            if (_remoteWakeup)  status[0] |= 0x02;
+            if (_selfPowered)   _ep0Reply[0] |= 0x01;
+            if (_remoteWakeup)  _ep0Reply[0] |= 0x02;
             break;
 
         case 1: // Interface
@@ -485,7 +511,7 @@ private:
         {
             const uint8_t epAddr = static_cast<uint8_t>(_setup.wIndex & 0xFF);
             if (_usb.isEndpointStalled(epAddr))
-                status[0] = 0x01;
+                _ep0Reply[0] = 0x01;
             break;
         }
 
@@ -494,7 +520,7 @@ private:
             return;
         }
 
-        startDataIn(status, 2);
+        startDataIn(_ep0Reply, 2);
     }
 
     void handleClearFeature()
@@ -615,8 +641,8 @@ private:
 
     void handleGetConfiguration()
     {
-        uint8_t cfg = _configuration;
-        startDataIn(&cfg, 1);
+        _ep0Reply[0] = _configuration;
+        startDataIn(_ep0Reply, 1);
     }
 
     void handleSetConfiguration()
@@ -650,8 +676,8 @@ private:
             return;
         }
 
-        uint8_t alt = 0;
-        startDataIn(&alt, 1);
+        _ep0Reply[0] = 0;
+        startDataIn(_ep0Reply, 1);
     }
 
     void handleSetInterface()
@@ -675,8 +701,8 @@ private:
         _ep0DataPtr = data;
         _ep0DataLen = len;
         _ep0DataPos = 0;
-        _ep0Zlp     = (len > 0) && (len % 64 == 0) && (len < _setup.wLength);
-        // Note: 64 is a simplification; use real EP0 MPS in production
+        const uint16_t mps = getEp0MaxPacketSize();
+        _ep0Zlp     = (len > 0) && (len % mps == 0) && (len < _setup.wLength);
 
         _ep0Stage = Ep0Stage::DataIn;
         sendNextDataIn();
