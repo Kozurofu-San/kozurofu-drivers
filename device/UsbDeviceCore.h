@@ -278,6 +278,25 @@ public:
         // (actual read happens in handleEp0Data)
     }
 
+    void statusIn()
+    {
+        _ep0Stage = Ep0Stage::StatusIn;
+        _usb.writePacket(0x80, nullptr, 0);   // zero-length status packet
+    }
+
+    void statusOut()
+    {
+        _ep0Stage = Ep0Stage::StatusOut;
+        // Just wait for the zero-length OUT packet from host
+    }
+
+    void stallEp0()
+    {
+        _usb.stallEndpoint(0x00, true);
+        _usb.stallEndpoint(0x80, true);
+        _ep0Stage = Ep0Stage::Idle;
+    }
+
 
 private:
     // -------------------------------------------------------------------------
@@ -732,25 +751,6 @@ private:
 
         _usb.writePacket(0x80, _ep0DataPtr + _ep0DataPos, chunk);
         _ep0DataPos += chunk;
-    }
-
-    void statusIn()
-    {
-        _ep0Stage = Ep0Stage::StatusIn;
-        _usb.writePacket(0x80, nullptr, 0);   // zero-length status packet
-    }
-
-    void statusOut()
-    {
-        _ep0Stage = Ep0Stage::StatusOut;
-        // Just wait for the zero-length OUT packet from host
-    }
-
-    void stallEp0()
-    {
-        _usb.stallEndpoint(0x00, true);
-        _usb.stallEndpoint(0x80, true);
-        _ep0Stage = Ep0Stage::Idle;
     }
 
     // -------------------------------------------------------------------------
