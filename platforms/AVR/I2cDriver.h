@@ -43,11 +43,11 @@ public:
         return true;
     }
 
-    void write(uint8_t data)
+    bool write(uint8_t data)
     {
         TWDR = data;
         TWCR = _BV(TWEN) | _BV(TWINT);
-        wait();
+        return wait();
     }
 
     // Read byte and return ACK (continue reading)
@@ -146,39 +146,39 @@ public:
     }
 
     // Select a 7-bit I2C address for subsequent write()/read() calls.
-    void address(bool cmd) override
+    inline bool address(bool cmd) override
     {
-        _i2c.write(_address | static_cast<uint8_t>(cmd));
+        return _i2c.write(_address | static_cast<uint8_t>(cmd));
     }
 
     // Uses the address selected by sendCommand().
-    void write(uint8_t data) override
+    inline void write(uint8_t data) override
     {
         _i2c.write(data);
     }
 
     // Uses the address selected by sendCommand().
-    uint8_t read(bool last = false) override
+    inline uint8_t read(bool last = false) override
     {
         return _i2c.read(!last);
     }
 
-    uint32_t getSpeed() const override
+    inline uint32_t getSpeed() const override
     {
         return _i2c.getSpeed();
     }
 
-    bool isInit() override
+    inline bool isInit() override
     {
         return _i2c.isInit();
     }
 
-    void setAddress(uint8_t addr)
+    inline void setAddress(uint8_t addr)
     {
         _address = addr << 1;
     }
 
-    uint8_t getAddress()
+    inline uint8_t getAddress()
     {
         return _address >> 1;
     }

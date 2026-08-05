@@ -224,7 +224,7 @@ class I2cDriver: public II2c
         _i2c.write(data);
     };
 
-    uint8_t read(bool last = false) override
+    inline uint8_t read(bool last = false) override
     {
         return _i2c.read(!last);
     };
@@ -233,11 +233,11 @@ class I2cDriver: public II2c
     {
         return _i2c.getSpeed();
     }
-    void setAddress(uint8_t address) override
+    inline void setAddress(uint8_t address) override
     {
         _address = address << 1;
     }
-    uint8_t getAddress() override
+    inline uint8_t getAddress() override
     {
         return _address >> 1;
     }

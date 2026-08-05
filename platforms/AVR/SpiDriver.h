@@ -66,10 +66,10 @@ class SpiController
     bool init(uint32_t speed, Mode mode = Mode::Master, Polarity polarity = Polarity::IdleLow, Phase phase = Phase::FirstEdge)
     {
         DDRB |=
-            _BV(PB3) |  // MOSI
-            _BV(PB5) |  // SCK
-            _BV(PB2);   // SS
-        DDRB &= ~_BV(PB4);    // MISO
+            _BV(PB3) |          // MOSI
+            _BV(PB5) |          // SCK
+            _BV(PB2);           // SS
+        DDRB &= ~_BV(PB4);      // MISO
         auto cfg = calculatePrescaler(speed);
         if (!cfg.prescaler)
         {
@@ -127,6 +127,11 @@ class SpiDriver : public ISpi
         _cs = cs;
         return true;
     };
+
+    inline uint8_t transfer(uint8_t data) override
+    {
+        return _spi.transfer(data);
+    }
 
     void write(uint8_t *data, size_t len) override
     {
