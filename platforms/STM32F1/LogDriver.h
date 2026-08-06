@@ -2,6 +2,7 @@
 
 #include "interface/Log.h"
 #include "interface/Itm.h"
+#include "interface/Rtt.h"
 #include "interface/Uart.h"
 
 #include <cstdarg>
@@ -16,11 +17,12 @@ namespace driver
 
 template <typename T>
 requires std::same_as<T, IItm> ||
+         std::same_as<T, IRtt> ||
          std::same_as<T, IUart>
 class LogDriver : public ILog
 {
-    static_assert(std::same_as<T, IItm> || std::same_as<T, IUart>,
-                "Interface must be ITM or UART");
+    static_assert(std::same_as<T, IItm> || std::same_as<T, IRtt> || std::same_as<T, IUart>,
+                "Interface must be ITM, RTT or UART");
 
     public:
 
@@ -88,13 +90,13 @@ class LogDriver : public ILog
     {
         while (*symbol != 0)
         {
-            if constexpr (std::same_as<T, IItm>)
+            if constexpr (std::same_as<T, IItm> || std::same_as<T, IRtt>)
             {
                 _p.writeChar(channel, *symbol);
             }
             symbol++;
         }
-        if constexpr (std::same_as<T, IItm>)
+        if constexpr (std::same_as<T, IItm> || std::same_as<T, IRtt>)
         {
             _p.writeChar(channel, '\n');
         }
