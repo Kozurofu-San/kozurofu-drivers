@@ -145,7 +145,7 @@ public:
 
         case 0x23: // SEND_BREAK (optional)
             // ignore for now
-            _device->statusIn();
+            _device->sendControlStatus();
             return true;
 
         default:
@@ -289,17 +289,17 @@ private:
 
     bool handleSetLineCoding(const SetupPacket& setup)
     {
-        if (setup.wLength < 7)
+        if (setup.wLength != sizeof(_lineCodingBytes))
             return false;
 
-        // Receive 7 bytes of line coding
-        static uint8_t buf[7];
-        _device->startControlOut(buf, 7, [this](const uint8_t* data, size_t len)
+        _device->startControlOut(_lineCodingBytes, sizeof(_lineCodingBytes), [this](const uint8_t* data, size_t len)
         {
-            if (len >= 7)
+            if (len == sizeof(_lineCodingBytes))
             {
-                _lineCoding.dwDTERate   = data[0] | (data[1] << 8) |
-                                           (data[2] << 16) | (data[3] << 24);
+                _lineCoding.dwDTERate   = static_cast<uint32_t>(data[0]) |
+                                           (static_cast<uint32_t>(data[1]) << 8) |
+                                           (static_cast<uint32_t>(data[2]) << 16) |
+                                           (static_cast<uint32_t>(data[3]) << 24);
                 _lineCoding.bCharFormat = data[4];
                 _lineCoding.bParityType = data[5];
                 _lineCoding.bDataBits   = data[6];
@@ -313,20 +313,19 @@ private:
 
     bool handleGetLineCoding(const SetupPacket& setup)
     {
-        uint8_t buf[7];
-        buf[0] = static_cast<uint8_t>(_lineCoding.dwDTERate);
-        buf[1] = static_cast<uint8_t>(_lineCoding.dwDTERate >> 8);
-        buf[2] = static_cast<uint8_t>(_lineCoding.dwDTERate >> 16);
-        buf[3] = static_cast<uint8_t>(_lineCoding.dwDTERate >> 24);
-        buf[4] = _lineCoding.bCharFormat;
-        buf[5] = _lineCoding.bParityType;
-        buf[6] = _lineCoding.bDataBits;
+        _lineCodingBytes[0] = static_cast<uint8_t>(_lineCoding.dwDTERate);
+        _lineCodingBytes[1] = static_cast<uint8_t>(_lineCoding.dwDTERate >> 8);
+        _lineCodingBytes[2] = static_cast<uint8_t>(_lineCoding.dwDTERate >> 16);
+        _lineCodingBytes[3] = static_cast<uint8_t>(_lineCoding.dwDTERate >> 24);
+        _lineCodingBytes[4] = _lineCoding.bCharFormat;
+        _lineCodingBytes[5] = _lineCoding.bParityType;
+        _lineCodingBytes[6] = _lineCoding.bDataBits;
 
-        size_t len = 7;
+        size_t len = sizeof(_lineCodingBytes);
         if (len > setup.wLength)
             len = setup.wLength;
 
-        _device->startControlIn(buf, len);
+        _device->startControlIn(_lineCodingBytes, len);
         return true;
     }
 
@@ -338,7 +337,7 @@ private:
         if (_controlLineCb)
             _controlLineCb(_dtr, _rts);
 
-        _device->statusIn();
+        _device->sendControlStatus();
         return true;
     }
 
@@ -357,6 +356,7 @@ private:
     uint16_t _epDataMps;
 
     LineCoding _lineCoding{};
+    uint8_t    _lineCodingBytes[7] = {};
     bool       _dtr = false;
     bool       _rts = false;
 
