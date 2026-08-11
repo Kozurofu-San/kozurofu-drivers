@@ -57,6 +57,9 @@ class ISystem
     virtual uint32_t getChipId() = 0;
     virtual void restart() = 0;
 
+    virtual void enterCritical() = 0;
+    virtual void exitCritical() = 0;
+
     virtual void updateMemoryInfo() = 0;
     virtual int32_t getFreeMemory() = 0;
     virtual int32_t getUsedHeap() = 0;

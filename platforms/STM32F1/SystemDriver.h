@@ -57,6 +57,17 @@ class SystemDriver : public ISystem
     {
         NVIC_SystemReset();
     }
+
+    void enterCritical() override
+    {
+        _primask = __get_PRIMASK();     // Save current interrupt state
+        __disable_irq();                // Disable all global interrupts
+    }
+    
+    void exitCritical() override
+    {
+        __set_PRIMASK(_primask);        // Restore previous interrupt state
+    }
     
     void updateMemoryInfo() override
     {
@@ -107,6 +118,7 @@ class SystemDriver : public ISystem
 
     MemoryInfo _memoryInfo;
     size_t _reasonIdx;
+    uint32_t _primask;
 };
 
 }
