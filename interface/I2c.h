@@ -16,6 +16,8 @@ class II2c
         AT24    = 0x50,
         SI5351  = 0x60,
         ADS1115 = 0x48,
+        BMP280  = 0x76,
+        AHT20   = 0x38,
     };
 
     enum Cmd: bool
