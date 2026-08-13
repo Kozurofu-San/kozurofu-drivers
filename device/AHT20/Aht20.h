@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Aht20Const.h"
+
 #include "interface/Temperature.h"
 #include "interface/Humidity.h"
 #include "interface/Gpio.h"
@@ -28,7 +30,7 @@
 namespace driver
 {
 
-class Aht22 : ITemperature, IHumidity
+class Aht20Driver : ITemperature, IHumidity
 {
     public:
 
@@ -38,8 +40,8 @@ class Aht22 : ITemperature, IHumidity
         uint16_t humidity;
     };
     
-    Aht22(II2c &p)
-        : _p(p)
+    Aht20Driver(II2c &p, ITimer &timer)
+        : _p(p), _timer(timer)
     {
     }
 
@@ -51,22 +53,51 @@ class Aht22 : ITemperature, IHumidity
             return false;
         }
 
-        _isInit = true;
-        return true;
+        // Wait for 40 ms after power-on
+        _timer.delay(40);
+
+        // Soft reset
+        _p.start();
+        _p.address(II2c::Write);
+        _p.write(Aht20::SoftReset);
+        _p.stop();
+
+        // Soft reset pause
+        _timer.delay(20);
+
+        // Check if calibration is ready
+        if (getStatus() & Aht20::CalEnable)
+        {
+            _isInit = true;
+        }
+
+        // Initialization
+        _p.start();
+        _p.address(II2c::Write);
+        _p.write(Aht20::Initialization);
+        _p.write(0x08);
+        _p.write(0x00);
+        _p.stop();
+
+
+        return _isInit;
     }
 
     int16_t getTemperature() override
     {
         read(_data);
 
-        uint16_t raw = (uint16_t(_data[2]) << 8) | _data[3];
+        // Parse raw values from the buffer (20-bit values spread across bytes)
+        // Buffer layout: [0]=Status, [1][2][half of 3]=Humidity, [half of 3][4][5]=Temperature, [6]=CRC
+        uint32_t raw =
+            ((uint32_t)(_data[3] & 0x0F) << 16) |
+            ((uint32_t)_data[4] << 8) |
+            _data[5];
 
-        bool negative = raw & 0x8000;
-        raw &= 0x7FFF;
-
-        int16_t temperature = static_cast<int16_t>(raw);
-        if (negative)
-            temperature = -temperature;
+        // Convert to temperature in tenths of a degree Celsius.
+        // T = raw * 200 / 1048576 - 50
+        // Multiplying by 10 gives tenths of a degree.
+        int32_t temperature = ((raw * 2000UL) >> 20) - 500;
 
         return temperature;
     }
@@ -75,11 +106,18 @@ class Aht22 : ITemperature, IHumidity
     {
         read(_data);
         
-        uint16_t raw = (uint16_t(_data[0]) << 8) | _data[1];
+        // Parse raw values from the buffer (20-bit values spread across bytes)
+        // Buffer layout: [0]=Status, [1][2][half of 3]=Humidity, [half of 3][4][5]=Temperature, [6]=CRC
+        uint32_t raw =
+            ((uint32_t)_data[1] << 12) |
+            ((uint32_t)_data[2] << 4) |
+            ((_data[3] >> 4) & 0x0F);
 
-        raw &= 0x7FFF;
+        // Convert to tenths of a percent.
+        // RH = raw * 100 / 1048576
+        // Multiplying by 10 gives tenths of a percent.
+        int32_t humidity = ((raw * 1000UL) >> 20);
 
-        int16_t humidity = static_cast<int16_t>(raw);
         return humidity;
     }
 
@@ -93,15 +131,62 @@ class Aht22 : ITemperature, IHumidity
     II2c &_p;
     ITimer &_timer;
 
-    uint8_t _data[5];
+    uint8_t _data[7];
 
     bool _isInit = false;
 
-    static const size_t Timeout = 1000;
+    static const size_t Timeout = 10;
+
+    uint8_t getStatus()
+    {
+        _p.start();
+        _p.address(II2c::Read);
+        uint8_t status = _p.read(true);
+        _p.stop();
+        return status;
+    }
     
     bool read(uint8_t *data)
     {
         size_t timeout;
+
+        // Start measurement
+        _p.start();
+        _p.address(II2c::Write);
+        _p.write(Aht20::TriggerMeasurement);
+        _p.write(0x33);
+        _p.write(0x00);
+        _p.stop();
+
+        // Wait for 75 ms
+        _timer.delay(75);
+
+        // Check if busy
+        timeout = Timeout;
+        do
+        {
+            if (!(getStatus() & Aht20::Busy))
+            {
+                break;
+            }
+        } while (-- timeout);
+
+        if (!timeout)
+        {
+            return false;
+        }
+
+        // Read data
+        _p.start();
+        _p.address(II2c::Read);
+        uint8_t cnt = 7;
+        while (cnt--)
+        {
+            *data++ = _p.read(!cnt);
+        }
+        _p.stop();
+        
+
         
         return true;
     }
