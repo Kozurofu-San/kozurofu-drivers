@@ -96,14 +96,14 @@ class Bmp280Driver : ITemperature, IPressure
             (y - static_cast<int32_t>(_cal.dig_T1))) >> 12) *
             static_cast<int32_t>(_cal.dig_T3) >> 14;
 
-        // t_fine is required for pressure compensation.
+        // The datasheet temperature compensation also produces t_fine,
+        // which is required by the pressure compensation formula.
         _t_fine = var1 + var2;
 
-        // Temperature in 0.01 degrees Celsius.
-        const int32_t temperature =
-            (_t_fine * 5 + 128) >> 8;
+        // The compensated temperature is in 0.01 degrees Celsius.
+        const int32_t temperature = (_t_fine * 5 + 128) >> 8;
 
-        // Return temperature in 0.1 degrees Celsius.
+        // Return temperature in 0.1 degrees Celsius, as required by ITemperature.
         return static_cast<int16_t>(
             temperature >= 0
                 ? (temperature + 5) / 10
@@ -112,6 +112,9 @@ class Bmp280Driver : ITemperature, IPressure
     
     uint32_t getPressurePa() override
     {
+        // Refresh t_fine so pressure can be read independently of temperature.
+        getTemperature();
+
         uint8_t data[3];
         read(Bmp280::Press, data, 3);
 
@@ -123,15 +126,10 @@ class Bmp280Driver : ITemperature, IPressure
 
         // Pressure compensation according to the BMP280 datasheet.
         int64_t var1 = static_cast<int64_t>(_t_fine) - 128000;
+        int64_t var2 = var1 * var1 * static_cast<int64_t>(_cal.dig_P6);
 
-        int64_t var2 =
-            var1 * var1 * static_cast<int64_t>(_cal.dig_P6);
-
-        var2 +=
-            (var1 * static_cast<int64_t>(_cal.dig_P5)) << 17;
-
-        var2 +=
-            static_cast<int64_t>(_cal.dig_P4) << 35;
+        var2 += (var1 * static_cast<int64_t>(_cal.dig_P5)) << 17;
+        var2 += static_cast<int64_t>(_cal.dig_P4) << 35;
 
         var1 =
             ((var1 * var1 * static_cast<int64_t>(_cal.dig_P3)) >> 8) +
@@ -143,37 +141,32 @@ class Bmp280Driver : ITemperature, IPressure
 
         if (var1 == 0)
         {
-            // Avoid division by zero.
+            // Avoid division by zero when calibration data are invalid.
             return 0;
         }
 
-        int64_t p = 1048576LL - raw;
-
-        p =
-            (((p << 31) - var2) * 3125LL) / var1;
+        int64_t pressure = 1048576LL - raw;
+        pressure = (((pressure << 31) - var2) * 3125LL) / var1;
 
         var1 =
             (static_cast<int64_t>(_cal.dig_P9) *
-            (p >> 13) *
-            (p >> 13)) >> 25;
+            (pressure >> 13) * (pressure >> 13)) >> 25;
+        var2 = (static_cast<int64_t>(_cal.dig_P8) * pressure) >> 19;
 
-        var2 =
-            (static_cast<int64_t>(_cal.dig_P8) * p) >> 19;
-
-        p =
-            ((p + var1 + var2) >> 8) +
+        // The result is Q24.8 Pa; round it to whole pascals.
+        pressure =
+            ((pressure + var1 + var2) >> 8) +
             (static_cast<int64_t>(_cal.dig_P7) << 4);
 
-        // Pressure in Pa.
-        return static_cast<uint32_t>(p);
+        return static_cast<uint32_t>((pressure + 128) >> 8);
     }
 
     uint16_t getPressuremmHg() override
     {
         // Convert Pa to mmHg without floating-point arithmetic.
         return static_cast<uint16_t>(
-            (static_cast<uint64_t>(getPressurePa()) * 7500617ULL + 50000000ULL)
-            / 100000000ULL
+            (static_cast<uint64_t>(getPressurePa()) * 7500617ULL + 500000000ULL)
+            / 1000000000ULL
     );
     }
 
