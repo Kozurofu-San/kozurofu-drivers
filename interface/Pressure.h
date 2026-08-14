@@ -11,7 +11,7 @@ class IPressure
 
     virtual ~IPressure() = default;
 
-    virtual int16_t getPressure() = 0;
+    virtual uint32_t getPressurePa() = 0;
     
     virtual bool isInit() = 0;
 };

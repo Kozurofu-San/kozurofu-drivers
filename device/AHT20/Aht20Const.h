@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-// Clock generator
+// Temperature / Humidity sensor
 class Aht20
 {
     public:
