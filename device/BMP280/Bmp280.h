@@ -60,11 +60,11 @@ class Bmp280Driver : ITemperature, IPressure
             return false;
         }
 
-        // Soft reset
-        writeByte(Bmp280::Reset, Bmp280::ResetValue);
+        // // Soft reset
+        // writeByte(Bmp280::Reset, Bmp280::ResetValue);
 
         // Read Compensation/Calibration coefficients
-        read(Bmp280::CalibrationData + 0, reinterpret_cast<uint8_t*>(&_cal), 24);
+        read(Bmp280::CalibrationData, reinterpret_cast<uint8_t*>(&_cal), 24);
 
         // Configure Sensor Operations
         writeByte(Bmp280::CtrlMeas, Bmp280::Osrs1 << Bmp280::OsrsP | Bmp280::Osrs1 << Bmp280::OsrsT | Bmp280::ModeNormal);
@@ -122,54 +122,59 @@ class Bmp280Driver : ITemperature, IPressure
             (static_cast<int32_t>(data[2]) >> 4);
 
         // Pressure compensation according to the BMP280 datasheet.
-        const int64_t var1 =
-            static_cast<int64_t>(_t_fine) - 128000;
+        int64_t var1 = static_cast<int64_t>(_t_fine) - 128000;
 
-        const int64_t var2 =
+        int64_t var2 =
             var1 * var1 * static_cast<int64_t>(_cal.dig_P6);
 
-        const int64_t var3 =
-            var1 * static_cast<int64_t>(_cal.dig_P5) * 131072LL;
+        var2 +=
+            (var1 * static_cast<int64_t>(_cal.dig_P5)) << 17;
 
-        int64_t p = static_cast<int64_t>(raw);
+        var2 +=
+            static_cast<int64_t>(_cal.dig_P4) << 35;
 
-        const int64_t v =
-            1048576LL - p;
+        var1 =
+            ((var1 * var1 * static_cast<int64_t>(_cal.dig_P3)) >> 8) +
+            ((var1 * static_cast<int64_t>(_cal.dig_P2)) << 12);
 
-        const int64_t var4 =
-            (v * v * static_cast<int64_t>(_cal.dig_P4)) >> 12;
+        var1 =
+            (((static_cast<int64_t>(1) << 47) + var1) *
+            static_cast<int64_t>(_cal.dig_P1)) >> 33;
 
-        const int64_t var5 =
-            var1 * static_cast<int64_t>(_cal.dig_P3) << 17;
-
-        const int64_t var6 =
-            static_cast<int64_t>(_cal.dig_P2) * 34359738368LL;
-
-        const int64_t denominator =
-            ((var4 + var5 + var6) >> 8) *
-            static_cast<int64_t>(_cal.dig_P1) >> 20;
-
-        // dig_P1 must not be zero according to the BMP280 datasheet.
-        if (denominator == 0)
+        if (var1 == 0)
+        {
+            // Avoid division by zero.
             return 0;
+        }
 
-        p = ((1048576LL - p) - (var2 + var3) / 4096LL) * 3125LL;
+        int64_t p = 1048576LL - raw;
 
-        if (p < 0x80000000LL)
-            p = (p << 1) / denominator;
-        else
-            p = (p / denominator) * 2;
+        p =
+            (((p << 31) - var2) * 3125LL) / var1;
 
-        const int64_t var7 =
-            static_cast<int64_t>(_cal.dig_P9) *
-            ((p >> 3) * (p >> 3)) >> 13;
+        var1 =
+            (static_cast<int64_t>(_cal.dig_P9) *
+            (p >> 13) *
+            (p >> 13)) >> 25;
 
-        const int64_t var8 =
-            static_cast<int64_t>(_cal.dig_P8) * p >> 12;
+        var2 =
+            (static_cast<int64_t>(_cal.dig_P8) * p) >> 19;
 
-        p += (var7 + var8 + static_cast<int64_t>(_cal.dig_P7)) >> 4;
+        p =
+            ((p + var1 + var2) >> 8) +
+            (static_cast<int64_t>(_cal.dig_P7) << 4);
 
+        // Pressure in Pa.
         return static_cast<uint32_t>(p);
+    }
+
+    uint16_t getPressuremmHg() override
+    {
+        // Convert Pa to mmHg without floating-point arithmetic.
+        return static_cast<uint16_t>(
+            (static_cast<uint64_t>(getPressurePa()) * 7500617ULL + 50000000ULL)
+            / 100000000ULL
+    );
     }
 
     bool isInit()
