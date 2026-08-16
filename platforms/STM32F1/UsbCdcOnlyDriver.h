@@ -6,7 +6,6 @@
 
 #include <cstdint>
 #include <cstddef>
-#include <cstring>
 
 namespace driver
 {
@@ -21,7 +20,7 @@ public:
 
     void write(uint8_t *data, size_t len) override
     {
-        if (!_configured || len == 0 || data == nullptr)
+        if (!_configured || _txBusy || len == 0 || data == nullptr)
             return;
 
         serialWrite(data, len);
@@ -89,9 +88,10 @@ public:
 private:
     // ===================== Configuration =====================
     static constexpr bool     DOUBLE_BUF   = true;
-    static constexpr uint16_t EP0_SIZE     = 8;
+    static constexpr uint16_t EP0_SIZE     = 64;
     static constexpr uint16_t EP1_SIZE     = 8;
     static constexpr uint16_t EP2_SIZE     = 64;   // Bulk IN/OUT
+    static constexpr uint16_t PMA_SIZE     = 512;
 
     // ===================== Hardware =====================
     static constexpr uint32_t USB_BASE_ADDR     = 0x40005C00u;
@@ -102,16 +102,19 @@ private:
     bool     _initialized = false;
     bool     _configured  = false;
     uint8_t  _deviceAddr  = 0;
-    uint8_t  _lineState   = 0;   // from SET_CONTROL_LINE_STATE
-    uint8_t  _cdcActive   = 0;
+    uint8_t  _lineState   = 0;
+    bool     _txBusy      = false;
+    bool     _sendZlp     = false;
 
-    // PMA buffer table offsets (words)
-    static constexpr uint16_t PMA_BEGIN = 16; // 4 endpoints * 4 entries
+    // BTABLE addresses are byte offsets. Four endpoint descriptors occupy
+    // the first 32 bytes of the PMA address space.
+    static constexpr uint16_t PMA_BEGIN = 32;
 
-    // Runtime pointers / counters (mirror of assembly usb_param)
-    uint8_t* _ptrTx     = nullptr;
-    uint8_t* _ptrRx     = nullptr;
-    uint16_t _cntTx     = 0;
+    static_assert(PMA_BEGIN + EP0_SIZE * 2 + EP1_SIZE + EP2_SIZE * 4 <= PMA_SIZE,
+                  "USB endpoint buffers exceed the STM32F1 512-byte PMA");
+
+    const uint8_t* _txPtr[4]{};
+    uint16_t _txCount[4]{};
     uint16_t _cntRx     = 0;
 
     // Setup packet buffer
@@ -182,58 +185,63 @@ private:
     {
         _configured = false;
         _deviceAddr = 0;
-        _cdcActive  = 0;
         _lineState  = 0;
+        _txBusy = false;
+        _sendZlp = false;
 
         // Clear BTABLE
         USB->BTABLE = 0;
 
-        // Build BTABLE in PMA
-        volatile uint16_t* pma = reinterpret_cast<volatile uint16_t*>(USB_PMA_BASE);
-
         // EP0 TX/RX
-        pma[0]  = PMA_BEGIN;                          // ADDR_TX
-        pma[1]  = 0;                                  // COUNT_TX
-        pma[2]  = PMA_BEGIN + EP0_SIZE / 2;           // ADDR_RX
-        pma[3]  = (EP0_SIZE / 2) << 10;               // COUNT_RX
+        btableWrite(0, 0, PMA_BEGIN);                 // ADDR_TX
+        btableWrite(0, 1, 0);                         // COUNT_TX
+        btableWrite(0, 2, PMA_BEGIN + EP0_SIZE);      // ADDR_RX
+        btableWrite(0, 3, rxBufferCount(EP0_SIZE));   // COUNT_RX
 
-        // EP1 TX/RX (interrupt)
-        pma[4]  = PMA_BEGIN + EP0_SIZE;
-        pma[5]  = 0;
-        pma[6]  = PMA_BEGIN + EP0_SIZE + EP1_SIZE / 2;
-        pma[7]  = 0;
+        // EP1 is an IN-only interrupt endpoint.
+        const uint16_t ep1Tx = PMA_BEGIN + EP0_SIZE * 2;
+        btableWrite(1, 0, ep1Tx);
+        btableWrite(1, 1, 0);
+        btableWrite(1, 2, 0);
+        btableWrite(1, 3, 0);
 
         if constexpr (DOUBLE_BUF)
         {
-            // EP2 IN double buffered
-            pma[8]  = PMA_BEGIN + EP0_SIZE + EP1_SIZE / 2;
-            pma[9]  = 0;
-            pma[10] = PMA_BEGIN + EP0_SIZE + EP1_SIZE / 2 + EP2_SIZE / 2;
-            pma[11] = 0;
+            // Double-buffered IN: buffer 0 uses TX fields, buffer 1 uses RX fields.
+            const uint16_t ep2Buf0 = ep1Tx + EP1_SIZE;
+            const uint16_t ep2Buf1 = ep2Buf0 + EP2_SIZE;
+            btableWrite(2, 0, ep2Buf0);
+            btableWrite(2, 1, 0);
+            btableWrite(2, 2, ep2Buf1);
+            btableWrite(2, 3, 0);
 
-            // EP3 OUT double buffered
-            pma[12] = PMA_BEGIN + EP0_SIZE + EP1_SIZE / 2 + EP2_SIZE;
-            pma[13] = (1 << 15) | (1 << 10);          // BL_SIZE=1, NUM_BLOCK=1 → 64 bytes
-            pma[14] = PMA_BEGIN + EP0_SIZE + EP1_SIZE / 2 + EP2_SIZE + EP2_SIZE / 2;
-            pma[15] = (1 << 15) | (1 << 10);
+            // Double-buffered OUT uses the fields in the opposite order:
+            // buffer 0 uses RX fields and buffer 1 uses TX fields.
+            const uint16_t ep3Buf0 = ep2Buf1 + EP2_SIZE;
+            const uint16_t ep3Buf1 = ep3Buf0 + EP2_SIZE;
+            btableWrite(3, 0, ep3Buf1);
+            btableWrite(3, 1, rxBufferCount(EP2_SIZE));
+            btableWrite(3, 2, ep3Buf0);
+            btableWrite(3, 3, rxBufferCount(EP2_SIZE));
         }
         else
         {
             // Single buffer version (simplified)
-            pma[8]  = PMA_BEGIN + EP0_SIZE + EP1_SIZE / 2;
-            pma[9]  = 0;
-            pma[10] = PMA_BEGIN + EP0_SIZE + EP1_SIZE / 2 + EP2_SIZE / 2;
-            pma[11] = (1 << 15) | (1 << 10);
-
-            pma[12] = PMA_BEGIN + EP0_SIZE + EP1_SIZE / 2 + EP2_SIZE / 2;
-            pma[13] = 0;
-            pma[14] = PMA_BEGIN + EP0_SIZE + EP1_SIZE / 2 + EP2_SIZE / 2;
-            pma[15] = (1 << 15) | (1 << 10);
+            const uint16_t ep2Tx = ep1Tx + EP1_SIZE;
+            const uint16_t ep3Rx = ep2Tx + EP2_SIZE;
+            btableWrite(2, 0, ep2Tx);
+            btableWrite(2, 1, 0);
+            btableWrite(2, 2, 0);
+            btableWrite(2, 3, 0);
+            btableWrite(3, 0, 0);
+            btableWrite(3, 1, 0);
+            btableWrite(3, 2, ep3Rx);
+            btableWrite(3, 3, rxBufferCount(EP2_SIZE));
         }
 
         // Endpoint registers
-        USB_EPR[0] = (0 << 0) | (1 << 9) | (3 << 12) | (3 << 4); // CONTROL, VALID RX/TX
-        USB_EPR[1] = (1 << 0) | (3 << 9) | (3 << 12) | (3 << 4); // INTERRUPT
+        USB_EPR[0] = (0 << 0) | (1 << 9) | (3 << 12) | (2 << 4); // CONTROL, VALID RX, NAK TX
+        USB_EPR[1] = (1 << 0) | (3 << 9) | (0 << 12) | (2 << 4); // INTERRUPT, NAK TX
 
         if constexpr (DOUBLE_BUF)
         {
@@ -260,7 +268,7 @@ private:
         if (epr & (1u << 15)) // CTR_RX
         {
             // Clear CTR_RX
-            USB_EPR[ep] = epr & 0x8F8F;
+            clearCtr(ep, false);
 
             if (ep == 0)
             {
@@ -278,14 +286,13 @@ private:
             }
             else if (ep == 3) // Bulk OUT
             {
-                // Data received – user will call read()
-                setRxStatus(3, 3); // re-enable
+                // Keep the completed buffer intact until serialRead consumes it.
             }
         }
 
         if (epr & (1u << 7)) // CTR_TX
         {
-            USB_EPR[ep] = epr & 0x8F8F;
+            clearCtr(ep, true);
 
             if (ep == 0 && _deviceAddr)
             {
@@ -293,10 +300,21 @@ private:
                 _deviceAddr = 0;
             }
 
-            // Continue multi-packet TX if needed
-            if (_cntTx > 0 && ep == 2)
+            if (ep == 0 && _txCount[0] > 0)
             {
-                usbWrite(2);
+                usbWrite(0);
+            }
+            else if (ep == 2)
+            {
+                if (_txCount[2] > 0)
+                    usbWrite(2);
+                else if (_sendZlp)
+                {
+                    _sendZlp = false;
+                    sendZlp(2);
+                }
+                else
+                    _txBusy = false;
             }
         }
     }
@@ -355,8 +373,8 @@ private:
                 }
 
                 if (wLength < len) len = wLength;
-                _ptrTx = const_cast<uint8_t*>(desc);
-                _cntTx = len;
+                _txPtr[0] = desc;
+                _txCount[0] = len;
                 usbWrite(0);
                 break;
             }
@@ -376,7 +394,6 @@ private:
             if (bRequest == 0x22) // SET_CONTROL_LINE_STATE
             {
                 _lineState = wValue;
-                _cdcActive = 1;
                 sendZlp(0);
             }
             else if (bRequest == 0x20) // SET_LINE_CODING
@@ -387,8 +404,8 @@ private:
             {
                 // Return default 115200 8N1
                 static const uint8_t lc[7] = { 0x00, 0xC2, 0x01, 0x00, 0x00, 0x00, 0x08 };
-                _ptrTx = const_cast<uint8_t*>(lc);
-                _cntTx = 7;
+                _txPtr[0] = lc;
+                _txCount[0] = 7;
                 usbWrite(0);
             }
             else
@@ -403,74 +420,226 @@ private:
     }
 
     // ===================== Low-level PMA access =====================
+    static volatile uint16_t* pmaPtr(uint16_t address)
+    {
+        // Each 16-bit PMA word is exposed at a 32-bit APB address stride.
+        return reinterpret_cast<volatile uint16_t*>(USB_PMA_BASE + address * 2u);
+    }
+
+    static uint16_t rxBufferCount(uint16_t size)
+    {
+        // Buffers larger than 62 bytes are allocated in 32-byte blocks.
+        return static_cast<uint16_t>(0x8000u | (((size + 31u) / 32u) << 10));
+    }
+
+    static void btableWrite(uint8_t ep, uint8_t field, uint16_t value)
+    {
+        *pmaPtr(static_cast<uint16_t>(ep * 8u + field * 2u)) = value;
+    }
+
+    static uint16_t btableRead(uint8_t ep, uint8_t field)
+    {
+        return *pmaPtr(static_cast<uint16_t>(ep * 8u + field * 2u));
+    }
+
     void readPma(uint8_t ep, uint8_t* dst, uint16_t len)
     {
-        volatile uint16_t* btable = reinterpret_cast<volatile uint16_t*>(USB_PMA_BASE);
-        uint16_t addr = btable[ep * 4 + 2]; // ADDR_RX
-        volatile uint16_t* pma = reinterpret_cast<volatile uint16_t*>(USB_PMA_BASE + addr * 2);
+        const uint16_t addr = btableRead(ep, 2); // ADDR_RX
+        readPmaAt(addr, dst, len);
+    }
 
-        for (uint16_t i = 0; i < (len + 1) / 2; ++i)
+    void readPmaAt(uint16_t addr, uint8_t* dst, uint16_t len)
+    {
+        for (uint16_t i = 0; i < len; i += 2)
         {
-            uint16_t w = *pma++;
+            const uint16_t w = *pmaPtr(static_cast<uint16_t>(addr + i));
             *dst++ = w & 0xFF;
-            if (--len == 0) break;
-            *dst++ = w >> 8;
+            if (i + 1 < len)
+                *dst++ = w >> 8;
         }
     }
 
-    void writePma(uint8_t ep, const uint8_t* src, uint16_t len)
+    bool writePma(uint8_t ep, const uint8_t* src, uint16_t len)
     {
-        volatile uint16_t* btable = reinterpret_cast<volatile uint16_t*>(USB_PMA_BASE);
-        uint16_t addr = btable[ep * 4 + 0]; // ADDR_TX
-        volatile uint16_t* pma = reinterpret_cast<volatile uint16_t*>(USB_PMA_BASE + addr * 2);
+        const uint16_t addr = btableRead(ep, 0); // ADDR_TX
 
-        btable[ep * 4 + 1] = len; // COUNT_TX
+        btableWrite(ep, 1, len); // COUNT_TX
+        return writePmaAt(addr, src, len);
+    }
 
-        for (uint16_t i = 0; i < (len + 1) / 2; ++i)
+    bool writePmaAt(uint16_t addr, const uint8_t* src, uint16_t len)
+    {
+        if (addr >= PMA_SIZE || len > PMA_SIZE - addr)
         {
-            uint16_t w = *src++;
-            if (len > 1) { w |= (*src++) << 8; len -= 2; }
-            else           { len = 0; }
-            *pma++ = w;
+            // Never access an invalid PMA address: it raises a bus fault.
+            return false;
         }
+
+        for (uint16_t i = 0; i < len; i += 2)
+        {
+            uint16_t w = src[i];
+            if (i + 1 < len)
+                w |= static_cast<uint16_t>(src[i + 1]) << 8;
+            *pmaPtr(static_cast<uint16_t>(addr + i)) = w;
+        }
+
+        return true;
+    }
+
+    static uint16_t endpointControlBits(uint16_t epr)
+    {
+        return epr & (USB_EP_CTR_RX | USB_EP_CTR_TX | USB_EP_T_FIELD |
+                      USB_EP_KIND | USB_EPADDR_FIELD);
+    }
+
+    void clearCtr(uint8_t ep, bool isTx)
+    {
+        const uint16_t epr = USB_EPR[ep];
+        uint16_t ctr = epr & (USB_EP_CTR_RX | USB_EP_CTR_TX);
+        ctr &= static_cast<uint16_t>(~(isTx ? USB_EP_CTR_TX : USB_EP_CTR_RX));
+
+        // CTR flags clear on zero; all endpoint configuration bits are preserved.
+        const uint16_t configuration = endpointControlBits(epr) &
+            ~(USB_EP_CTR_RX | USB_EP_CTR_TX);
+        USB_EPR[ep] = configuration | ctr;
+    }
+
+    void freeDoubleBuffer(uint8_t ep, bool isIn)
+    {
+        const uint16_t epr = USB_EPR[ep];
+        const uint16_t swBuf = isIn ? (1u << 14) : (1u << 6);
+
+        // Toggling SW_BUF returns the application buffer to the USB peripheral.
+        USB_EPR[ep] = endpointControlBits(epr) | swBuf;
     }
 
     void setTxStatus(uint8_t ep, uint16_t stat)
     {
-        uint16_t epr = USB_EPR[ep];
-        USB_EPR[ep] = (epr ^ (stat << 4)) & 0x8FBF;
+        const uint16_t epr = USB_EPR[ep];
+        const uint16_t current = (epr & USB_EPTX_STAT) >> 4;
+        const uint16_t toggle = (current ^ stat) << 4;
+
+        USB_EPR[ep] = endpointControlBits(epr) | toggle;
     }
 
     void setRxStatus(uint8_t ep, uint16_t stat)
     {
-        uint16_t epr = USB_EPR[ep];
-        USB_EPR[ep] = (epr ^ (stat << 12)) & 0xBF8F;
+        const uint16_t epr = USB_EPR[ep];
+        const uint16_t current = (epr & USB_EPRX_STAT) >> 12;
+        const uint16_t toggle = (current ^ stat) << 12;
+
+        USB_EPR[ep] = endpointControlBits(epr) | toggle;
     }
 
     void sendZlp(uint8_t ep)
     {
-        _cntTx = 0;
-        writePma(ep, nullptr, 0);
+        _txCount[ep] = 0;
+        bool copied;
+
+        if constexpr (DOUBLE_BUF)
+        {
+            if (ep == 2)
+            {
+                const bool buffer0 = (USB_EPR[ep] & (1u << 14)) != 0;
+                const uint8_t addressField = buffer0 ? 0 : 2;
+                const uint8_t countField = buffer0 ? 1 : 3;
+                btableWrite(ep, countField, 0);
+                copied = writePmaAt(btableRead(ep, addressField), nullptr, 0);
+                if (copied)
+                    freeDoubleBuffer(ep, true);
+            }
+            else
+                copied = writePma(ep, nullptr, 0);
+        }
+        else
+            copied = writePma(ep, nullptr, 0);
+
+        if (!copied)
+            return;
         setTxStatus(ep, 3); // VALID
+
+        if (ep == 0)
+        {
+            // A control write completes with an IN ZLP. Re-arm EP0 RX for
+            // the following setup packet after the USB peripheral NAKed it.
+            setRxStatus(0, 3); // VALID
+        }
     }
 
-    // ===================== Transfer helpers (from assembly) =====================
     void usbWrite(uint8_t ep)
     {
         uint16_t maxPacket = (ep == 0) ? EP0_SIZE : EP2_SIZE;
-        uint16_t toSend = (_cntTx > maxPacket) ? maxPacket : _cntTx;
+        uint16_t toSend = (_txCount[ep] > maxPacket) ? maxPacket : _txCount[ep];
+        bool copied = false;
 
-        writePma(ep, _ptrTx, toSend);
-        _ptrTx += toSend;
-        _cntTx -= toSend;
+        if constexpr (DOUBLE_BUF)
+        {
+            if (ep == 2)
+            {
+                // For double-buffered IN, SW_BUF=1 selects buffer 0.
+                const bool buffer0 = (USB_EPR[ep] & (1u << 14)) != 0;
+                const uint8_t addressField = buffer0 ? 0 : 2;
+                const uint8_t countField = buffer0 ? 1 : 3;
+
+                btableWrite(ep, countField, toSend);
+                copied = writePmaAt(btableRead(ep, addressField), _txPtr[ep], toSend);
+                if (copied)
+                    freeDoubleBuffer(ep, true);
+            }
+            else
+            {
+                copied = writePma(ep, _txPtr[ep], toSend);
+            }
+        }
+        else
+        {
+            copied = writePma(ep, _txPtr[ep], toSend);
+        }
+
+        if (!copied)
+        {
+            if (ep == 2)
+                _txBusy = false;
+            return;
+        }
+
+        _txPtr[ep] += toSend;
+        _txCount[ep] -= toSend;
 
         setTxStatus(ep, 3); // VALID
+
+        if (ep == 0 && _txCount[0] == 0)
+        {
+            // A control read completes with an OUT status packet. The USB
+            // peripheral NAKs RX after SETUP, so it must be re-armed here.
+            setRxStatus(0, 3); // VALID
+        }
+
     }
 
     void usbRead(uint8_t ep, uint8_t* dst, uint16_t maxLen)
     {
-        volatile uint16_t* btable = reinterpret_cast<volatile uint16_t*>(USB_PMA_BASE);
-        uint16_t count = btable[ep * 4 + 3] & 0x3FF;
+        uint16_t count;
+
+        if constexpr (DOUBLE_BUF)
+        {
+            if (ep == 3)
+            {
+                // For double-buffered OUT, SW_BUF=1 selects buffer 0.
+                const bool buffer0 = (USB_EPR[ep] & (1u << 6)) != 0;
+                const uint8_t addressField = buffer0 ? 2 : 0;
+                const uint8_t countField = buffer0 ? 3 : 1;
+                count = btableRead(ep, countField) & 0x3FF;
+
+                if (count > maxLen) count = maxLen;
+                readPmaAt(btableRead(ep, addressField), dst, count);
+                _cntRx = count;
+                freeDoubleBuffer(ep, false);
+                return;
+            }
+        }
+
+        count = btableRead(ep, 3) & 0x3FF;
 
         if (count > maxLen) count = maxLen;
         readPma(ep, dst, count);
@@ -479,27 +648,16 @@ private:
         setRxStatus(ep, 3); // VALID again
     }
 
-    // Blocking serial API (mirrors assembly serial_write / serial_read)
     void serialWrite(const uint8_t* data, size_t len)
     {
-        _ptrTx = const_cast<uint8_t*>(data);
-        _cntTx = static_cast<uint16_t>(len);
+        if (len > UINT16_MAX)
+            len = UINT16_MAX;
 
-        // Number of packets (including possible ZLP)
-        size_t packets = (len + EP2_SIZE - 1) / EP2_SIZE;
-        if (len % EP2_SIZE == 0) packets++; // ZLP
-
-        for (size_t i = 0; i < packets; ++i)
-        {
-            // Wait for previous TX complete
-            uint32_t timeout = 0x100000;
-            while (!(USB_EPR[2] & (1u << 7)) && --timeout);
-
-            // Clear CTR_TX
-            USB_EPR[2] = USB_EPR[2] & 0x8F8F;
-
-            usbWrite(2);
-        }
+        _txPtr[2] = data;
+        _txCount[2] = static_cast<uint16_t>(len);
+        _sendZlp = (len % EP2_SIZE) == 0;
+        _txBusy = true;
+        usbWrite(2);
     }
 
     void serialRead(uint8_t* data, size_t len)
@@ -514,8 +672,8 @@ private:
 
             if (timeout == 0) break;
 
-            // Clear CTR_RX
-            USB_EPR[3] = USB_EPR[3] & 0x8F8F;
+            // Clear CTR_RX.
+            clearCtr(3, false);
 
             uint16_t chunk = static_cast<uint16_t>(len - received);
             if (chunk > EP2_SIZE) chunk = EP2_SIZE;
@@ -529,14 +687,3 @@ private:
 };
 
 }
-
-// ============================================================
-// In your interrupt file:
-//
-// extern UsbCdc g_usbCdc;   // or however you instantiate it
-//
-// extern "C" void USB_LP_CAN1_RX0_IRQHandler(void)
-// {
-//     g_usbCdc.interrupt();
-// }
-// ============================================================
