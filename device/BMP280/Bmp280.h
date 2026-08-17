@@ -9,22 +9,24 @@
 
 #include <cstdint>
 
-/* // Temperature / Humidity sensor
+/* // Temperature / Pressure sensor
 
 #include "device/DHT22/Dht22.h"
 
-    GpioDriver gpio_tempHum {GPIOB, 8};
-    TimerDriver timer_us {TIM3};
-    Dht22 tempHum {gpio_tempHum, timer_us};
+    I2cController i2c2 {I2C2};
+    I2cDriver i2c_tempPress {i2c2};
+    Bmp280Driver<II2c> tempPress {i2c_tempPress};
     
-    // Timer
-    p.timer_us.init({1, ITimer::Units::us});
-    p.timer_us.start();
+    // I2C
+    GpioDriver::remap(AFIO_MAPR_I2C1_REMAP, false);
+    GpioDriver::mode(GPIOB, 11, GpioDriver::Mode::AlternateOpendrain);   // SDA
+    GpioDriver::mode(GPIOB, 10, GpioDriver::Mode::AlternateOpendrain);   // SCL
+    CHECK(p.i2c2.init(400'000));
 
-    // Temperature / Humidity sensor
-    p.gpio_tempHum.init(GpioDriver::Mode::OutputPushpull, GpioDriver::Speed::High);
-    p.gpio_tempHum.write(1);    // Sleep
-    p.tempHum.init();
+    // Temperature / Pressure sensor
+    p.i2c2.check(II2c::Address::BMP280 + 1);
+    p.i2c_tempPress.init(II2c::Address::BMP280 + 1);
+    p.tempPress.init();
 */
 
 namespace driver

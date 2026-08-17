@@ -1,7 +1,7 @@
 #pragma once
 
 #include "interface/Random.h"
-#include "interface/VoltageGet.h"
+#include "interface/Adc.h"
 
 #include <cstdint>
 
@@ -14,21 +14,21 @@ class RngDriver : public IRandom
 {
     public:
 
-    RngDriver(IVoltageGet &adc)
+    RngDriver(IAdc &adc)
         : _adc(adc)
     {
     }
 
     bool init()
     {
-        _state ^= static_cast<uint32_t>(_adc.getRawValue(0)) + 0x9E3779B9u;
+        _state ^= static_cast<uint32_t>(_adc.getRawValue()) + 0x9E3779B9u;
         _isInit = true;
         return true;
     }
 
     uint32_t getValue() override
     {
-        uint32_t entropy = static_cast<uint32_t>(_adc.getRawValue(0));
+        uint32_t entropy = static_cast<uint32_t>(_adc.getRawValue());
         _state ^= entropy + 0x9E3779B9u + (_state << 6) + (_state >> 2);
         _state ^= _state << 13;
         _state ^= _state >> 17;
@@ -43,7 +43,7 @@ class RngDriver : public IRandom
 
     private:
 
-    IVoltageGet &_adc;
+    IAdc &_adc;
     uint32_t _state = 0xA5A55A5Au;
     
     bool _isInit = false;

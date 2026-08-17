@@ -11,19 +11,26 @@
 
 /* // Temperature / Humidity sensor
 
-#include "device/DHT22/Dht22.h"
+#include "device/AHT20/Aht20.h"
 
-    GpioDriver gpio_tempHum {GPIOB, 8};
-    TimerDriver timer_us {TIM3};
-    Dht22 tempHum {gpio_tempHum, timer_us};
+    I2cController i2c2 {I2C2};
+    I2cDriver i2c_tempHum {i2c2};
+    TimerDriver timer_ms {TIM3};
+    Aht20Driver tempHum {i2c_tempHum, timer_ms};
     
+    // I2C
+    GpioDriver::remap(AFIO_MAPR_I2C1_REMAP, false);
+    GpioDriver::mode(GPIOB, 11, GpioDriver::Mode::AlternateOpendrain);   // SDA
+    GpioDriver::mode(GPIOB, 10, GpioDriver::Mode::AlternateOpendrain);   // SCL
+    CHECK(p.i2c2.init(400'000));
+
     // Timer
-    p.timer_us.init({1, ITimer::Units::us});
-    p.timer_us.start();
+    p.timer_ms.init({1, ITimer::Units::ms});
+    p.timer_ms.start();
 
     // Temperature / Humidity sensor
-    p.gpio_tempHum.init(GpioDriver::Mode::OutputPushpull, GpioDriver::Speed::High);
-    p.gpio_tempHum.write(1);    // Sleep
+    p.i2c2.check(II2c::Address::AHT20);
+    p.i2c_tempHum.init(II2c::Address::AHT20);
     p.tempHum.init();
 */
 
