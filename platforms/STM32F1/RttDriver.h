@@ -12,7 +12,7 @@ namespace driver
 {
 
 /**
- * @brief Concrete implementation of IRtt using official SEGGER RTT.
+ * @brief Concrete implementation of Rtt using official SEGGER RTT.
  *
  * Usage example:
  * @code

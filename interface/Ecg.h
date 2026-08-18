@@ -12,6 +12,7 @@ class IEcg
     virtual ~IEcg() = default;
 
     virtual int16_t getSample() = 0;
+    virtual bool isConnected() = 0;
 
     virtual bool isInit() = 0;
 };

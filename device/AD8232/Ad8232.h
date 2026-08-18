@@ -62,6 +62,15 @@ class Ad8232Driver: public IEcg
         return _adc.getRawValue();
     }
 
+    bool isConnected() override
+    {
+        if (_loP.read() | _loN.read())
+        {
+            return false;
+        }
+        return true;
+    }
+
     bool isInit() override
     {
         return _isInit;
