@@ -85,7 +85,7 @@ class AdcController
         _adc->CR1 |= DualMode::RegularOnly;
         _adc->CR2 |= ADC_CR2_ADON; // Enable ADC
 
-        return ++_channelCount;
+        return _channelCount++;
     }
 
     bool start()
@@ -93,14 +93,14 @@ class AdcController
         _adc->CR2 |= ADC_CR2_SWSTART;           // Start conversion
         while (!(_adc->SR & ADC_SR_EOC));       // Wait for conversion to complete
         _adc->SR &= ~ADC_SR_EOC;                // Clear end of conversion flag
-        for (size_t i = 0; i < _channelCount; ++i)
+        for (uint8_t i = 0; i < _channelCount; ++i)
         {
             _channels[i].data = _adc->DR - (1 << 15) - 1;      // Put data to reg 
         }
         return true;
     }
 
-    int16_t getRawValue(size_t channel)
+    int16_t getRawValue(uint8_t channel)
     {
         return _channels[channel].data;
     }
@@ -185,6 +185,10 @@ class AdcDriver : public IAdc
 
     bool init()
     {
+        if (_isInit)
+        {
+            return false;
+        }
         _channelEnum = _adc.addChannel(_channel);
 
         _isInit = true;
