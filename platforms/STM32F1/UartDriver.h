@@ -79,6 +79,16 @@ class UartDriver : public IUart
         }
     };
 
+    void setCallback(void (*cb)(uint32_t)) override
+    {
+        _cb = cb;
+    }
+
+    void setBuffer(uint8_t *buffer) override
+    {
+        _buffer = buffer;
+    }
+    
     USART_TypeDef* getInstance()
     {
         return _uart;
@@ -97,8 +107,11 @@ class UartDriver : public IUart
     private:
 
     USART_TypeDef *_uart;
+
+    void (*_cb)(uint32_t) = nullptr;
+    uint8_t *_buffer = nullptr;
+
     uint32_t _speed; // Speed in Hz
-    
     bool _isInit = false;
 };
 

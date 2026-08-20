@@ -49,6 +49,7 @@ public:
         NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, 1);
         NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
 
+        _speed = 12'000'000U;
         _initialized = true;
     }
 
@@ -72,9 +73,19 @@ public:
         USB->ISTR = 0;
     }
 
+    void setCallback(void (*cb)(uint32_t)) override
+    {
+        _cb = cb;
+    }
+
+    void setBuffer(uint8_t *buffer) override
+    {
+        _buffer = buffer;
+    }
+    
     uint32_t getSpeed() const override
     {
-        return 12'000'000u;   // USB Full-Speed
+        return _speed;   // USB Full-Speed
     }
 
     bool isInit() override
@@ -94,9 +105,7 @@ private:
     static constexpr uint16_t PMA_SIZE     = 512;
 
     // ===================== Hardware =====================
-    static constexpr uint32_t USB_BASE_ADDR     = 0x40005C00u;
-    static constexpr uint32_t USB_PMA_BASE      = 0x40006000u;
-    volatile uint32_t* const USB_EPR    = reinterpret_cast<volatile uint32_t*>(USB_BASE_ADDR);
+    volatile uint32_t* const USB_EPR    = reinterpret_cast<volatile uint32_t*>(USB_BASE);
 
     // ===================== State =====================
     bool     _initialized = false;
@@ -105,6 +114,10 @@ private:
     uint8_t  _lineState   = 0;
     bool     _txBusy      = false;
     bool     _sendZlp     = false;
+
+    void (*_cb)(uint32_t) = nullptr;
+    uint8_t *_buffer = nullptr;
+    uint32_t _speed;
 
     // BTABLE addresses are byte offsets. Four endpoint descriptors occupy
     // the first 32 bytes of the PMA address space.
@@ -286,7 +299,7 @@ private:
             }
             else if (ep == 3) // Bulk OUT
             {
-                // Keep the completed buffer intact until serialRead consumes it.
+                // TODO: Fill the buffer and call _cb after it fills
             }
         }
 
@@ -423,7 +436,7 @@ private:
     static volatile uint16_t* pmaPtr(uint16_t address)
     {
         // Each 16-bit PMA word is exposed at a 32-bit APB address stride.
-        return reinterpret_cast<volatile uint16_t*>(USB_PMA_BASE + address * 2u);
+        return reinterpret_cast<volatile uint16_t*>(USB_PMAADDR + address * 2u);
     }
 
     static uint16_t rxBufferCount(uint16_t size)
