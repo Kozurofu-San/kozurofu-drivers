@@ -4,6 +4,8 @@
 
 #include "stm32f1xx.h"
 
+#include "FreeRTOSConfig.h"
+
 #include <cstdint>
 #include <cstddef>
 
@@ -42,7 +44,8 @@ public:
         USB->CNTR = USB_CNTR_RESETM;
 
         // NVIC
-        NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, 1);
+        // The receive callback may call FreeRTOS ...FromISR APIs.
+        NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
         NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
 
         _speed = 12'000'000U;
