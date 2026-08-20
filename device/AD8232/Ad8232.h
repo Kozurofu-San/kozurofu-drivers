@@ -58,7 +58,7 @@ class Ad8232Driver: public IEcg
 
     int16_t getSample() override
     {
-
+        _adc.start();
         return _adc.getRawValue();
     }
 

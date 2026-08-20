@@ -26,7 +26,7 @@ class AdcController
         RCC->CFGR &= ~RCC_CFGR_ADCPRE;
         RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6; // Set ADC clock to APB2 / 6
 
-        _adc->CR1 |= ADC_CR1_SCAN; // Enable scan mode
+        // ADC config
         _adc->CR2 |= ADC_CR2_ADON; // Enable ADC
 
         _adc->CR2 |= ADC_CR2_RSTCAL;
@@ -34,6 +34,27 @@ class AdcController
         
         _adc->CR2 |= ADC_CR2_CAL;
         while(_adc->CR2 & ADC_CR2_CAL);
+
+        _adc->CR1 |= ADC_CR1_SCAN; // Enable scan mode (fro DMA)
+
+        _adc->CR2 |= ADC_CR2_EXTTRIG | ADC_CR2_ALIGN | ExtSel::SwStart;
+        _adc->CR1 |= DualMode::Independent;
+
+        // DMA
+        if (_adc == ADC1)   // ADC1 only, ADC2 doesn't support DMA
+        {
+            RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+            _dma = DMA1_Channel1;
+        }
+        
+        // DMA counter config
+        _dma->CCR = 0;                      // Clear config
+        while (_dma->CCR & DMA_CCR_EN);     // Wait
+
+        _dma->CPAR  = (uint32_t)&_adc->DR;      // Peripheral
+        _dma->CMAR  = (uint32_t)_data;          // Memory
+
+        _adc->CR2 |= ADC_CR2_DMA;   // Turn on DMA in ADC
 
         _isInit = true;
         return  true;
@@ -43,30 +64,30 @@ class AdcController
     uint8_t addChannel(uint8_t channel)
     {
         // Check if adding channel is out of limit
-        if ((_channelCount >= 16) | (channel >= 16))
+        if ((_channelCount >= 16) || (channel >= 16))
         {
             return -1;
         }
 
         // Add a new ADC channel
-        _channels[_channelCount].channel = channel;
+        _channel[_channelCount] = channel;
 
-        // Number of conversions
+        // The L field stores the number of conversions minus one.
         _adc->SQR1 &= ~ADC_SQR1_L;
         _adc->SQR1 |= _channelCount << ADC_SQR1_L_Pos;
 
         // Add to conversion sequence
         if (_channelCount < 6)
         {
-            _adc->SQR3 |= channel << ((_channelCount - 0) * 4);
+            _adc->SQR3 |= channel << ((_channelCount - 0) * 5);
         }
         else if (_channelCount < 12)
         {
-            _adc->SQR2 |= channel << ((_channelCount - 6) * 4);
+            _adc->SQR2 |= channel << ((_channelCount - 6) * 5);
         }
         else
         {
-            _adc->SQR1 |= channel << ((_channelCount - 12) * 4);
+            _adc->SQR1 |= channel << ((_channelCount - 12) * 5);
         }
 
         // Sample rate
@@ -80,29 +101,47 @@ class AdcController
             _adc->SMPR1 &= ~(0x7 << ((channel - 10) * 3));
             _adc->SMPR1 |= SampleTime::Cycles7_5 << ((channel - 10) * 3);
         }
-
-        _adc->CR2 |= ADC_CR2_EXTTRIG | ADC_CR2_ALIGN | ExtSel::SwStart;
-        _adc->CR1 |= DualMode::RegularOnly;
-        _adc->CR2 |= ADC_CR2_ADON; // Enable ADC
-
+        
         return _channelCount++;
     }
 
     bool start()
     {
+        // DMA counter set
+        _dma->CCR = 0;                      // Clear config
+        while (_dma->CCR & DMA_CCR_EN);     // Wait
+
+        _dma->CNDTR = _channelCount;    // Count
+
+        _dma->CCR = 
+            DMA_CCR_MINC            // Memory increment
+            | DMA_CCR_PSIZE_0       // Peripheral 16-bit
+            | DMA_CCR_MSIZE_0       // Memory 16-bit
+            // | DMA_CCR_DIR           // 0 = Peripheral → Memory
+            | DMA_CCR_TCIE          // Interrupt
+            | DMA_CCR_EN;           // Enable
+
+        DMA1->IFCR = DMA_IFCR_CTCIF1 | DMA_IFCR_CHTIF1 | DMA_IFCR_CTEIF1 | DMA_IFCR_CGIF1;  // Clear flags
+
         _adc->CR2 |= ADC_CR2_SWSTART;           // Start conversion
-        while (!(_adc->SR & ADC_SR_EOC));       // Wait for conversion to complete
-        _adc->SR &= ~ADC_SR_EOC;                // Clear end of conversion flag
-        for (uint8_t i = 0; i < _channelCount; ++i)
+        if (_dma != nullptr)
         {
-            _channels[i].data = _adc->DR - (1 << 15) - 1;      // Put data to reg 
+            while (!(DMA1->ISR & DMA_ISR_TCIF1));
+        }
+        else
+        {
+            for (uint8_t i = 0; i < _channelCount; ++i)
+            {
+                while (!(_adc->SR & ADC_SR_EOC));       // Wait for conversion to complete
+                _data[i] = _adc->DR;      // Put data to reg 
+            }
         }
         return true;
     }
 
-    int16_t getRawValue(uint8_t channel)
+    uint16_t getRawValue(uint8_t channel)
     {
-        return _channels[channel].data;
+        return _data[channel];
     }
 
     bool isInit()
@@ -113,12 +152,10 @@ class AdcController
     private:
 
     ADC_TypeDef *_adc;
+    DMA_Channel_TypeDef *_dma = nullptr;
 
-    struct ChannelConfig
-    {
-        uint8_t channel;
-        uint16_t data = 0;
-    } _channels[16];
+    uint8_t _channel[16];
+    uint16_t _data [16];
     uint8_t _channelCount;
 
     enum SampleTime : uint32_t
@@ -204,22 +241,24 @@ class AdcDriver : public IAdc
         return _adc.start();
     }
 
-    int16_t getRawValue() override
+    uint16_t getRawValue() override
     {
         if (!_isInit)
         {
             return -1;
         }
+        _adc.start();
         return _adc.getRawValue(_channelEnum);
     }
 
-    int32_t getVoltage() override
+    // Q16.16
+    uint32_t getVoltage() override
     {
         if (!_isInit)
         {
             return -1;
         }
-        return _adc.getRawValue(_channelEnum) * 3300 / (1 << 15);   // 16 bit signed
+        return static_cast<uint32_t>(_adc.getRawValue(_channelEnum)) * 3300ULL / 0xFFF0; // Q16.16 unsigned, millivolts
     }
 
     uint8_t getChannel()
