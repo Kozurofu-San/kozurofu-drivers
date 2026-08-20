@@ -28,10 +28,6 @@ public:
 
     void read(uint8_t *data, size_t len) override
     {
-        if (!_configured || len == 0 || data == nullptr)
-            return;
-
-        serialRead(data, len);
     }
 
     void init()
@@ -78,9 +74,10 @@ public:
         _cb = cb;
     }
 
-    void setBuffer(uint8_t *buffer) override
+    void setBuffer(uint8_t *buffer, size_t size) override
     {
         _buffer = buffer;
+        _bufferSize = size;
     }
     
     uint32_t getSpeed() const override
@@ -117,6 +114,7 @@ private:
 
     void (*_cb)(uint32_t) = nullptr;
     uint8_t *_buffer = nullptr;
+    size_t _bufferSize = 0;
     uint32_t _speed;
 
     // BTABLE addresses are byte offsets. Four endpoint descriptors occupy
@@ -201,6 +199,7 @@ private:
         _lineState  = 0;
         _txBusy = false;
         _sendZlp = false;
+        _cntRx = 0;
 
         // Clear BTABLE
         USB->BTABLE = 0;
@@ -228,13 +227,13 @@ private:
             btableWrite(2, 2, ep2Buf1);
             btableWrite(2, 3, 0);
 
-            // Double-buffered OUT uses the fields in the opposite order:
-            // buffer 0 uses RX fields and buffer 1 uses TX fields.
+            // Double-buffered OUT uses TX fields for buffer 0 and RX fields
+            // for buffer 1, as defined by the STM32F1 USB peripheral.
             const uint16_t ep3Buf0 = ep2Buf1 + EP2_SIZE;
             const uint16_t ep3Buf1 = ep3Buf0 + EP2_SIZE;
-            btableWrite(3, 0, ep3Buf1);
+            btableWrite(3, 0, ep3Buf0);
             btableWrite(3, 1, rxBufferCount(EP2_SIZE));
-            btableWrite(3, 2, ep3Buf0);
+            btableWrite(3, 2, ep3Buf1);
             btableWrite(3, 3, rxBufferCount(EP2_SIZE));
         }
         else
@@ -278,7 +277,7 @@ private:
         uint8_t  ep   = istr & 0x0F;
         uint16_t epr  = USB_EPR[ep];
 
-        if (epr & (1u << 15)) // CTR_RX
+        if (epr & USB_EP_CTR_RX) // CTR_RX
         {
             // Clear CTR_RX
             clearCtr(ep, false);
@@ -286,7 +285,7 @@ private:
             if (ep == 0)
             {
                 // Setup?
-                if (epr & (1u << 11))
+                if (epr & USB_EP_SETUP)
                 {
                     readPma(0, _setup, 8);
                     handleSetup();
@@ -299,11 +298,19 @@ private:
             }
             else if (ep == 3) // Bulk OUT
             {
-                // TODO: Fill the buffer and call _cb after it fills
+                uint16_t cntRx = usbRead(ep, _buffer, _bufferSize);
+                for (int i = 0; i < _cntRx; i++)
+                    printf("%c", _buffer[i]);
+                _cntRx += cntRx;
+                if (!(cntRx == 64 && (USB->ISTR & USB_ISTR_EP_ID) == ep))
+                {
+                    _cb(_cntRx);
+                    _cntRx = 0;
+                }
             }
         }
 
-        if (epr & (1u << 7)) // CTR_TX
+        if (epr & USB_EP_CTR_TX) // CTR_TX
         {
             clearCtr(ep, true);
 
@@ -520,7 +527,7 @@ private:
     void freeDoubleBuffer(uint8_t ep, bool isIn)
     {
         const uint16_t epr = USB_EPR[ep];
-        const uint16_t swBuf = isIn ? (1u << 14) : (1u << 6);
+        const uint16_t swBuf = isIn ? USB_EP_DTOG_RX : USB_EP_DTOG_TX;
 
         // Toggling SW_BUF returns the application buffer to the USB peripheral.
         USB_EPR[ep] = endpointControlBits(epr) | swBuf;
@@ -553,7 +560,7 @@ private:
         {
             if (ep == 2)
             {
-                const bool buffer0 = (USB_EPR[ep] & (1u << 14)) != 0;
+                const bool buffer0 = (USB_EPR[ep] & USB_EP_DTOG_TX) == 0;
                 const uint8_t addressField = buffer0 ? 0 : 2;
                 const uint8_t countField = buffer0 ? 1 : 3;
                 btableWrite(ep, countField, 0);
@@ -590,7 +597,7 @@ private:
             if (ep == 2)
             {
                 // For double-buffered IN, SW_BUF=1 selects buffer 0.
-                const bool buffer0 = (USB_EPR[ep] & (1u << 14)) != 0;
+                const bool buffer0 = (USB_EPR[ep] & USB_EP_DTOG_TX) == 0;
                 const uint8_t addressField = buffer0 ? 0 : 2;
                 const uint8_t countField = buffer0 ? 1 : 3;
 
@@ -630,7 +637,7 @@ private:
 
     }
 
-    void usbRead(uint8_t ep, uint8_t* dst, uint16_t maxLen)
+    uint16_t usbRead(uint8_t ep, uint8_t* dst, uint16_t maxLen)
     {
         uint16_t count;
 
@@ -639,26 +646,23 @@ private:
             if (ep == 3)
             {
                 // For double-buffered OUT, SW_BUF=1 selects buffer 0.
-                const bool buffer0 = (USB_EPR[ep] & (1u << 6)) != 0;
+                const bool buffer0 = (USB_EPR[ep] & USB_EP_DTOG_RX) == 0;
                 const uint8_t addressField = buffer0 ? 2 : 0;
                 const uint8_t countField = buffer0 ? 3 : 1;
                 count = btableRead(ep, countField) & 0x3FF;
-
                 if (count > maxLen) count = maxLen;
                 readPmaAt(btableRead(ep, addressField), dst, count);
-                _cntRx = count;
                 freeDoubleBuffer(ep, false);
-                return;
             }
         }
-
-        count = btableRead(ep, 3) & 0x3FF;
-
-        if (count > maxLen) count = maxLen;
-        readPma(ep, dst, count);
-        _cntRx = count;
-
-        setRxStatus(ep, 3); // VALID again
+        else
+        {
+            count = btableRead(ep, 3) & 0x3FF;
+            if (count > maxLen) count = maxLen;
+            readPma(ep, dst, count);
+            setRxStatus(ep, 3); // VALID again
+        }
+        return count;
     }
 
     void serialWrite(const uint8_t* data, size_t len)
@@ -673,30 +677,6 @@ private:
         usbWrite(2);
     }
 
-    void serialRead(uint8_t* data, size_t len)
-    {
-        size_t received = 0;
-
-        while (received < len)
-        {
-            // Wait for data
-            uint32_t timeout = 0x100000;
-            while (!(USB_EPR[3] & (1u << 15)) && --timeout);
-
-            if (timeout == 0) break;
-
-            // Clear CTR_RX.
-            clearCtr(3, false);
-
-            uint16_t chunk = static_cast<uint16_t>(len - received);
-            if (chunk > EP2_SIZE) chunk = EP2_SIZE;
-
-            usbRead(3, data + received, chunk);
-            received += _cntRx;
-
-            if (_cntRx < EP2_SIZE) break; // short packet → end of transfer
-        }
-    }
 };
 
 }
