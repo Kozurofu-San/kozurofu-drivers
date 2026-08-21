@@ -8,6 +8,7 @@
 #include "interface/Timer.h"
 
 #include <cstdint>
+#include <span>
 
 /* // Temperature / Humidity sensor
 
@@ -60,13 +61,12 @@ class Ld2410bDriver : IPresence
             return false;
         }
 
-        uint32_t *ptr = reinterpret_cast<uint32_t*>(_buffer);
-        ptr[0] = Ld2410b::Header;
-        ptr[1] = 0x0200A000;
-        ptr[2] = Ld2410b::Tail;
-
-        _p.write(_buffer, 12);
-        _p.read(_buffer, 22);
+        // Get FW version
+        addHeader();
+        addPayload(Ld2410b::ReadFirmwareVersion);
+        addTail();
+        _p.write(_buffer, _pointer);
+        auto length = read();
         
 
         return _isInit;
@@ -99,8 +99,92 @@ class Ld2410bDriver : IPresence
     IGpio *_present;
     ITimer &_timer;
 
+    void addHeader()
+    {
+        _pointer = Ld2410b::Header.size();
+        for (uint8_t i = 0; i < Ld2410b::Header.size(); ++i)
+        {
+            _buffer[i] = Ld2410b::Header[i];
+        }
+    }
+
+    bool checkHeader()
+    {
+        bool ret = true;
+        for (uint8_t i = 0; i < Ld2410b::Header.size(); ++i)
+        {
+            if (_buffer[i] != Ld2410b::Header[i])
+            {
+                ret &= false;
+            }
+        }
+        return ret;
+    }
+
+    void addPayload(std::span<const uint8_t> cmd)
+    {
+        _buffer[_pointer++] = cmd.size();
+        _buffer[_pointer++] = 0x00;
+        for (uint8_t i = 0; i < cmd.size(); ++i)
+        {
+            _buffer[_pointer++] = cmd[i];
+        }
+    }
+
+    void addTail()
+    {
+        for (uint8_t i = 0; i < Ld2410b::Tail.size(); ++i)
+        {
+            _buffer[_pointer++] = Ld2410b::Tail[i];
+        }
+    }
+
+    bool checkTail(uint8_t addr)
+    {
+        bool ret = true;
+        for (uint8_t i = 0; i < Ld2410b::Tail.size(); ++i)
+        {
+            if (_buffer[addr + i] != Ld2410b::Tail[i])
+            {
+                ret &= false;
+            }
+        }
+        return ret;
+    }
+
+    uint8_t read()
+    {
+        // Read header
+        _p.read(&_buffer[0], Ld2410b::Header.size());
+        if (!checkHeader())
+        {
+            return 0;
+        }
+
+        // Payload length
+        _p.read(&_buffer[Ld2410b::Header.size()], 1);
+
+        // Tail pointer
+        _pointer = _buffer[Ld2410b::Header.size()] + Ld2410b::Header.size() + 2;
+
+        // Read payload
+        _p.read(&_buffer[Ld2410b::Header.size() + 1], _buffer[Ld2410b::Header.size()] + 1);
+
+        // Read tail
+        _p.read(&_buffer[_pointer], Ld2410b::Tail.size());
+        if (!checkTail(_pointer))
+        {
+            return 0;
+        }
+        return _pointer - Ld2410b::Header.size() - 2;
+    }
+
+
     bool _isInit = false;
+
     uint8_t _buffer[48];
+    uint8_t _pointer;
+
     static constexpr uint8_t Timeout = 10;
     static constexpr uint32_t Speed = 256'000U;      // Hz
 

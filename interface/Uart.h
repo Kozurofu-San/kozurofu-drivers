@@ -12,8 +12,8 @@ class IUart
 
     virtual ~IUart() = default;
 
-    virtual void write(uint8_t *data, size_t len) = 0;
-    virtual void read (uint8_t *data, size_t len) = 0;
+    virtual bool write(uint8_t *data, size_t len) = 0;
+    virtual bool read (uint8_t *data, size_t len) = 0;
 
     virtual void setCallback(void (*cb)(uint32_t)) = 0;
     virtual void setBuffer(uint8_t *buffer, size_t size) = 0;

@@ -1,0 +1,121 @@
+namespace std
+{
+    using size_t = decltype(sizeof(0));
+
+    inline constexpr size_t dynamic_extent =
+        static_cast<size_t>(-1);
+
+    template<class T, size_t Extent = dynamic_extent>
+    class span
+    {
+    public:
+        using element_type    = T;
+        using value_type      = T;
+        using size_type       = size_t;
+        using difference_type = decltype(
+            static_cast<T*>(nullptr) - static_cast<T*>(nullptr)
+        );
+        using pointer         = T*;
+        using reference       = T&;
+
+        using iterator        = T*;
+        using const_iterator  = const T*;
+
+        constexpr span() noexcept
+            : ptr_(nullptr), size_(0)
+        {
+            static_assert(
+                Extent == dynamic_extent || Extent == 0,
+                "fixed-size span cannot be default constructed"
+            );
+        }
+
+        constexpr span(pointer ptr, size_type count) noexcept
+            : ptr_(ptr), size_(count)
+        {
+            static_assert(
+                Extent == dynamic_extent,
+                "use span(ptr, count) only with dynamic extent"
+            );
+        }
+
+        constexpr span(pointer first, pointer last) noexcept
+            : ptr_(first),
+              size_(static_cast<size_type>(last - first))
+        {
+            static_assert(
+                Extent == dynamic_extent,
+                "use span(first, last) only with dynamic extent"
+            );
+        }
+
+        template<size_type N>
+        constexpr span(T (&arr)[N]) noexcept
+            : ptr_(arr),
+              size_(N)
+        {
+            static_assert(
+                Extent == dynamic_extent || Extent == N,
+                "span extent does not match array size"
+            );
+        }
+
+        template<class U, size_type N>
+        constexpr span(array<U, N>& arr) noexcept
+            : ptr_(arr.data()),
+              size_(N)
+        {
+            static_assert(
+                Extent == dynamic_extent || Extent == N,
+                "span extent does not match array size"
+            );
+        }
+
+        constexpr reference operator[](size_type i) const noexcept
+        {
+            return ptr_[i];
+        }
+
+        constexpr pointer data() const noexcept
+        {
+            return ptr_;
+        }
+
+        constexpr iterator begin() const noexcept
+        {
+            return ptr_;
+        }
+
+        constexpr iterator end() const noexcept
+        {
+            return ptr_ + size();
+        }
+
+        constexpr size_type size() const noexcept
+        {
+            if constexpr (Extent == dynamic_extent)
+                return size_;
+
+            return Extent;
+        }
+
+        constexpr bool empty() const noexcept
+        {
+            return size() == 0;
+        }
+
+        constexpr reference front() const noexcept
+        {
+            return ptr_[0];
+        }
+
+        constexpr reference back() const noexcept
+        {
+            return ptr_[size() - 1];
+        }
+
+    private:
+        pointer ptr_;
+        size_type size_;
+    };
+}

@@ -20,16 +20,18 @@ public:
         init();
     }
 
-    void write(uint8_t *data, size_t len) override
+    bool write(uint8_t *data, size_t len) override
     {
         if (!_configured || _txBusy || len == 0 || data == nullptr)
-            return;
+            return false;
 
         serialWrite(data, len);
+        return true;
     }
 
-    void read(uint8_t *data, size_t len) override
+    bool read(uint8_t *data, size_t len) override
     {
+        return true;
     }
 
     void init()

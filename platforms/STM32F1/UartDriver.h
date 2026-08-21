@@ -53,22 +53,24 @@ class UartDriver : public IUart
         return true;
     }
 
-    void write(uint8_t *data, size_t len) override
+    bool write(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; ++i)
         {
              while (!(_uart->SR & USART_SR_TXE));
              _uart->DR = *data++;
         }
+        return true;
     };
 
-    void read(uint8_t *data, size_t len) override
+    bool read(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; ++i)
         {
             while (!(_uart->SR & USART_SR_RXNE));
             *data++ = _uart->DR;
         }
+        return true;
     };
 
     void setCallback(void (*cb)(uint32_t)) override
