@@ -29,15 +29,13 @@ class UartDriver : public IUart
         uint32_t busPrescalerPos = (_uart == USART1) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
         uint32_t busPrescaler = (RCC->CFGR >> busPrescalerPos) & 0x7;
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
-        uint32_t busSpeed = SystemCoreClock / busPrescaler / 16;    // Oversampling x16
-        uint32_t mantissa = busSpeed / speed;
-        uint32_t fraction = (busSpeed % speed) * 16 / speed;
-        _uart->BRR = (mantissa << USART_BRR_DIV_Mantissa_Pos) | (fraction << USART_BRR_DIV_Fraction_Pos);
+        const uint32_t peripheralClock = SystemCoreClock / busPrescaler;
+        // In OVER8=0 mode BRR is the fixed-point USARTDIV value, i.e.
+        // PCLK / baud.  Round it to the closest representable baud rate.
+        _uart->BRR = (peripheralClock + speed / 2U) / speed;
         
         // Get actual baudrate
-        mantissa = _uart->BRR;
-        busSpeed <<= USART_BRR_DIV_Mantissa_Pos;
-        _speed = busSpeed / mantissa;
+        _speed = peripheralClock / _uart->BRR;
 
         printf("UART speed %lu Hz\n", _speed);
 
