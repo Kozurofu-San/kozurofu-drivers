@@ -13,18 +13,12 @@ class UartDriver : public IUart
 {
     public:
 
-    enum class Oversampling : uint8_t
-    {
-        Bits16 = 0x0,
-        Bits8  = 0x1,
-    };
-
     UartDriver(USART_TypeDef *uart)
         : _uart(uart)
     {
     }
     
-    bool init(uint32_t speed, Oversampling oversampling)
+    bool init(uint32_t speed)
     {
         // Clock enable
         if      (_uart == USART1) RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
@@ -35,17 +29,17 @@ class UartDriver : public IUart
         uint32_t busPrescalerPos = (_uart == USART1) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
         uint32_t busPrescaler = (RCC->CFGR >> busPrescalerPos) & 0x7;
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
-        uint32_t oversamplingBits = (2 - static_cast<uint32_t>(oversampling)) * 8;
-        uint32_t busSpeed = SystemCoreClock / busPrescaler / oversamplingBits;
+        uint32_t busSpeed = SystemCoreClock / busPrescaler / 16;    // Oversampling x16
         uint32_t mantissa = busSpeed / speed;
         uint32_t fraction = (busSpeed % speed) * 16 / speed;
         _uart->BRR = (mantissa << USART_BRR_DIV_Mantissa_Pos) | (fraction << USART_BRR_DIV_Fraction_Pos);
-        
         
         // Get actual baudrate
         mantissa = _uart->BRR;
         busSpeed <<= USART_BRR_DIV_Mantissa_Pos;
         _speed = busSpeed / mantissa;
+
+        printf("UART speed %lu Hz\n", _speed);
 
         // Configure UART
         _uart->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE; // Enable transmitter and receiver
@@ -115,6 +109,7 @@ class UartDriver : public IUart
 
     uint32_t _speed; // Speed in Hz
     bool _isInit = false;
+    
 };
 
 }
