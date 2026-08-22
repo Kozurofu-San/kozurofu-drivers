@@ -4,7 +4,7 @@
 #include <array>
 
 // Temperature / Humidity sensor
-class Ld2410b
+class Ld2410
 {
     public:
 
@@ -23,6 +23,6 @@ class Ld2410b
     static constexpr std::array<uint8_t, 2> EndConfig               = {0xFE, 0x00};                 // End the configuration command and execute it to restore the radar to working mode
     static constexpr std::array<uint8_t, 2> EnableEngineeringMode   = {0x62, 0x00};                 // The energy value of each range gate will be added to the data reported by the radar
     static constexpr std::array<uint8_t, 2> CloseEngineeringMode    = {0x63, 0x00};                 // Turn off radar engineering mode
-    static constexpr std::array<uint8_t, 4> SetBaudrate460800       = {0xA1, 0x00, 0x07, 0x00};     // The configuration value will take effect after restarting the module
+    static constexpr std::array<uint8_t, 4> SetBaudrate460800       = {0xA1, 0x00, 0x08, 0x00};     // The configuration value will take effect after restarting the module
     
 };
