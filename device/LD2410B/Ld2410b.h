@@ -64,10 +64,10 @@ class Ld2410bDriver : IPresence
         // Get FW version
         addHeader();
         addPayload(Ld2410b::ReadFirmwareVersion);
+        // addPayload(Ld2410b::GetMacAddress);
         addTail();
         _p.write(_buffer, _pointer);
         auto length = read();
-        
 
         return _isInit;
     }
@@ -176,7 +176,14 @@ class Ld2410bDriver : IPresence
         {
             return 0;
         }
-        return _pointer - Ld2410b::Header.size() - 2;
+
+        // Read ACK
+        if (_buffer[8] == 0x01)
+        {
+            return 0;   // NACK is received
+        }
+
+        return _buffer[Ld2410b::Header.size()];
     }
 
 
