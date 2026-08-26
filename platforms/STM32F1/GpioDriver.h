@@ -7,6 +7,8 @@
 
 #include "stm32f1xx.h"
 
+#include "FreeRTOSConfig.h"
+
 extern uint32_t SystemCoreClock;
 
 namespace driver
@@ -148,9 +150,70 @@ class GpioDriver : public IGpio
         port->ODR = value;
     }
 
-    void callback(void (*cb)(uint32_t)) override
+    bool setCallback(void (*cb)(uint32_t)) override
     {
+        if (!isInit())
+        {
+            return false;
+        }
+
         _cb = cb;
+
+        // Init interrupts
+
+        __disable_irq();
+
+        // AFIO clock
+        RCC->APB2ENR |= RCC_APB2ENR_AFIOEN;
+
+        // Select GPIO port for EXTI line
+        const uint32_t extiIndex = _pin / 4;
+        const uint32_t extiShift = (_pin % 4) * 4;
+
+        uint32_t portCode = 0;
+
+        if (_port == GPIOA)      portCode = 0;
+        else if (_port == GPIOB) portCode = 1;
+        else if (_port == GPIOC) portCode = 2;
+        else if (_port == GPIOD) portCode = 3;
+        else if (_port == GPIOE) portCode = 4;
+        else
+        {
+            __enable_irq();
+            return false;
+        }
+
+        // AFIO->EXTICR[n]: select GPIO port for EXTI line
+        AFIO->EXTICR[extiIndex] &= ~(0xF << extiShift);
+        AFIO->EXTICR[extiIndex] |=  (portCode << extiShift);
+
+        // Enable EXTI line
+        EXTI->IMR |= (1U << _pin);
+
+        // Example: interrupt on falling edge
+        EXTI->FTSR |= (1U << _pin);
+        EXTI->RTSR &= ~(1U << _pin);
+
+        // Clear pending interrupt
+        EXTI->PR = (1U << _pin);
+
+        // Enable corresponding NVIC interrupt
+        
+        IRQn_Type irqn;
+        if (_pin == 0) irqn = EXTI0_IRQn;
+        else if (_pin == 1) irqn = EXTI1_IRQn;
+        else if (_pin == 2) irqn = EXTI2_IRQn;
+        else if (_pin == 3) irqn = EXTI3_IRQn;
+        else if (_pin == 4) irqn = EXTI4_IRQn;
+        else if (_pin >= 5 && _pin <= 9) irqn = EXTI9_5_IRQn;
+        else if (_pin >= 10 && _pin <= 15) irqn = EXTI15_10_IRQn;
+
+        NVIC_SetPriority(irqn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
+        NVIC_EnableIRQ(irqn);
+
+        __enable_irq();
+
+        return true;
     }
     
     void interrupt(uint32_t arg)

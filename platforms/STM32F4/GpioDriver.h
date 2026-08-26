@@ -114,7 +114,7 @@ class GpioDriver : public IGpio
         }
         EXTI->PR = 1 << _pin;
 
-        uint32_t irqn = -1;
+        IRQn_Type irqn;
         if (_pin == 0) irqn = EXTI0_IRQn;
         else if (_pin == 1) irqn = EXTI1_IRQn;
         else if (_pin == 2) irqn = EXTI2_IRQn;
@@ -123,8 +123,8 @@ class GpioDriver : public IGpio
         else if (_pin >= 5 && _pin <= 9) irqn = EXTI9_5_IRQn;
         else if (_pin >= 10 && _pin <= 15) irqn = EXTI15_10_IRQn;
 
-        NVIC_SetPriority(static_cast<IRQn_Type>(irqn), 5 + 1);    // configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1
-        NVIC_EnableIRQ(static_cast<IRQn_Type>(irqn));
+        NVIC_SetPriority(irqn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
+        NVIC_EnableIRQ(irqn);
         
         _isInit = true;
         return true;

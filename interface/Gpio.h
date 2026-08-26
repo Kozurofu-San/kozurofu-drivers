@@ -22,7 +22,7 @@ class IGpio
     virtual size_t getPin() = 0;
     virtual void setDir(Direction dir) = 0;
 
-    virtual void callback(void (*cb)(uint32_t)) = 0;
+    virtual bool setCallback(void (*cb)(uint32_t)) = 0;
     virtual bool isInit() = 0;
 };
 
