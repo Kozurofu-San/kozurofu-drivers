@@ -1,14 +1,17 @@
 #pragma once
 
-#include "interface/Communication.h"
+#include "interface/Uart.h"
 
 #include "stm32f4xx.h"
+
+#include "FreeRTOSConfig.h"
+
 extern uint32_t SystemCoreClock;
 
 namespace driver
 {
 
-class UartDriver : public ICommunication
+class UartDriver : public IUart
 {
     public:
 
@@ -62,25 +65,35 @@ class UartDriver : public ICommunication
         return true;
     }
 
-    void write(uint8_t *data, size_t len, size_t bytes = 1) override
+    bool write(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; ++i)
         {
+            while (!(_uart->SR & USART_SR_TXE));
+             _uart->DR = *data++;
         }
     };
 
-    void read(uint8_t *data, size_t len, size_t bytes = 1) override
+    bool read(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; ++i)
         {
+            while (!(_uart->SR & USART_SR_RXNE));
+            *data++ = _uart->DR;
         }
     };
 
-    uint32_t sendCommand(uint32_t cmd) override
+    void setCallback(void (*cb)(uint32_t)) override
     {
-        return cmd;
+        _cb = cb;
     }
 
+    void setBuffer(uint8_t *buffer, size_t size) override
+    {
+        _buffer = buffer;
+        _bufferSize = size;
+    }
+    
     USART_TypeDef* getInstance()
     {
         return _uart;
@@ -91,14 +104,6 @@ class UartDriver : public ICommunication
         return _speed;
     }
 
-    void enable() override
-    {
-    }
-
-    void disable() override
-    {
-    }
-
     bool isInit() override
     {
         return _isInit;
@@ -107,6 +112,11 @@ class UartDriver : public ICommunication
     private:
 
     USART_TypeDef *_uart;
+
+    void (*_cb)(uint32_t) = nullptr;
+    uint8_t *_buffer = nullptr;
+    size_t _bufferSize = 0;
+
     uint32_t _speed; // Speed in Hz
     
     bool _isInit = false;

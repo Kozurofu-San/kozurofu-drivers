@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Communication.h"
+#include "interface/Uart.h"
 #include "interface/Timer.h"
 #include <stdio.h>
 
@@ -17,13 +17,11 @@ namespace driver
         return static_cast<uint8_t>((x >> 8) & 0xFF);
     }
     
-class UsbDriver
+class UsbCdc: public IUart
 {
     public:
 
-    UsbDriver(USB_OTG_GlobalTypeDef* usb, ITimer &timer)
-        : _usb(usb),
-            _timer(timer)
+    UsbCdc()
     {}
 
     bool init()
@@ -249,12 +247,11 @@ class UsbDriver
     
     private:
 
-    USB_OTG_GlobalTypeDef   *_usb;
+    USB_OTG_GlobalTypeDef   *_usb = USB_OTG_FS;
     USB_OTG_DeviceTypeDef   *_dev = reinterpret_cast<USB_OTG_DeviceTypeDef*>(USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE);
     USB_OTG_HostTypeDef     *_host = reinterpret_cast<USB_OTG_HostTypeDef*>(USB_OTG_FS_PERIPH_BASE + USB_OTG_HOST_BASE);
     __IO uint32_t           *_pwr = reinterpret_cast<__IO uint32_t*>(USB_OTG_FS_PERIPH_BASE + USB_OTG_PCGCCTL_BASE);
 
-    ITimer &_timer;
     uint32_t _speed = 0;
     bool _isInit = false;
     

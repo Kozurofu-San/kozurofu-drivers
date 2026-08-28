@@ -6,6 +6,7 @@
 #include "ExternalMemoryConst.h"
 
 #include <cstdint>
+#include <cstring>
 
 namespace driver
 {
@@ -80,7 +81,7 @@ class ExternalMemoryDriver : public IMemory
 
             readCmd(ExternalMemory::Instruction::WriteEnable, _buffer, 0);
             _p.enable();
-            _p.sendCommand(ExternalMemory::Instruction::PageProgram);
+            _p.transfer(ExternalMemory::Instruction::PageProgram);
             _p.write((uint8_t*)&address, addressBytes);
             _p.write(data, chunk);
             _p.disable();
@@ -113,7 +114,7 @@ class ExternalMemoryDriver : public IMemory
         uint8_t addressBytes = ExternalMemory::HighCap ? 4 : 3;
 
         _p.enable();
-        _p.sendCommand(ExternalMemory::Instruction::ReadData);
+        _p.transfer(ExternalMemory::Instruction::ReadData);
         _p.write((uint8_t*)&address, addressBytes);
         _p.read(data, len);
         _p.disable();
@@ -149,7 +150,7 @@ class ExternalMemoryDriver : public IMemory
         readCmd(ExternalMemory::Instruction::WriteEnable, _buffer, 0);
 
         _p.enable();
-        _p.sendCommand(ExternalMemory::Instruction::ChipErase);
+        _p.transfer(ExternalMemory::Instruction::ChipErase);
         _p.disable();
         do
         {
@@ -163,7 +164,7 @@ class ExternalMemoryDriver : public IMemory
         readCmd(ExternalMemory::Instruction::WriteEnable, _buffer, 0);
 
         _p.enable();
-        _p.sendCommand(ExternalMemory::Instruction::SectorErase4Kb);
+        _p.transfer(ExternalMemory::Instruction::SectorErase4Kb);
         _p.write((uint8_t*)&sector, ExternalMemory::HighCap ? 4 : 3);
         _p.disable();
         do
@@ -205,7 +206,7 @@ class ExternalMemoryDriver : public IMemory
     void readCmd(uint8_t cmd, uint8_t *data, size_t len)
     {
         _p.enable();
-        _p.sendCommand(cmd);
+        _p.transfer(cmd);
         _p.read(data, len);
         _p.disable();
     }

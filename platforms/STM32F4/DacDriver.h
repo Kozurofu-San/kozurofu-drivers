@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/VoltageSet.h"
+#include "interface/Dac.h"
 
 #include <cstdint>
 #include <cstddef>
@@ -12,7 +12,7 @@ extern uint32_t SystemCoreClock;
 namespace driver
 {
 
-class DacDriver : public IVoltageSet
+class DacDriver : public IDac
 {
     public:
 
@@ -119,7 +119,7 @@ class DacDriver : public IVoltageSet
         }
     }
 
-    void setRawValue(uint32_t value, size_t channel) override
+    void setRawValue(uint16_t value, size_t channel) override
     {
         if (_channels[channel].channel == 1)
         {

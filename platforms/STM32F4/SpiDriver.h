@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Communication.h"
+#include "interface/Spi.h"
 #include "interface/Gpio.h"
 
 #include "DmaDriver.h"
@@ -14,7 +14,7 @@ extern uint32_t SystemCoreClock;
 namespace driver
 {
 
-class SpiController : public ICommunication
+class SpiController
 {
     public:
 
@@ -151,8 +151,16 @@ class SpiController : public ICommunication
 
         return true;
     }
+    
+    uint16_t transfer(uint16_t data)
+    {
+        while (!(_spi->SR & SPI_SR_TXE));
+        _spi->DR = data;
+        while (!(_spi->SR & SPI_SR_RXNE));
+        return _spi->DR;
+    };
 
-    void write(uint8_t *data, size_t len, size_t bytes = 1) override
+    void write(uint8_t *data, size_t len)
     {
         if (_dmaTx)
         {
@@ -164,7 +172,7 @@ class SpiController : public ICommunication
             _dmaTx->NDTR = len;
             _dmaTx->CR = (_dmaTxChannel << DMA_SxCR_CHSEL_Pos)
                 | DMA_SxCR_MINC                 // Address increment
-                | (bytes >> 1) << DMA_SxCR_MSIZE_Pos
+                | 0 << DMA_SxCR_MSIZE_Pos
                 | DMA_SxCR_TCIE                 // Interrupt
                 | static_cast<uint32_t>(DmaDriver::Direction::MemoryToPeripheral)
                 ;
@@ -184,7 +192,7 @@ class SpiController : public ICommunication
         }
     };
 
-    void read(uint8_t *data, size_t len, size_t bytes = 1) override
+    void read(uint8_t *data, size_t len)
     {
         if (_dmaRx && _dmaTx)
         {
@@ -198,7 +206,7 @@ class SpiController : public ICommunication
             _dmaRx->NDTR = len;
             _dmaRx->CR = (_dmaRxChannel << DMA_SxCR_CHSEL_Pos)
                 | DMA_SxCR_MINC                 // Address increment
-                | (bytes >> 1) << DMA_SxCR_MSIZE_Pos
+                | 0 << DMA_SxCR_MSIZE_Pos
                 | DMA_SxCR_TCIE                 // Interrupt
                 | static_cast<uint32_t>(DmaDriver::Direction::PeripheralToMemory)
                 ;
@@ -212,7 +220,7 @@ class SpiController : public ICommunication
             _dmaTx->NDTR = len;
             _dmaTx->CR = (_dmaTxChannel << DMA_SxCR_CHSEL_Pos)
                 | DMA_SxCR_MINC                 // Address increment
-                | (bytes >> 1) << DMA_SxCR_MSIZE_Pos
+                | 0 << DMA_SxCR_MSIZE_Pos
                 | DMA_SxCR_TCIE                 // Interrupt
                 | static_cast<uint32_t>(DmaDriver::Direction::MemoryToPeripheral)
                 ;
@@ -241,28 +249,12 @@ class SpiController : public ICommunication
         }
     };
 
-    uint32_t sendCommand(uint32_t cmd) override
-    {
-        while (!(_spi->SR & SPI_SR_TXE));
-        _spi->DR = cmd;
-        while (!(_spi->SR & SPI_SR_RXNE));
-        return _spi->DR; // Read data to clear RXNE flag
-    }
-
-    uint32_t getSpeed() const override
+    uint32_t getSpeed() const
     {
         return _speed;
     }
 
-    void enable() override
-    {
-    }
-
-    void disable() override
-    {
-    }
-
-    bool isInit() override
+    bool isInit()
     {
         return _isInit;
     }
@@ -295,7 +287,7 @@ class SpiController : public ICommunication
     static constexpr uint16_t DivMax = 256;
 };
 
-class SpiDriver : public ICommunication
+class SpiDriver : public ISpi
 {
     public:
 
@@ -318,20 +310,20 @@ class SpiDriver : public ICommunication
         return _spi.isInit();
     }
 
-    inline void write(uint8_t *data, size_t len, size_t bytes = 1) override
+    inline uint8_t transfer(uint8_t data) override
+    {
+        return _spi.transfer(data);
+    }
+
+    inline void write(uint8_t *data, size_t len) override
     {
         _spi.write(data, len);
     };
 
-    inline void read(uint8_t *data, size_t len, size_t bytes = 1) override
+    inline void read(uint8_t *data, size_t len) override
     {
         _spi.read(data, len);
     };
-
-    inline uint32_t sendCommand(uint32_t cmd) override
-    {
-        return _spi.sendCommand(cmd);
-    }
 
     void enable() override
     {

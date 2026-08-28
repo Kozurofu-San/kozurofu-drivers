@@ -2,9 +2,10 @@
 
 #include "interface/System.h"
 
-#include "stm32f4xx.h"
 #include <cstdint>
 #include <cstddef>
+
+#include "stm32f4xx.h"
 
 extern "C" {
     void* _sbrk(int);
@@ -19,26 +20,25 @@ class SystemDriver : public ISystem
 {
     public:
 
-    ResetReason getValue() override
+    ResetReason getReasonValue() override
     {
         ResetReason ret;
         uint32_t reason = RCC-> CSR;
 
-        if      ( reason & RCC_CSR_PORRSTF)  { ret = ResetReason::PowerOn   ; _reasonIdx = 0; }
-        else if ( reason & RCC_CSR_LPWRRSTF) { ret = ResetReason::Brownout  ; _reasonIdx = 1; }
-        else if ( reason & RCC_CSR_BORRSTF)  { ret = ResetReason::Brownout  ; _reasonIdx = 1; }
-        else if ( reason & RCC_CSR_IWDGRSTF) { ret = ResetReason::IndWdt    ; _reasonIdx = 2; }
-        else if ( reason & RCC_CSR_WWDGRSTF) { ret = ResetReason::WinWdt    ; _reasonIdx = 3; }
-        else if ( reason & RCC_CSR_SFTRSTF)  { ret = ResetReason::Sw        ; _reasonIdx = 4; }
-        else if ( reason & RCC_CSR_PINRSTF)  { ret = ResetReason::Ext       ; _reasonIdx = 5; }
-        else                                 { ret = ResetReason::Unknown   ; _reasonIdx = 6; }
+        if      ( reason & RCC_CSR_PORRSTF  ) { ret = ResetReason::PowerOn   ; _reasonIdx = 0; }
+        else if ( reason & RCC_CSR_LPWRRSTF ) { ret = ResetReason::Brownout  ; _reasonIdx = 1; }
+        else if ( reason & RCC_CSR_IWDGRSTF ) { ret = ResetReason::IndWdt    ; _reasonIdx = 2; }
+        else if ( reason & RCC_CSR_WWDGRSTF ) { ret = ResetReason::WinWdt    ; _reasonIdx = 3; }
+        else if ( reason & RCC_CSR_SFTRSTF  ) { ret = ResetReason::Sw        ; _reasonIdx = 4; }
+        else if ( reason & RCC_CSR_PINRSTF  ) { ret = ResetReason::Ext       ; _reasonIdx = 5; }
+        else                                  { ret = ResetReason::Unknown   ; _reasonIdx = 6; }
 
         return ret;
     }
 
-    const std::string_view& getString() override
+    const char* getReasonString() override
     {
-        getValue();
+        getReasonValue();
         return resetReasonString[_reasonIdx];
     }
 
@@ -47,14 +47,26 @@ class SystemDriver : public ISystem
         return SystemCoreClock;
     }
     
-    uint64_t getChipId() override
+    uint32_t getChipId() override
     {
-        return static_cast<uint64_t>(DBGMCU->IDCODE);
+        uint32_t *uid = (uint32_t *)UID_BASE;
+        return uid[2];
     }
     
     void restart() override
     {
         NVIC_SystemReset();
+    }
+
+    void enterCritical() override
+    {
+        _primask = __get_PRIMASK();     // Save current interrupt state
+        __disable_irq();                // Disable all global interrupts
+    }
+    
+    void exitCritical() override
+    {
+        __set_PRIMASK(_primask);        // Restore previous interrupt state
     }
     
     void updateMemoryInfo() override
@@ -93,7 +105,7 @@ class SystemDriver : public ISystem
 
     private:
 
-    static constexpr std::array<std::string_view, 7> resetReasonString =
+    static constexpr const char* const resetReasonString[] =
     {
         "PowerOn",
         "Brownout",
@@ -106,6 +118,7 @@ class SystemDriver : public ISystem
 
     MemoryInfo _memoryInfo;
     size_t _reasonIdx;
+    uint32_t _primask;
 };
 
 }

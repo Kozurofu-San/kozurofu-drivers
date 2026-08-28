@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/Communication.h"
+#include "interface/Parallel.h"
 
 #include "DmaDriver.h"
 
@@ -10,7 +10,7 @@ extern uint32_t SystemCoreClock;
 namespace driver
 {
 
-class FsmcDriver: public ICommunication
+class FsmcDriver: public IParallel
 {
     public:
 
