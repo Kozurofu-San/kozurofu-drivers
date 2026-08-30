@@ -22,39 +22,73 @@ class AdcController
     bool init()
     {
         // Clock
-        RCC->APB2ENR |= (_adc == ADC1) ? RCC_APB2ENR_ADC1EN : RCC_APB2ENR_ADC2EN;
-        RCC->CFGR &= ~RCC_CFGR_ADCPRE;
-        RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6; // Set ADC clock to APB2 / 6
+        if      (_adc == ADC1) RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
+        else if (_adc == ADC2) RCC->APB2ENR |= RCC_APB2ENR_ADC2EN;
+        else if (_adc == ADC3) RCC->APB2ENR |= RCC_APB2ENR_ADC3EN;
+        ADC->CCR &= ~ADC_CCR_ADCPRE;
+        ADC->CCR |= ADC_CCR_ADCPRE_1; // Set ADC clock 01: PCLK2 / 4
 
         // ADC config
         _adc->CR2 |= ADC_CR2_ADON; // Enable ADC
 
-        _adc->CR2 |= ADC_CR2_RSTCAL;
-        while(_adc->CR2 & ADC_CR2_RSTCAL);
-        
-        _adc->CR2 |= ADC_CR2_CAL;
-        while(_adc->CR2 & ADC_CR2_CAL);
+        // Wait for ADC stabilization (tSTAB ~ 3 us, simple delay loop is enough)
+        for (volatile uint32_t i = 0; i < 100; ++i) {}
 
-        _adc->CR1 |= ADC_CR1_SCAN; // Enable scan mode (fro DMA)
+        _adc->CR1 |= ADC_CR1_SCAN;      // Enable scan mode (for DMA)
+        _adc->CR2 |= ADC_CR2_ALIGN;
 
-        _adc->CR2 |= ADC_CR2_EXTTRIG | ADC_CR2_ALIGN | ExtSel::SwStart;
-        _adc->CR1 |= DualMode::Independent;
+        // Software start: EXTEN = 00 (software trigger), no external trigger
+        _adc->CR2 &= ~(ADC_CR2_EXTEN | ADC_CR2_EXTSEL);
 
-        // DMA
-        if (_adc == ADC1)   // ADC1 only, ADC2 doesn't support DMA
+        // Independent mode (MULTI = 00000 in CCR)
+        ADC->CCR &= ~ADC_CCR_MULTI;
+
+        // DMA setup (ADC1 -> DMA2 Stream0 Channel0, ADC2 -> DMA2 Stream2/3 Ch1, ADC3 -> DMA2 Stream1 Ch2)
+        RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN;
+        if      (_adc == ADC1) _dma = DMA2_Stream0;
+        else if (_adc == ADC2) _dma = DMA2_Stream2;
+        else if (_adc == ADC3) _dma = DMA2_Stream1;
+
+        // Disable stream before configuration
+        _dma->CR &= ~DMA_SxCR_EN;
+        while (_dma->CR & DMA_SxCR_EN) {}
+
+        // Clear all interrupt flags
+        if      (_adc == ADC1)
         {
-            RCC->AHBENR |= RCC_AHBENR_DMA1EN;
-            _dma = DMA1_Channel1;
+            DMA2->LIFCR = DMA_LIFCR_CTCIF0  |
+                          DMA_LIFCR_CHTIF0  |
+                          DMA_LIFCR_CTEIF0  |
+                          DMA_LIFCR_CDMEIF0 |
+                          DMA_LIFCR_CFEIF0  ;
         }
-        
-        // DMA counter config
-        _dma->CCR = 0;                      // Clear config
-        while (_dma->CCR & DMA_CCR_EN);     // Wait
+        else if (_adc == ADC2)
+        {
+            DMA2->LIFCR = DMA_LIFCR_CTCIF2  |
+                          DMA_LIFCR_CHTIF2  |
+                          DMA_LIFCR_CTEIF2  |
+                          DMA_LIFCR_CDMEIF2 |
+                          DMA_LIFCR_CFEIF2  ;
+        }
+        else if (_adc == ADC3)
+        {
+            DMA2->LIFCR = DMA_LIFCR_CTCIF1  |
+                          DMA_LIFCR_CHTIF1  |
+                          DMA_LIFCR_CTEIF1  |
+                          DMA_LIFCR_CDMEIF1 |
+                          DMA_LIFCR_CFEIF1  ;
+        }
+            
 
-        _dma->CPAR  = (uint32_t)&_adc->DR;      // Peripheral
-        _dma->CMAR  = (uint32_t)_data;          // Memory
+        // Peripheral address = ADC data register
+        _dma->PAR  = reinterpret_cast<uint32_t>(&_adc->DR);
+        // Memory address = internal buffer
+        _dma->M0AR = reinterpret_cast<uint32_t>(_data);
 
-        _adc->CR2 |= ADC_CR2_DMA;   // Turn on DMA in ADC
+        // Enable DMA requests from ADC
+        _adc->CR2 |= ADC_CR2_DMA;
+        // DDS = 0 -> DMA requests stop after last transfer (single-shot style)
+        _adc->CR2 &= ~ADC_CR2_DDS;
 
         _isInit = true;
         return  true;
@@ -64,7 +98,7 @@ class AdcController
     uint8_t addChannel(uint8_t channel)
     {
         // Check if adding channel is out of limit
-        if ((_channelCount >= 16) || (channel >= 16))
+        if (!_isInit || (_channelCount >= 16) || (channel >= 16))
         {
             return -1;
         }
@@ -94,12 +128,12 @@ class AdcController
         if (channel < 10)
         {
             _adc->SMPR2 &= ~(0x7 << (channel * 3));
-            _adc->SMPR2 |= SampleTime::Cycles7_5 << (channel * 3);
+            _adc->SMPR2 |= SampleTime::Cycles15 << (channel * 3);
         }
         else
         {
             _adc->SMPR1 &= ~(0x7 << ((channel - 10) * 3));
-            _adc->SMPR1 |= SampleTime::Cycles7_5 << ((channel - 10) * 3);
+            _adc->SMPR1 |= SampleTime::Cycles15 << ((channel - 10) * 3);
         }
         
         return _channelCount++;
@@ -107,35 +141,52 @@ class AdcController
 
     bool start()
     {
-        // DMA counter set
-        _dma->CCR = 0;                      // Clear config
-        while (_dma->CCR & DMA_CCR_EN);     // Wait
+        if (!_isInit || _channelCount == 0)
+        {
+            return false;
+        }
 
-        _dma->CNDTR = _channelCount;    // Count
-
-        _dma->CCR = 
-            DMA_CCR_MINC            // Memory increment
-            | DMA_CCR_PSIZE_0       // Peripheral 16-bit
-            | DMA_CCR_MSIZE_0       // Memory 16-bit
-            // | DMA_CCR_DIR           // 0 = Peripheral → Memory
-            | DMA_CCR_TCIE          // Interrupt
-            | DMA_CCR_EN;           // Enable
-
-        DMA1->IFCR = DMA_IFCR_CTCIF1 | DMA_IFCR_CHTIF1 | DMA_IFCR_CTEIF1 | DMA_IFCR_CGIF1;  // Clear flags
-
-        _adc->CR2 |= ADC_CR2_SWSTART;           // Start conversion
         if (_dma != nullptr)
         {
-            while (!(DMA1->ISR & DMA_ISR_TCIF1));
+            // Re-configure DMA for the current number of channels
+            _dma->CR &= ~DMA_SxCR_EN;
+            while (_dma->CR & DMA_SxCR_EN) {}
+
+            DMA2->LIFCR = DMA_LIFCR_CTCIF0 | DMA_LIFCR_CHTIF0 |
+                          DMA_LIFCR_CTEIF0 | DMA_LIFCR_CDMEIF0 | DMA_LIFCR_CFEIF0;
+
+            _dma->NDTR = _channelCount;
+
+            // Channel 0, Peripheral->Memory, 16-bit, memory increment, no peripheral increment
+            _dma->CR = (0U << DMA_SxCR_CHSEL_Pos)   // Channel 0 (ADC1)
+                     | (0U << DMA_SxCR_DIR_Pos)     // Peripheral to memory
+                     | DMA_SxCR_MINC                // Memory increment
+                     | (1U << DMA_SxCR_PSIZE_Pos)   // Peripheral size 16-bit
+                     | (1U << DMA_SxCR_MSIZE_Pos)   // Memory size 16-bit
+                     | DMA_SxCR_TCIE;               // Transfer complete interrupt (optional)
+
+            _dma->CR |= DMA_SxCR_EN;
+
+            // Start conversion by software
+            _adc->CR2 |= ADC_CR2_SWSTART;
+
+            // Wait for DMA transfer complete
+            while (!(DMA2->LISR & DMA_LISR_TCIF0)) {}
+            DMA2->LIFCR = DMA_LIFCR_CTCIF0;
         }
         else
         {
+            // Fallback: polling without DMA (single conversion per channel)
             for (uint8_t i = 0; i < _channelCount; ++i)
             {
-                while (!(_adc->SR & ADC_SR_EOC));       // Wait for conversion to complete
-                _data[i] = _adc->DR;      // Put data to reg 
+                // For single-channel mode we would reconfigure SQR, but here we keep scan
+                // and just wait for each EOC (works when EOCS=0, end of sequence)
+                _adc->CR2 |= ADC_CR2_SWSTART;
+                while (!(_adc->SR & ADC_SR_EOC)) {}
+                _data[i] = static_cast<uint16_t>(_adc->DR);
             }
         }
+
         return true;
     }
 
@@ -152,60 +203,22 @@ class AdcController
     private:
 
     ADC_TypeDef *_adc;
-    DMA_Channel_TypeDef *_dma = nullptr;
+    DMA_Stream_TypeDef *_dma = nullptr;
 
     uint8_t _channel[16];
     uint16_t _data [16];
     uint8_t _channelCount;
-
+    
     enum SampleTime : uint32_t
     {
-        Cycles1_5   = 0,
-        Cycles7_5   = 1,
-        Cycles13_5  = 2,
-        Cycles28_5  = 3,
-        Cycles41_5  = 4,
-        Cycles55_5  = 5,
-        Cycles71_5  = 6,
-        Cycles239_5 = 7,
-    };
-
-    enum ExtSel : uint32_t
-    {
-        Timer1Cc1        = 0 << ADC_CR2_EXTSEL_Pos,
-        Timer1Cc2        = 1 << ADC_CR2_EXTSEL_Pos,
-        Timer1Cc3        = 2 << ADC_CR2_EXTSEL_Pos,
-        Timer2Cc2        = 3 << ADC_CR2_EXTSEL_Pos,
-        Timer3Trgo       = 4 << ADC_CR2_EXTSEL_Pos,
-        Timer4Cc4        = 5 << ADC_CR2_EXTSEL_Pos,
-        Exti11Tim8Trgo   = 6 << ADC_CR2_EXTSEL_Pos,
-        SwStart          = 7 << ADC_CR2_EXTSEL_Pos,
-    };
-
-    enum JExtSel : uint32_t
-    {
-        Timer1Trgo      = 0 << ADC_CR2_JEXTSEL_Pos,
-        Timer1Cc4       = 1 << ADC_CR2_JEXTSEL_Pos,
-        Timer2Trgo      = 2 << ADC_CR2_JEXTSEL_Pos,
-        Timer2Cc1       = 3 << ADC_CR2_JEXTSEL_Pos,
-        Timer2Cc4       = 4 << ADC_CR2_JEXTSEL_Pos,
-        Timer4Trgo      = 5 << ADC_CR2_JEXTSEL_Pos,
-        Exti15Tim8Cc4   = 6 << ADC_CR2_JEXTSEL_Pos,
-        JSwStart        = 7 << ADC_CR2_JEXTSEL_Pos,
-    };
-
-    enum DualMode : uint32_t
-    {
-        Independent                  = 0 << ADC_CR1_DUALMOD_Pos,
-        RegularInjected              = 1 << ADC_CR1_DUALMOD_Pos,
-        RegularAlternateTrigger      = 2 << ADC_CR1_DUALMOD_Pos,
-        InjectedFastInterleaved      = 3 << ADC_CR1_DUALMOD_Pos,
-        InjectedSlowInterleaved      = 4 << ADC_CR1_DUALMOD_Pos,
-        InjectedOnly                 = 5 << ADC_CR1_DUALMOD_Pos,
-        RegularOnly                  = 6 << ADC_CR1_DUALMOD_Pos,
-        FastInterleavedOnly          = 7 << ADC_CR1_DUALMOD_Pos,
-        SlowInterleavedOnly          = 8 << ADC_CR1_DUALMOD_Pos,
-        AlternateTriggerOnly         = 9 << ADC_CR1_DUALMOD_Pos,
+        Cycles3   = 0,
+        Cycles15  = 1,
+        Cycles28  = 2,
+        Cycles56  = 3,
+        Cycles84  = 4,
+        Cycles112 = 5,
+        Cycles144 = 6,
+        Cycles480 = 7,
     };
 
     bool _isInit = false;

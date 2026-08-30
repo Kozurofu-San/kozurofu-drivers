@@ -35,7 +35,7 @@ class AdcController
         _adc->CR2 |= ADC_CR2_CAL;
         while(_adc->CR2 & ADC_CR2_CAL);
 
-        _adc->CR1 |= ADC_CR1_SCAN; // Enable scan mode (fro DMA)
+        _adc->CR1 |= ADC_CR1_SCAN; // Enable scan mode (for DMA)
 
         _adc->CR2 |= ADC_CR2_EXTTRIG | ADC_CR2_ALIGN | ExtSel::SwStart;
         _adc->CR1 |= DualMode::Independent;

@@ -4,7 +4,6 @@
 
 #include <cstdint>
 #include <cstddef>
-#include <cassert>
 
 #include "stm32f4xx.h"
 extern uint32_t SystemCoreClock;
@@ -12,7 +11,7 @@ extern uint32_t SystemCoreClock;
 namespace driver
 {
 
-class DacDriver : public IDac
+class DacController
 {
     public:
 
@@ -29,19 +28,10 @@ class DacDriver : public IDac
         None,
     };
 
-    struct ChannelConfig
+    DacController(DAC_TypeDef *dac)
+        : _dac(dac)
     {
-        uint8_t channel;
-    };
-
-    DacDriver(DAC_TypeDef *dac, ChannelConfig *channels, size_t channelCount)
-        : _dac(dac), _channels(channels), _channelCount(channelCount)
-    {
-        assert(channelCount <= 2);
-        for (size_t i = 0; i < channelCount; ++i)
-        {
-            assert(channels[i].channel <= 2);
-        }
+        _channelCount = 0;
     }
 
     bool init(Trigger trigger)
@@ -99,12 +89,17 @@ class DacDriver : public IDac
         return true;
     }
 
-    inline void start() override
+    uint8_t addChannel(uint8_t channel)
+    {
+        return 0;
+    }
+
+    inline void start()
     {
         _dac->SWTRIGR = DAC_SWTRIGR_SWTRIG1 | DAC_SWTRIGR_SWTRIG2;
     }
 
-    void setVoltage(uint32_t voltage, size_t channel) override
+    void setVoltage(uint32_t voltage, size_t channel)
     {
         uint32_t value = static_cast<uint32_t>((voltage * 4095) / 3000);
         if (value > 4095) value = 4095;
@@ -119,7 +114,7 @@ class DacDriver : public IDac
         }
     }
 
-    void setRawValue(uint16_t value, size_t channel) override
+    void setRawValue(uint16_t value, size_t channel)
     {
         if (_channels[channel].channel == 1)
         {
@@ -131,7 +126,7 @@ class DacDriver : public IDac
         }
     }
 
-    bool isInit() override
+    bool isInit()
     {
         return _isInit;
     }
@@ -139,7 +134,6 @@ class DacDriver : public IDac
     private:
 
     DAC_TypeDef *_dac;
-    ChannelConfig *_channels;
     size_t _channelCount;
     
     bool _isInit = false;
