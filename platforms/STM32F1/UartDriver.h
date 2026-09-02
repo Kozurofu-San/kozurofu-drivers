@@ -60,7 +60,7 @@ class UartDriver : public IUart
         for (size_t i = 0; i < len; ++i)
         {
             while (!(_uart->SR & USART_SR_TXE));
-             _uart->DR = *data++;
+            _uart->DR = *data++;
         }
         return true;
     };

@@ -103,19 +103,10 @@ class Lcd1602Driver: public ILog
         printString(channel, _buffer);
     }
 
-    void value([[maybe_unused]] uint8_t channel, [[maybe_unused]] int32_t value) override
+    void print([[maybe_unused]] uint8_t channel, [[maybe_unused]] int32_t value) override
     {
     }
     
-    bool scan([[maybe_unused]] char* string) override
-    {
-        return false;
-    }
-    bool scan([[maybe_unused]] int& number) override
-    {
-        return false;
-    }
-
     bool isInit() override
     {
         return _isInit;

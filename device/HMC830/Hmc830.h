@@ -6,6 +6,8 @@
 #include "interface/Timer.h"
 #include "interface/Spi.h"
 
+#include <cstdio>
+
 /* // RF generator
 
 #include "device/Hmc830/Hmc830.h"
