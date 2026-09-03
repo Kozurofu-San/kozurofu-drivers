@@ -58,12 +58,13 @@ class UsbCdc: public IUart
         _usb->DIEPTXF0_HNPTXFSIZ = (TxEp0FifoSize << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (RxFifoSize << USB_OTG_DIEPTXF_INEPTXSA_Pos);
         _usb->DIEPTXF[Ep1 - 1] =   (TxEp1FifoSize << USB_OTG_DIEPTXF_INEPTXFD_Pos) | ((RxFifoSize + TxEp0FifoSize) << USB_OTG_DIEPTXF_INEPTXSA_Pos);
         _usb->DIEPTXF[Ep2 - 1] = 0;
-        // _usb->DIEPTXF[Ep3 - 1] = 0;
+        _usb->DIEPTXF[Ep3 - 1] = 0;
         // _usb->DIEPTXF[Ep2 - 1] =   ((TxEp2FifoSize) << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (RxFifoSize+TxEp0FifoSize+TxEp1FifoSize);
-        _usb->DIEPTXF[Ep3 - 1] =   ((TxEp3FifoSize) << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (RxFifoSize+TxEp0FifoSize+TxEp1FifoSize+TxEp2FifoSize); 
-        // for(uint32_t i = 3; i < 0x10 ; i++){
-        //     USB_OTG_FS->DIEPTXF[i] = 0;
-        // }
+        // _usb->DIEPTXF[Ep3 - 1] =   ((TxEp3FifoSize) << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (RxFifoSize+TxEp0FifoSize+TxEp1FifoSize+TxEp2FifoSize); 
+        for(uint32_t i = 3; i < 0x10 ; ++i)
+        {
+            USB_OTG_FS->DIEPTXF[i] = 0;
+        }
         /* Init  EP0: 1 Packet, 3*8 bytes */
         epOut(Ep0)->DOEPTSIZ = 1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos // This field is decremented to zero after a packet is written into the RxFIFO
             | MaxPacketSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos   // Set in descriptor
@@ -84,7 +85,7 @@ class UsbCdc: public IUart
         }
         EndPoint[Ep0].rxBufferPtr = rxBufferEp0;    // RX Buffer for EP0
         EndPoint[Ep1].rxBufferPtr = rxBufferEp1;	// RX Buffer for CDC data
-        EndPoint[Ep2].rxBufferPtr = rxBufferEp2;	// RX Buffer for MSC data
+        // EndPoint[Ep2].rxBufferPtr = rxBufferEp2;	// RX Buffer for MSC data
 
         // Interrupts
         NVIC_SetPriority(OTG_FS_IRQn, 6);
@@ -134,16 +135,6 @@ class UsbCdc: public IUart
                 }
             }
 
-            if (epNums & (Ep3Mask << USB_OTG_DAINT_IEPINT_Pos))
-            {
-                uint32_t intr = epIn(Ep3)->DIEPINT;
-                printf("\nI3(%04X)", (unsigned int)intr);
-                if (intr & USB_OTG_DIEPINT_XFRC)        // Transfer completed interrupt
-                {
-                    transferTxCallback(Ep3);			// Process TX transmission (if TX buffer is not empty)
-                    epIn(Ep3)->DIEPINT = USB_OTG_DIEPINT_XFRC;	
-                }
-            }
             return;
         }
         
@@ -179,18 +170,6 @@ class UsbCdc: public IUart
                 epOut(Ep1)->DOEPINT = intr;
             }
             
-            if (epNums & (Ep2Mask << USB_OTG_DAINT_OEPINT_Pos))
-            {
-                uint32_t intr = epOut(Ep2)->DOEPINT;
-                printf("\nO2(%04X)", (unsigned int)intr);
-                if (intr & USB_OTG_DOEPINT_XFRC)
-                {
-                    transferRxCallback(Ep2);
-                    epOut(Ep2)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;  // CNAK and EPENA must be set again after every interrupt to let this EP recieve upcoming data
-                }
-                epOut(Ep2)->DOEPINT = intr;
-            }
-            
             return;
         }
 
@@ -220,7 +199,7 @@ class UsbCdc: public IUart
         }
     }
     
-    uint32_t write(uint8_t *txBuff, uint16_t len)   // Write to host
+    bool write(uint8_t *data, size_t len) override   // Write to host
     {
         if (!(device_state & DEVICE_STATE_TX_PR) &&
             !(epIn(Ep1)->DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ) &&
@@ -228,20 +207,31 @@ class UsbCdc: public IUart
             !(epIn(Ep1)->DIEPCTL & USB_OTG_DIEPCTL_EPENA)  &&
             ((epIn(Ep1)->DIEPINT & USB_OTG_DIEPINT_TXFE) != 0))
         {
-            setTxBuffer(Ep1, txBuff, len);
+            setTxBuffer(Ep1, data, len);
             return EpOk;
         }
         else return EpFailed;
     }
     
-    uint32_t read(uint16_t length)  // CDC loopback echo
+    bool read(uint8_t *data, size_t len) override  // CDC loopback echo
     {
-        write(EndPoint[Ep1].rxBufferPtr, length);
-        return length;
+        write(data, len);
+        return true;
     }
 
-    inline bool isInit() const { return _isInit; }
-    inline uint32_t getSpeed() const { return _speed; }
+    void setCallback(void (*cb)(uint32_t)) override
+    {
+        _cb = cb;
+    }
+
+    void setBuffer(uint8_t *buffer, size_t size) override
+    {
+        _buffer = buffer;
+        _bufferSize = size;
+    }
+    
+    inline bool isInit() override { return _isInit; }
+    inline uint32_t getSpeed() const override { return _speed; }
 
     USB_OTG_GlobalTypeDef* getUsb() { return _usb; }
     
@@ -251,6 +241,10 @@ class UsbCdc: public IUart
     USB_OTG_DeviceTypeDef   *_dev = reinterpret_cast<USB_OTG_DeviceTypeDef*>(USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE);
     USB_OTG_HostTypeDef     *_host = reinterpret_cast<USB_OTG_HostTypeDef*>(USB_OTG_FS_PERIPH_BASE + USB_OTG_HOST_BASE);
     __IO uint32_t           *_pwr = reinterpret_cast<__IO uint32_t*>(USB_OTG_FS_PERIPH_BASE + USB_OTG_PCGCCTL_BASE);
+
+    void (*_cb)(uint32_t) = nullptr;
+    uint8_t *_buffer = nullptr;
+    size_t _bufferSize = 0;
 
     uint32_t _speed = 0;
     bool _isInit = false;
@@ -406,7 +400,7 @@ class UsbCdc: public IUart
         EndPoint[EPnum].rxBufferPtr -= EndPoint[EPnum].rxCounter;      // Reset RX counter and buffer pointer
         EndPoint[EPnum].rxCounter = 0;
         
-        read(len);
+        _cb(len);
     
         epOut(EPnum)->DOEPTSIZ = DoeptTransferPct << USB_OTG_DOEPTSIZ_PKTCNT_Pos
             | len << USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
@@ -419,8 +413,8 @@ class UsbCdc: public IUart
         _usb->GINTSTS &= ~0xFFFFFFFF;
         
         _dev->DAINTMSK =
-            (Ep0Mask | Ep1Mask | Ep3Mask) << USB_OTG_DAINTMSK_IEPM_Pos |
-            (Ep0Mask | Ep1Mask | Ep2Mask) << USB_OTG_DAINTMSK_OEPM_Pos ;
+            (Ep0Mask | Ep1Mask) << USB_OTG_DAINTMSK_IEPM_Pos |
+            (Ep0Mask | Ep1Mask) << USB_OTG_DAINTMSK_OEPM_Pos ;
 
         _dev->DOEPMSK = USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;  // Unmask SETUP Phase done Mask, Transfer Completed interrupt for OUT
         _dev->DIEPMSK = USB_OTG_DIEPMSK_XFRCM;                          // TransfeR Completed interrupt for IN

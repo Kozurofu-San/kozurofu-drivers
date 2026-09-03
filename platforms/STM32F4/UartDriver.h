@@ -60,18 +60,14 @@ class UartDriver : public IUart
         return true;
     };
 
-    bool setDma()
-    {
-        return true;
-    }
-
     bool write(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; ++i)
         {
             while (!(_uart->SR & USART_SR_TXE));
-             _uart->DR = *data++;
+            _uart->DR = *data++;
         }
+        return true;
     };
 
     bool read(uint8_t *data, size_t len) override
@@ -81,6 +77,7 @@ class UartDriver : public IUart
             while (!(_uart->SR & USART_SR_RXNE));
             *data++ = _uart->DR;
         }
+        return true;
     };
 
     void setCallback(void (*cb)(uint32_t)) override
@@ -118,7 +115,6 @@ class UartDriver : public IUart
     size_t _bufferSize = 0;
 
     uint32_t _speed; // Speed in Hz
-    
     bool _isInit = false;
 };
 

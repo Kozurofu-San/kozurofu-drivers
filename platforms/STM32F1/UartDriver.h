@@ -50,11 +50,6 @@ class UartDriver : public IUart
         return true;
     };
 
-    bool setDma()
-    {
-        return true;
-    }
-
     bool write(uint8_t *data, size_t len) override
     {
         for (size_t i = 0; i < len; ++i)

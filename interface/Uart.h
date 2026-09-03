@@ -17,6 +17,7 @@ class IUart
 
     virtual void setCallback(void (*cb)(uint32_t)) = 0;
     virtual void setBuffer(uint8_t *buffer, size_t size) = 0;
+    
     virtual uint32_t getSpeed() const = 0;
     virtual bool isInit() = 0;
 };

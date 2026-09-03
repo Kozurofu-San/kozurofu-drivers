@@ -7,8 +7,6 @@
 
 #include "stm32f4xx.h"
 
-#include "FreeRTOSConfig.h"
-
 extern uint32_t SystemCoreClock;
 
 namespace driver
@@ -73,7 +71,7 @@ class GpioDriver : public IGpio
         Dcmi                = 13,
     };
 
-    bool init(Mode mode, Speed speed, Pull pull, Interrupt interrupt = Interrupt::None)
+    bool init(Mode mode, Speed speed, Pull pull)
     {
         // Clock enable
         uint32_t rccPort = 0;
@@ -97,38 +95,6 @@ class GpioDriver : public IGpio
         _port->PUPDR &= ~(0x3 << (_pin * 2));
         _port->PUPDR |= static_cast<uint8_t>(pull) << (_pin * 2);
 
-        // Interrupts
-        if (interrupt == Interrupt::None)
-        {
-            _isInit = true;
-            return true;
-        }
-        uint32_t portNumber = ((uint32_t) _port - AHB1PERIPH_BASE) >> 10;
-        uint8_t syscfgNumber = _pin >> 2;
-        SYSCFG->EXTICR[syscfgNumber] |= portNumber << ((_pin % 4) * 4);
-        EXTI->IMR |= 1 << _pin;
-        if (interrupt == Interrupt::Rise || interrupt == Interrupt::RiseFall)
-        {
-            EXTI->RTSR |= 1 << _pin;
-        }
-        if (interrupt == Interrupt::Fall || interrupt == Interrupt::RiseFall)
-        {
-            EXTI->FTSR |= 1 << _pin;
-        }
-        EXTI->PR = 1 << _pin;
-
-        IRQn_Type irqn;
-        if (_pin == 0) irqn = EXTI0_IRQn;
-        else if (_pin == 1) irqn = EXTI1_IRQn;
-        else if (_pin == 2) irqn = EXTI2_IRQn;
-        else if (_pin == 3) irqn = EXTI3_IRQn;
-        else if (_pin == 4) irqn = EXTI4_IRQn;
-        else if (_pin >= 5 && _pin <= 9) irqn = EXTI9_5_IRQn;
-        else if (_pin >= 10 && _pin <= 15) irqn = EXTI15_10_IRQn;
-
-        NVIC_SetPriority(irqn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
-        NVIC_EnableIRQ(irqn);
-        
         _isInit = true;
         return true;
     }
@@ -156,17 +122,8 @@ class GpioDriver : public IGpio
 
     void setDir(Direction dir) override
     {
-        uint8_t conf = (dir == Direction::Input) ? static_cast<uint8_t>(Mode::Input) : ((static_cast<uint8_t>(Mode::OutputPushpull) & 0xC) | static_cast<uint8_t>(_speed));
-        if (_pin < 8)
-        {
-            _port->CRL &= ~(0xF << (_pin * 4));
-            _port->CRL |= conf << (_pin * 4);
-        }
-        else
-        {
-            _port->CRH &= ~(0xF << ((_pin - 8) * 4));
-            _port->CRH |= conf << ((_pin - 8) * 4);
-        }
+        _port->MODER &= ~(0x3 << (_pin * 2));
+        _port->MODER |= dir << (_pin * 2);
         if (dir == Direction::Input)
         {
             _port->BSRR = 1 << _pin;
@@ -220,42 +177,14 @@ class GpioDriver : public IGpio
 
         __disable_irq();
 
-        // AFIO clock
-        RCC->APB2ENR |= RCC_APB2ENR_AFIOEN;
+        // Interrupts
+        uint32_t portNumber = ((uint32_t) _port - AHB1PERIPH_BASE) >> 10;
+        uint8_t syscfgNumber = _pin >> 2;
+        SYSCFG->EXTICR[syscfgNumber] |= portNumber << ((_pin % 4) * 4);
+        EXTI->IMR |= 1 << _pin;
+        EXTI->RTSR |= 1 << _pin;    // Rise edge trigger
+        EXTI->PR = 1 << _pin;
 
-        // Select GPIO port for EXTI line
-        const uint32_t extiIndex = _pin / 4;
-        const uint32_t extiShift = (_pin % 4) * 4;
-
-        uint32_t portCode = 0;
-
-        if (_port == GPIOA)      portCode = 0;
-        else if (_port == GPIOB) portCode = 1;
-        else if (_port == GPIOC) portCode = 2;
-        else if (_port == GPIOD) portCode = 3;
-        else if (_port == GPIOE) portCode = 4;
-        else
-        {
-            __enable_irq();
-            return false;
-        }
-
-        // AFIO->EXTICR[n]: select GPIO port for EXTI line
-        AFIO->EXTICR[extiIndex] &= ~(0xF << extiShift);
-        AFIO->EXTICR[extiIndex] |=  (portCode << extiShift);
-
-        // Enable EXTI line
-        EXTI->IMR |= (1U << _pin);
-
-        // Example: interrupt on falling edge
-        EXTI->FTSR |= (1U << _pin);
-        EXTI->RTSR &= ~(1U << _pin);
-
-        // Clear pending interrupt
-        EXTI->PR = (1U << _pin);
-
-        // Enable corresponding NVIC interrupt
-        
         IRQn_Type irqn;
         if (_pin == 0) irqn = EXTI0_IRQn;
         else if (_pin == 1) irqn = EXTI1_IRQn;
@@ -265,9 +194,9 @@ class GpioDriver : public IGpio
         else if (_pin >= 5 && _pin <= 9) irqn = EXTI9_5_IRQn;
         else if (_pin >= 10 && _pin <= 15) irqn = EXTI15_10_IRQn;
 
-        NVIC_SetPriority(irqn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
+        NVIC_SetPriority(irqn, 5 + 1);
         NVIC_EnableIRQ(irqn);
-
+        
         __enable_irq();
 
         return true;

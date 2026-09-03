@@ -32,7 +32,7 @@ class AdcController
         _adc->CR2 |= ADC_CR2_ADON; // Enable ADC
 
         // Wait for ADC stabilization (tSTAB ~ 3 us, simple delay loop is enough)
-        for (volatile uint32_t i = 0; i < 100; ++i) {}
+        for (volatile uint32_t i = 0; i < 100;) { i = i + 1; }
 
         _adc->CR1 |= ADC_CR1_SCAN;      // Enable scan mode (for DMA)
         _adc->CR2 |= ADC_CR2_ALIGN;

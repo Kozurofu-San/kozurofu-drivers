@@ -7,8 +7,6 @@
 
 #include "stm32f1xx.h"
 
-#include "FreeRTOSConfig.h"
-
 extern uint32_t SystemCoreClock;
 
 namespace driver
@@ -208,7 +206,7 @@ class GpioDriver : public IGpio
         else if (_pin >= 5 && _pin <= 9) irqn = EXTI9_5_IRQn;
         else if (_pin >= 10 && _pin <= 15) irqn = EXTI15_10_IRQn;
 
-        NVIC_SetPriority(irqn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
+        NVIC_SetPriority(irqn, 5 + 1);
         NVIC_EnableIRQ(irqn);
 
         __enable_irq();
