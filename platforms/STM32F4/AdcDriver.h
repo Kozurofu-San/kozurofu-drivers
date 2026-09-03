@@ -260,7 +260,6 @@ class AdcDriver : public IAdc
         {
             return -1;
         }
-        _adc.start();
         return _adc.getRawValue(_channelEnum);
     }
 

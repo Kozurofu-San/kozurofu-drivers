@@ -55,7 +55,7 @@ class LogDriver : public ILog
         #endif
     }
 
-    void value(uint8_t channel, int32_t value) override
+    void print(uint8_t channel, int32_t value) override
     {
         #ifdef LOG
         if constexpr (std::same_as<T, IItm>)
@@ -63,16 +63,6 @@ class LogDriver : public ILog
             _p.writeInt(channel, value);
         }
         #endif
-    }
-
-    bool scan(char* string) override
-    {
-        return true;
-    }
-    
-    bool scan(int& number) override
-    {
-        return true;
     }
 
     bool isInit() override
