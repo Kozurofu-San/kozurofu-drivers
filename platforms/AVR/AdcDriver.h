@@ -35,7 +35,7 @@ class AdcDriver : public IVoltageGet
 
     void start() override
     {
-        for (size_t i = 0; i < _channelCount; i++)
+        for (size_t i = 0; i < _channelCount; ++i)
         {
             ADMUX = (ADMUX & 0xF0) | (_channels[i].channel & 0x0F);  // Select ADC channel (0 to 7) without affecting other bits
             ADCSRA |= _BV(ADSC);          // Start conversion

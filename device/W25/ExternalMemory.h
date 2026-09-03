@@ -92,7 +92,7 @@ class ExternalMemoryDriver : public IMemory
             } while (_buffer[0] & ExternalMemory::Status::Busy);
 
             read(_cache2, address, chunk);
-            for (size_t i = 0; i < chunk; i++)
+            for (size_t i = 0; i < chunk; ++i)
             {
                 if (data[i] != _cache2[i])
                 {
@@ -241,7 +241,7 @@ class ExternalMemoryDriver : public IMemory
             eraseSector(_cacheAddr);
             write(_cache, _cacheAddr, CacheSize);
             read(_cache2, _cacheAddr, CacheSize);
-            for (size_t i = 0; i < CacheSize; i++)
+            for (size_t i = 0; i < CacheSize; ++i)
             {
                 if (_cache[i] != _cache2[i])
                 {

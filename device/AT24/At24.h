@@ -64,7 +64,7 @@ class At24 : public IMemory
         _p.start();
         _p.address(II2c::Cmd::Write | ((address >> 8U) << 1));
         _p.write(address);
-        for (uint32_t i = 0; i < len; i++)
+        for (uint32_t i = 0; i < len; ++i)
         {
             _p.write(data[i]);
         }
@@ -108,7 +108,7 @@ class At24 : public IMemory
         _p.start();
         _p.address(II2c::Cmd::Write | (sector << 1));
         _p.write(sector);
-        for (uint32_t i = 0; i < len; i++)
+        for (uint32_t i = 0; i < len; ++i)
         {
             _p.write(data[i]);
         }
@@ -135,7 +135,7 @@ class At24 : public IMemory
         _p.start();
         _p.address(II2c::Cmd::Write | (sector << 1));
         _p.write(sector);
-        for (uint32_t i = 0; i < PageSize; i++)
+        for (uint32_t i = 0; i < PageSize; ++i)
         {
             _p.write(0xFF);
         }

@@ -42,7 +42,7 @@ class AdcDriver : public IVoltageGet
 
         _channelMask = 0;
 
-        for (size_t i = 0; i < _channelCount; i++)
+        for (size_t i = 0; i < _channelCount; ++i)
         {
             const uint8_t ch = _channels[i].channel;
             if (ch > static_cast<uint8_t>(ADC_TEMPERATURE_SENSOR))
@@ -67,7 +67,7 @@ class AdcDriver : public IVoltageGet
 
         for (size_t pass = 0; pass < 2; ++pass)
         {
-            for (size_t i = 0; i < _channelCount; i++)
+            for (size_t i = 0; i < _channelCount; ++i)
             {
                 const uint8_t ch = _channels[i].channel;
                 adc_disable_all_channel(_adc);
@@ -113,7 +113,7 @@ class AdcDriver : public IVoltageGet
         }
 
         adc_disable_all_channel(_adc);
-        for (size_t i = 0; i < _channelCount; i++)
+        for (size_t i = 0; i < _channelCount; ++i)
         {
             adc_enable_channel(_adc, static_cast<enum adc_channel_num_t>(_channels[i].channel));
         }

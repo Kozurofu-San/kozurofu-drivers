@@ -65,7 +65,8 @@ class TimerFreertos : public ITimer
         {
         #ifndef ESP32
             SysTick->CTRL |= SysTick_CTRL_ENABLE_Msk;
-            for(uint32_t i=0; i < ms; i++) {
+            for(uint32_t i=0; i < ms; ++i)
+            {
                 SysTick->VAL = 0;
                 while(!(SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk));
             }

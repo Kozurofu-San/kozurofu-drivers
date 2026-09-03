@@ -304,7 +304,7 @@ private:
             else if (ep == 3) // Bulk OUT
             {
                 uint16_t cntRx = usbRead(ep, _buffer, _bufferSize);
-                for (int i = 0; i < _cntRx; i++)
+                for (int i = 0; i < _cntRx; ++i)
                     printf("%c", _buffer[i]);
                 _cntRx += cntRx;
                 if (!(cntRx == 64 && (USB->ISTR & USB_ISTR_EP_ID) == ep))

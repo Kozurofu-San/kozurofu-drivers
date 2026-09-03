@@ -70,14 +70,14 @@ class Ld2410Driver : IPresence
         ret &= cmd(Ld2410::EnableConfig) > 0;
         length = cmd(Ld2410::ReadFirmwareVersion);
         printf("LD2410 FW v");
-        for (uint8_t i = 0; i < length - 6; i++)
+        for (uint8_t i = 0; i < length - 6; ++i)
         {
             printf("%02X", _buffer[12 + i]);
         }
         printf("\n");
         length = cmd(Ld2410::GetMacAddress);
         printf("LD2410 MAC ");
-        for (uint8_t i = 0; i < length - 4; i++)
+        for (uint8_t i = 0; i < length - 4; ++i)
         {
             printf("%02X:", _buffer[10 + i]);
         }

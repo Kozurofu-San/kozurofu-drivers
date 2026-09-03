@@ -37,7 +37,8 @@ class Utils
     static uint32_t binToBcdSimple(uint16_t bin)
     {
         uint32_t bcd = 0;
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 16; ++i)
+        {
             for (int shift = 0; shift < 5; shift++)
             {
                 if (((bcd >> (shift * 4)) & 0xF) > 4)

@@ -76,7 +76,7 @@ class UsbCdc: public IUart
         _dev->DCTL &= ~USB_OTG_DCTL_SDIS;       // Soft connect
 
         // Init EP
-        for (uint32_t i = 0; i < EpCount; i++)
+        for (uint32_t i = 0; i < EpCount; ++i)
         {
             EndPoint[i].statusRx = EpReady;
             EndPoint[i].statusTx = EpReady;
@@ -279,7 +279,7 @@ class UsbCdc: public IUart
         }
 
         uint32_t *ptr = reinterpret_cast<uint32_t *>(EndPoint[dfifo].rxBufferPtr);
-        for (uint32_t i = 0; i < block_cnt; i++)
+        for (uint32_t i = 0; i < block_cnt; ++i)
         {
             *ptr++ = *fifo(0);
             printf(" r%08X", (unsigned int)*ptr);
@@ -301,7 +301,7 @@ class UsbCdc: public IUart
         uint32_t block_cnt = (len / sizeof(uint32_t)) + residue;
         
         uint32_t *ptr = reinterpret_cast<uint32_t *>(src);
-        for (uint32_t i = 0; (i < block_cnt) ; i++)
+        for (uint32_t i = 0; (i < block_cnt); ++i)
         {
             printf(" w%08X", (unsigned int)*ptr);
             *fifo(dfifo) = *ptr++;

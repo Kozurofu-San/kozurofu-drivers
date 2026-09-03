@@ -41,7 +41,7 @@ class SpiController
     {
         uint32_t baudrate = 0;
         uint8_t prescaler = 0;
-        for (uint8_t i = 0; i < sizeof(Prescaler) / sizeof(Prescaler[0]); i++)
+        for (uint8_t i = 0; i < sizeof(Prescaler) / sizeof(Prescaler[0]); ++i)
         {
             baudrate = F_CPU >> Prescaler[i];
             if (baudrate <= speed)
@@ -135,7 +135,7 @@ class SpiDriver : public ISpi
 
     void write(uint8_t *data, size_t len) override
     {
-        for(size_t i = 0; i < len; i++)
+        for(size_t i = 0; i < len; ++i)
         {
             _spi.transfer(data[i]);
         }
@@ -143,7 +143,7 @@ class SpiDriver : public ISpi
 
     inline void read(uint8_t *data, size_t len) override
     {
-        for(size_t i = 0; i < len; i++)
+        for(size_t i = 0; i < len; ++i)
         {
             data[i] = _spi.transfer(0);
         }
