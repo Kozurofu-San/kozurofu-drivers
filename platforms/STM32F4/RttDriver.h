@@ -43,7 +43,7 @@ class RttDriver : public IRtt
      * @brief Explicitly initialize SEGGER RTT.
      * Safe to call multiple times.
      */
-    bool init(uint32_t portMask)
+    bool init()
     {
         SEGGER_RTT_Init();
         

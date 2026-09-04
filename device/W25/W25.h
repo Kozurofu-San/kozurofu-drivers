@@ -3,7 +3,7 @@
 #include "interface/Memory.h"
 #include "interface/Spi.h"
 #include "interface/Timer.h"
-#include "ExternalMemoryConst.h"
+#include "W25Const.h"
 
 #include <cstdint>
 #include <cstring>
@@ -11,18 +11,18 @@
 namespace driver
 {
 
-class ExternalMemoryDriver : public IMemory
+class W25Driver : public IMemory
 {
     public:
 
     static constexpr uint32_t MaxSpeed = 133000000; // 133 MHz for W25Q16
     static constexpr uint8_t Manufacturer = 0xEF;
 
-    ExternalMemoryDriver(ISpi &p, ITimer &timer)
+    W25Driver(ISpi &p, ITimer &timer)
         : _p(p), _timer(timer)
     {
     }
-    ~ExternalMemoryDriver() = default;
+    ~W25Driver() = default;
 
     // // Cashe management for FS
     // void cacheLoad(uint32_t addr);
@@ -44,12 +44,12 @@ class ExternalMemoryDriver : public IMemory
             return false; // Speed is too high for this memory
         }
 
-        readCmd(ExternalMemory::Instruction::JedecId, _buffer, 4);
+        readCmd(W25::Instruction::JedecId, _buffer, 4);
         _manufacturerId = _buffer[0];
         _type = _buffer[1];
         _sectorCount = _buffer[2];
         _sectorCount = (1 << _sectorCount) / SectorSize;
-        readCmd(ExternalMemory::Instruction::ReadUniqueId, _buffer, 12);
+        readCmd(W25::Instruction::ReadUniqueId, _buffer, 12);
         _uniqueId = 
             static_cast<uint64_t>(_buffer[5]) << 40 |
             static_cast<uint64_t>(_buffer[6]) << 32 |
@@ -57,8 +57,8 @@ class ExternalMemoryDriver : public IMemory
             static_cast<uint64_t>(_buffer[8]) << 16 |
             static_cast<uint64_t>(_buffer[9]) << 8  |
             static_cast<uint64_t>(_buffer[10]);
-        readCmd(ExternalMemory::Instruction::EnableReset, _buffer, 1);
-        readCmd(ExternalMemory::Instruction::ResetDevice, _buffer, 1);
+        readCmd(W25::Instruction::EnableReset, _buffer, 1);
+        readCmd(W25::Instruction::ResetDevice, _buffer, 1);
         _timer.delay(100);
 
         if (_manufacturerId == Manufacturer)
@@ -71,7 +71,7 @@ class ExternalMemoryDriver : public IMemory
 
     void write(uint8_t *data, uint32_t address, size_t len) override
     {
-        uint8_t addressBytes = ExternalMemory::HighCap ? 4 : 3;
+        uint8_t addressBytes = W25::HighCap ? 4 : 3;
 
         while (len > 0)
         {
@@ -79,17 +79,17 @@ class ExternalMemoryDriver : public IMemory
             size_t chunk = PageSize - page_off;
             if (chunk > len) chunk = len;
 
-            readCmd(ExternalMemory::Instruction::WriteEnable, _buffer, 0);
+            readCmd(W25::Instruction::WriteEnable, _buffer, 0);
             _p.enable();
-            _p.transfer(ExternalMemory::Instruction::PageProgram);
+            _p.transfer(W25::Instruction::PageProgram);
             _p.write((uint8_t*)&address, addressBytes);
             _p.write(data, chunk);
             _p.disable();
             
             do
             {
-                readCmd(ExternalMemory::Instruction::ReadStatusRegister1, _buffer, 1);
-            } while (_buffer[0] & ExternalMemory::Status::Busy);
+                readCmd(W25::Instruction::ReadStatusRegister1, _buffer, 1);
+            } while (_buffer[0] & W25::Status::Busy);
 
             read(_cache2, address, chunk);
             for (size_t i = 0; i < chunk; ++i)
@@ -105,16 +105,16 @@ class ExternalMemoryDriver : public IMemory
             data    += chunk;
             len     -= chunk;            
         }
-        readCmd(ExternalMemory::Instruction::WriteDisable, _buffer, 0);
+        readCmd(W25::Instruction::WriteDisable, _buffer, 0);
 
     }
 
     void read (uint8_t *data, uint32_t address, size_t len) override
     {
-        uint8_t addressBytes = ExternalMemory::HighCap ? 4 : 3;
+        uint8_t addressBytes = W25::HighCap ? 4 : 3;
 
         _p.enable();
-        _p.transfer(ExternalMemory::Instruction::ReadData);
+        _p.transfer(W25::Instruction::ReadData);
         _p.write((uint8_t*)&address, addressBytes);
         _p.read(data, len);
         _p.disable();
@@ -147,31 +147,31 @@ class ExternalMemoryDriver : public IMemory
 
     void erase() override
     {
-        readCmd(ExternalMemory::Instruction::WriteEnable, _buffer, 0);
+        readCmd(W25::Instruction::WriteEnable, _buffer, 0);
 
         _p.enable();
-        _p.transfer(ExternalMemory::Instruction::ChipErase);
+        _p.transfer(W25::Instruction::ChipErase);
         _p.disable();
         do
         {
-            readCmd(ExternalMemory::Instruction::ReadStatusRegister1, _buffer, 1);
-        } while (_buffer[0] & ExternalMemory::Status::Busy);
-        readCmd(ExternalMemory::Instruction::WriteDisable, _buffer, 0);
+            readCmd(W25::Instruction::ReadStatusRegister1, _buffer, 1);
+        } while (_buffer[0] & W25::Status::Busy);
+        readCmd(W25::Instruction::WriteDisable, _buffer, 0);
     }
 
     void eraseSector(uint32_t sector)
     {
-        readCmd(ExternalMemory::Instruction::WriteEnable, _buffer, 0);
+        readCmd(W25::Instruction::WriteEnable, _buffer, 0);
 
         _p.enable();
-        _p.transfer(ExternalMemory::Instruction::SectorErase4Kb);
-        _p.write((uint8_t*)&sector, ExternalMemory::HighCap ? 4 : 3);
+        _p.transfer(W25::Instruction::SectorErase4Kb);
+        _p.write((uint8_t*)&sector, W25::HighCap ? 4 : 3);
         _p.disable();
         do
         {
-            readCmd(ExternalMemory::Instruction::ReadStatusRegister1, _buffer, 1);
-        } while (_buffer[0] & ExternalMemory::Status::Busy);
-        readCmd(ExternalMemory::Instruction::WriteDisable, _buffer, 0);
+            readCmd(W25::Instruction::ReadStatusRegister1, _buffer, 1);
+        } while (_buffer[0] & W25::Status::Busy);
+        readCmd(W25::Instruction::WriteDisable, _buffer, 0);
     }
 
     bool isInit() override

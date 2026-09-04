@@ -52,23 +52,24 @@ class GpioDriver : public IGpio
         RiseFall
     };
 
+    // RM 8.3.2
     enum class Alternate: uint8_t
     {
         None                = 0x80,
-        Sys                 = 0,
-        Tim1_2              = 1,
-        Tim3_4_5            = 2,
-        Tim8_9_10_11        = 3,
-        I2c1_2_3            = 4,
-        Spi1_2_I2s2_I2s2ext = 5,
-        Spi3_I2sext_I2s3    = 6,
-        Usart1_2_3_I2s3ext  = 7,
-        Usart4_5_6          = 8,
-        Can1_2_Tim12_13_14  = 9,
-        OtgFs_Hs            = 10,
-        Eth                 = 11,
-        Fsmc_Sdio_OtgFs     = 12,
-        Dcmi                = 13,
+        System              = 0,
+        TIM1_2              = 1,
+        TIM3_5              = 2,
+        TIM8_11             = 3,
+        I2C1_3              = 4,
+        SPI1_2_I2S2_I2S2ext = 5,
+        SPI3_I2Sext_I2S3    = 6,
+        USART1_3_I2s3ext    = 7,
+        USART4_6            = 8,
+        CAN1_2_TIM12_14     = 9,
+        OTGFS_HS            = 10,
+        ETH_                = 11,
+        FSMC_SDIO_OTGFS     = 12,
+        DCMI_               = 13,
     };
 
     bool init(Mode mode, Speed speed, Pull pull)

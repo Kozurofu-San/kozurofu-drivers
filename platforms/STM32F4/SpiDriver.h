@@ -297,16 +297,18 @@ class SpiDriver : public ISpi
         High = true
     };
 
-    SpiDriver(SpiController &spi)
-        : _spi(spi)
+    SpiDriver(SpiController &spi, IGpio *cs = nullptr)
+        : _spi(spi), _cs(cs)
     {
     }
 
-    bool init(IGpio *cs, IdleState idleState)
+    bool init(IdleState idleState)
     {
-        _cs = cs;
-        _cs->write(!_idleState);
-        _idleState = static_cast<bool>(idleState);
+        if (_cs)
+        {
+            _cs->write(!_idleState);
+            _idleState = static_cast<bool>(idleState);
+        }
         return _spi.isInit();
     }
 

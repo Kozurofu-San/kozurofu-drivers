@@ -65,7 +65,7 @@ class Nrf24Driver
     void readCmd(uint8_t cmd, uint8_t *data, size_t len)
     {
         _p.enable();
-        _p.sendCommand(cmd);
+        _p.transfer(cmd);
         _p.read(data, len);
         _p.disable();
     }

@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-class ExternalMemory
+class W25
 {
     public:
 
