@@ -32,7 +32,7 @@ class Nrf24Driver
         // Speed check
         if (_p.getSpeed() > MaxSpeed or _p.getSpeed() == 0)
         {
-            return false; // Speed is too high for this memory
+            return false;
         }
 
         _isInit = true;

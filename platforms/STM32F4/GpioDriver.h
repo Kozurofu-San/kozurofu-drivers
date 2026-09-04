@@ -72,7 +72,7 @@ class GpioDriver : public IGpio
         DCMI_               = 13,
     };
 
-    bool init(Mode mode, Speed speed, Pull pull)
+    bool init(Mode mode, Speed speed, Pull pull = GpioDriver::Pull::None)
     {
         // Clock enable
         uint32_t rccPort = 0;

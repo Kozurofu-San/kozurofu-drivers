@@ -29,7 +29,7 @@ class ItmDriver : public IItm
     * @note   The SWO baudrate must be less than or equal to 2.25MHz for ST-LINK V2
     * Init OK
     */
-    bool init(uint32_t portMask)
+    bool init(uint32_t portMask = 0xFFFFFFFF)
     {
         uint32_t swoPrescaler = (SystemCoreClock / ItmBaudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
         
