@@ -43,41 +43,49 @@ class AdcController
         // Independent mode (MULTI = 00000 in CCR)
         ADC->CCR &= ~ADC_CCR_MULTI;
 
-        // DMA setup (ADC1 -> DMA2 Stream0 Channel0, ADC2 -> DMA2 Stream2/3 Ch1, ADC3 -> DMA2 Stream1 Ch2)
+        // DMA setup.  The selected stream and channel must match the ADC DMA
+        // request mapping in the STM32F407 reference manual.
         RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN;
-        if      (_adc == ADC1) _dma = DMA2_Stream0;
-        else if (_adc == ADC2) _dma = DMA2_Stream2;
-        else if (_adc == ADC3) _dma = DMA2_Stream1;
+        if (_adc == ADC1)
+        {
+            _dma = DMA2_Stream0;
+            _dmaChannel = 0;
+            _dmaStatus = &DMA2->LISR;
+            _dmaClear = &DMA2->LIFCR;
+            _dmaTransferComplete = DMA_LISR_TCIF0;
+            _dmaError = DMA_LISR_TEIF0 | DMA_LISR_DMEIF0 | DMA_LISR_FEIF0;
+            _dmaClearFlags = DMA_LIFCR_CTCIF0 | DMA_LIFCR_CHTIF0 |
+                             DMA_LIFCR_CTEIF0 | DMA_LIFCR_CDMEIF0 | DMA_LIFCR_CFEIF0;
+        }
+        else if (_adc == ADC2)
+        {
+            _dma = DMA2_Stream2;
+            _dmaChannel = 1;
+            _dmaStatus = &DMA2->LISR;
+            _dmaClear = &DMA2->LIFCR;
+            _dmaTransferComplete = DMA_LISR_TCIF2;
+            _dmaError = DMA_LISR_TEIF2 | DMA_LISR_DMEIF2 | DMA_LISR_FEIF2;
+            _dmaClearFlags = DMA_LIFCR_CTCIF2 | DMA_LIFCR_CHTIF2 |
+                             DMA_LIFCR_CTEIF2 | DMA_LIFCR_CDMEIF2 | DMA_LIFCR_CFEIF2;
+        }
+        else if (_adc == ADC3)
+        {
+            _dma = DMA2_Stream1;
+            _dmaChannel = 2;
+            _dmaStatus = &DMA2->LISR;
+            _dmaClear = &DMA2->LIFCR;
+            _dmaTransferComplete = DMA_LISR_TCIF1;
+            _dmaError = DMA_LISR_TEIF1 | DMA_LISR_DMEIF1 | DMA_LISR_FEIF1;
+            _dmaClearFlags = DMA_LIFCR_CTCIF1 | DMA_LIFCR_CHTIF1 |
+                             DMA_LIFCR_CTEIF1 | DMA_LIFCR_CDMEIF1 | DMA_LIFCR_CFEIF1;
+        }
 
         // Disable stream before configuration
         _dma->CR &= ~DMA_SxCR_EN;
         while (_dma->CR & DMA_SxCR_EN) {}
 
-        // Clear all interrupt flags
-        if      (_adc == ADC1)
-        {
-            DMA2->LIFCR = DMA_LIFCR_CTCIF0  |
-                          DMA_LIFCR_CHTIF0  |
-                          DMA_LIFCR_CTEIF0  |
-                          DMA_LIFCR_CDMEIF0 |
-                          DMA_LIFCR_CFEIF0  ;
-        }
-        else if (_adc == ADC2)
-        {
-            DMA2->LIFCR = DMA_LIFCR_CTCIF2  |
-                          DMA_LIFCR_CHTIF2  |
-                          DMA_LIFCR_CTEIF2  |
-                          DMA_LIFCR_CDMEIF2 |
-                          DMA_LIFCR_CFEIF2  ;
-        }
-        else if (_adc == ADC3)
-        {
-            DMA2->LIFCR = DMA_LIFCR_CTCIF1  |
-                          DMA_LIFCR_CHTIF1  |
-                          DMA_LIFCR_CTEIF1  |
-                          DMA_LIFCR_CDMEIF1 |
-                          DMA_LIFCR_CFEIF1  ;
-        }
+        // Clear all flags for the selected stream before it is enabled.
+        *_dmaClear = _dmaClearFlags;
             
 
         // Peripheral address = ADC data register
@@ -85,10 +93,11 @@ class AdcController
         // Memory address = internal buffer
         _dma->M0AR = reinterpret_cast<uint32_t>(_data);
 
-        // Enable DMA requests from ADC
-        _adc->CR2 |= ADC_CR2_DMA;
-        // DDS = 0 -> DMA requests stop after last transfer (single-shot style)
-        _adc->CR2 &= ~ADC_CR2_DDS;
+        // Generate a DMA request for every conversion.  DDS must stay set for
+        // repeated one-shot scans; otherwise the F4 ADC stops DMA requests at
+        // the end of the first sequence.
+        _adc->CR2 = (_adc->CR2 & ~ADC_CR2_DMA) | ADC_CR2_DMA | ADC_CR2_DDS;
+        _adc->CR2 |= ADC_CR2_EOCS;
 
         _isInit = true;
         return  true;
@@ -152,27 +161,35 @@ class AdcController
             _dma->CR &= ~DMA_SxCR_EN;
             while (_dma->CR & DMA_SxCR_EN) {}
 
-            DMA2->LIFCR = DMA_LIFCR_CTCIF0 | DMA_LIFCR_CHTIF0 |
-                          DMA_LIFCR_CTEIF0 | DMA_LIFCR_CDMEIF0 | DMA_LIFCR_CFEIF0;
+            *_dmaClear = _dmaClearFlags;
 
             _dma->NDTR = _channelCount;
 
-            // Channel 0, Peripheral->Memory, 16-bit, memory increment, no peripheral increment
-            _dma->CR = (0U << DMA_SxCR_CHSEL_Pos)   // Channel 0 (ADC1)
+            // Peripheral->Memory, 16-bit, memory increment, no peripheral increment.
+            // TCIE is deliberately not set: completion is polled, so enabling
+            // the interrupt can dispatch to an uninstalled DMA ISR.
+            _dma->CR = (_dmaChannel << DMA_SxCR_CHSEL_Pos)
                      | (0U << DMA_SxCR_DIR_Pos)     // Peripheral to memory
                      | DMA_SxCR_MINC                // Memory increment
                      | (1U << DMA_SxCR_PSIZE_Pos)   // Peripheral size 16-bit
-                     | (1U << DMA_SxCR_MSIZE_Pos)   // Memory size 16-bit
-                     | DMA_SxCR_TCIE;               // Transfer complete interrupt (optional)
+                     | (1U << DMA_SxCR_MSIZE_Pos);  // Memory size 16-bit
 
             _dma->CR |= DMA_SxCR_EN;
 
             // Start conversion by software
             _adc->CR2 |= ADC_CR2_SWSTART;
 
-            // Wait for DMA transfer complete
-            while (!(DMA2->LISR & DMA_LISR_TCIF0)) {}
-            DMA2->LIFCR = DMA_LIFCR_CTCIF0;
+            // Stop waiting on an error or a missing peripheral request instead
+            // of deadlocking the application.  At the slowest supported ADC
+            // clock this is still far longer than a 16-channel conversion.
+            uint32_t timeout = DmaPollTimeout;
+            while (!(*_dmaStatus & (_dmaTransferComplete | _dmaError)) && --timeout) {}
+            const bool complete = (*_dmaStatus & _dmaTransferComplete) != 0;
+            *_dmaClear = _dmaClearFlags;
+            if (!complete)
+            {
+                return false;
+            }
         }
         else
         {
@@ -204,6 +221,14 @@ class AdcController
 
     ADC_TypeDef *_adc;
     DMA_Stream_TypeDef *_dma = nullptr;
+    volatile uint32_t *_dmaStatus = nullptr;
+    volatile uint32_t *_dmaClear = nullptr;
+    uint32_t _dmaChannel = 0;
+    uint32_t _dmaTransferComplete = 0;
+    uint32_t _dmaError = 0;
+    uint32_t _dmaClearFlags = 0;
+
+    static constexpr uint32_t DmaPollTimeout = 1'000'000;
 
     uint8_t _channel[16];
     uint16_t _data [16];
