@@ -65,11 +65,7 @@ class UsbCdc: public IUart
         {
             USB_OTG_FS->DIEPTXF[i] = 0;
         }
-        /* Init  EP0: 1 Packet, 3*8 bytes */
-        epOut(Ep0)->DOEPTSIZ = 1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos // This field is decremented to zero after a packet is written into the RxFIFO
-            | MaxPacketSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos   // Set in descriptor
-            | USB_OTG_DOEPTSIZ_STUPCNT;                         // STUPCNT==0x11 means, EP can recieve 3 packets. RM says to set STUPCNT = 3
-        epOut(Ep0)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA; // Clear NAK and enable EP0
+        armControlEndpoint();
     
         _dev->DCFG |= USB_OTG_DCFG_DSPD_Msk;    // Device speed - FS
         _usb->GINTSTS = 0xFFFFFFFF;             // Reset Global Interrupt status
@@ -104,7 +100,7 @@ class UsbCdc: public IUart
         {
             _usb->GINTSTS = USB_OTG_GINTSTS_USBRST;
             enumerateReset();
-            printf("\nR");
+            printf("USB reset\n");
             return;
         }
 
@@ -410,7 +406,6 @@ class UsbCdc: public IUart
     void enumerateReset()
     {
         device_state = DEVICE_STATE_RESET;
-        _usb->GINTSTS &= ~0xFFFFFFFF;
         
         _dev->DAINTMSK =
             (Ep0Mask | Ep1Mask) << USB_OTG_DAINTMSK_IEPM_Pos |
@@ -419,6 +414,11 @@ class UsbCdc: public IUart
         _dev->DOEPMSK = USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;  // Unmask SETUP Phase done Mask, Transfer Completed interrupt for OUT
         _dev->DIEPMSK = USB_OTG_DIEPMSK_XFRCM;                          // TransfeR Completed interrupt for IN
         _dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;                            // Before Enumeration set address 0
+
+        // A USB bus reset clears the endpoint configuration.  Re-arm EP0
+        // before the host sends its first SETUP packet, otherwise the host
+        // observes only USBRST and enumeration stops there.
+        armControlEndpoint();
     
         // CDC
         epIn(Ep1)->DIEPCTL =
@@ -577,8 +577,8 @@ class UsbCdc: public IUart
     static constexpr uint8_t Ep0Size            = 64;
     static constexpr uint8_t EpCount            = 3;
 
-    static constexpr uint16_t Vid = 0x0483;
-    static constexpr uint16_t Pid = 0x5740;
+    static constexpr uint16_t Vid = 0x1234;
+    static constexpr uint16_t Pid = 0x5678;
 
     static constexpr uint16_t LangIdString = 1033;
 
@@ -665,6 +665,17 @@ class UsbCdc: public IUart
     {
         return reinterpret_cast<uint32_t*>(
             USB_OTG_FS_PERIPH_BASE  + USB_OTG_FIFO_BASE + (i) * USB_OTG_FIFO_SIZE);
+    }
+
+    void armControlEndpoint()
+    {
+        // EP0 uses the special MPS encoding 0b00 for 64 bytes.
+        epIn(Ep0)->DIEPCTL = USB_OTG_DIEPCTL_USBAEP | USB_OTG_DIEPCTL_SNAK;
+        epOut(Ep0)->DOEPCTL = USB_OTG_DOEPCTL_USBAEP;
+        epOut(Ep0)->DOEPTSIZ = (1U << USB_OTG_DOEPTSIZ_PKTCNT_Pos)
+            | (MaxPacketSize << USB_OTG_DOEPTSIZ_XFRSIZ_Pos)
+            | USB_OTG_DOEPTSIZ_STUPCNT;
+        epOut(Ep0)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA;
     }
 
     uint8_t lineCoding[7]={
