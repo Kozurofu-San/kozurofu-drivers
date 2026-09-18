@@ -1,10 +1,11 @@
 #pragma once
 
-#include "Bmp280Const.h"
+#include "Ens160Const.h"
 
 #include "interface/I2c.h"
 #include "interface/Temperature.h"
-#include "interface/Pressure.h"
+#include "interface/Humidity.h"
+#include "interface/Air.h"
 #include "interface/Gpio.h"
 #include "interface/Timer.h"
 
@@ -36,13 +37,13 @@ namespace driver
 template <typename T>
 requires std::same_as<T, II2c> ||
          std::same_as<T, ISpi>
-class Bmp280Driver : ITemperature, IPressure
+class Ens160Driver : ITemperature, IHumidity, IAir
 {
     static_assert(std::same_as<T, II2c> || std::same_as<T, ISpi>,
                 "Interface must be I2C or SPI");
     public:
 
-    Bmp280Driver(T &p)
+    Ens160Driver(T &p)
         : _p(p)
     {
     }

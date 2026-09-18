@@ -12,6 +12,7 @@ class IModbus
     virtual ~IModbus() = default;
 
     virtual bool write(uint8_t *data, uint8_t len) = 0;
+    virtual bool read(uint8_t *data, uint8_t len) = 0;
 
     virtual bool isInit() = 0;
 };

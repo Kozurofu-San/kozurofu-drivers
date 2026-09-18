@@ -13,11 +13,13 @@ class II2c
     enum Address
     {
         PCF8574 = 0x27,
-        AT24    = 0x50,
-        SI5351  = 0x60,
-        ADS1115 = 0x48,
-        BMP280  = 0x76,
         AHT20   = 0x38,
+        ADS1115 = 0x48,
+        AT24    = 0x50,
+        ENS160  = 0x52,
+        SI5351  = 0x60,
+        BMP280  = 0x76,
+        SSD1306 = 0x78,
     };
 
     enum Cmd: bool
