@@ -40,7 +40,7 @@ class Nrf24Driver: public ISerial
 
         // Check if SPI works
         uint8_t status = readReg(Nrf24::STATUS);
-        if (status = 0x0E)
+        if (status == 0x0E)
         {
             _isInit = true;
         }
@@ -179,7 +179,7 @@ class Nrf24Driver: public ISerial
     uint8_t readReg(uint8_t reg)
     {
         _p.enable();
-        uint8_t status = _p.transfer(Nrf24::CmdReadRegister | reg);
+        _p.transfer(Nrf24::CmdReadRegister | reg);
         uint8_t ret = _p.transfer(0);
         _p.disable();
         return ret;

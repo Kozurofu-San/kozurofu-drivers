@@ -2,6 +2,7 @@
 
 #include "interface/Spi.h"
 #include "interface/Gpio.h"
+#include "GpioDriver.h"
 
 #include "DmaDriver.h"
 
@@ -18,37 +19,40 @@ class SpiController
 {
     public:
 
-    enum class Mode: uint32_t
-    {
-        Master = 0x4,
-        Slave = 0x0
-    };
-
-    enum class ClockPolarity: uint32_t
-    {
-        IdleLow = 0x0,
-        IdleHigh = 0x2
-    };
-
-    enum class ClockPhase: uint32_t
-    {
-        FirstEdge = 0x0,
-        SecondEdge = 0x1
-    };
-
     enum class DataSize: uint32_t
     {
         Bits8 = 0x0,
         Bits16 = 0x800
     };
 
-    SpiController(SPI_TypeDef *spi)
+    SpiController(
+        SPI_TypeDef *spi,
+        GPIO_TypeDef *portSck, uint8_t pinSck,
+        GPIO_TypeDef *portMosi, uint8_t pinMosi,
+        GPIO_TypeDef *portMiso, uint8_t pinMiso,
+        uint32_t speed,
+        ISpi::Mode mode = ISpi::Mode::Master,
+        ISpi::ClockPolarity clockPolarity = ISpi::ClockPolarity::IdleLow,
+        ISpi::ClockPhase clockPhase = ISpi::ClockPhase::FirstEdge
+    )
         : _spi(spi)
     {
+        GpioDriver::mode(portSck , pinSck , GpioDriver::Mode::OutputPushpull, GpioDriver::Pull::None, GpioDriver::Alternate::SPI1_2_I2S2_I2S2ext); // SCK
+        GpioDriver::mode(portMosi, pinMosi, GpioDriver::Mode::OutputPushpull, GpioDriver::Pull::None, GpioDriver::Alternate::SPI1_2_I2S2_I2S2ext); // MOSI
+        GpioDriver::mode(portMiso, pinMiso, GpioDriver::Mode::Input         , GpioDriver::Pull::None, GpioDriver::Alternate::SPI1_2_I2S2_I2S2ext); // MISO
+        init( 1'000'000,
+            mode,
+            clockPolarity,
+            clockPhase
+        );
     }
     
-    bool init(Mode mode, ClockPolarity clockPolarity, ClockPhase clockPhase, DataSize dataSize, uint32_t speed)
+    bool init(uint32_t speed, ISpi::Mode mode, ISpi::ClockPolarity clockPolarity, ISpi::ClockPhase clockPhase, DataSize dataSize = DataSize::Bits8)
     {
+        uint32_t mode_ = mode == ISpi::Mode::Master ? 0x4 : 0x0;
+        uint32_t clockPolarity_ = clockPolarity == ISpi::ClockPolarity::IdleLow ? 0x0 : 0x2;
+        uint32_t clockPhase_ = clockPhase == ISpi::ClockPhase::FirstEdge ? 0x0 : 0x1;
+
         // Clock enable
         if      (_spi == SPI1) RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
         else if (_spi == SPI2) RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
@@ -69,10 +73,11 @@ class SpiController
 
         // Configure mode
         _spi->CR1 &= ~SPI_CR1_SPE;
-        _spi->CR1 = static_cast<uint32_t>(mode)
-            | static_cast<uint32_t>(clockPolarity) 
-            | static_cast<uint32_t>(clockPhase) 
-            | static_cast<uint32_t>(dataSize) 
+        _spi->CR1 = 
+              mode_
+            | clockPolarity_
+            | clockPhase_
+            | static_cast<uint32_t>(dataSize)
             | static_cast<uint32_t>(baudRatePrescaler << SPI_CR1_BR_Pos)
             | SPI_CR1_SSM
             | SPI_CR1_SSI
