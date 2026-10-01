@@ -2,7 +2,8 @@
 
 #include "interface/Modbus.h"
 
-#include "interface/Uart.h"
+#include "interface/Serial.h"
+#include "interface/Gpio.h"
 #include "interface/Timer.h"
 
 #include <cstdint>
@@ -41,7 +42,7 @@ class ModbusDriver : IModbus
 {
     public:
 
-    ModbusDriver(IUart &p, ITimer &timer)
+    ModbusDriver(ISerial &p, ITimer &timer)
         : _p(p), _timer(timer)
     {
     }
@@ -73,7 +74,7 @@ class ModbusDriver : IModbus
     
     private:
 
-    IUart &_p;
+    ISerial &_p;
     IGpio *_present;
     ITimer &_timer;
 

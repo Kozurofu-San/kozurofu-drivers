@@ -1,9 +1,10 @@
 #pragma once
 
-#include "Aht20Const.h"
+#include "Const.h"
 
 #include "interface/Temperature.h"
 #include "interface/Humidity.h"
+#include "interface/I2c.h"
 #include "interface/Gpio.h"
 #include "interface/Timer.h"
 

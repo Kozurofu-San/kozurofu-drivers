@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Ld2410Const.h"
+#include "Const.h"
 
 #include "interface/Presence.h"
 #include "interface/Serial.h"

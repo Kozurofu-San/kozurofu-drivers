@@ -1,14 +1,16 @@
 #pragma once
 
-#include "Bmp280Const.h"
+#include "Const.h"
 
-#include "interface/I2c.h"
 #include "interface/Temperature.h"
 #include "interface/Pressure.h"
+#include "interface/I2c.h"
+#include "interface/Spi.h"
 #include "interface/Gpio.h"
 #include "interface/Timer.h"
 
 #include <cstdint>
+#include <concepts>
 
 /* // Temperature / Pressure sensor
 

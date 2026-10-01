@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Nrf24Const.h"
+#include "Const.h"
 
 #include "interface/Spi.h"
 #include "interface/Serial.h"

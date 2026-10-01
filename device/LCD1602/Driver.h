@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Lcd1602Const.h"
+#include "Const.h"
 
 #include "interface/Log.h"
 #include "interface/Gpio.h"

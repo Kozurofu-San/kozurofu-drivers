@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Ili9341Const.h"
+#include "Const.h"
 
 #include "interface/Display.h"
 #include "interface/Gpio.h"

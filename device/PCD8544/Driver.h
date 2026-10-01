@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Pcd8544Const.h"
+#include "Const.h"
 
 #include "interface/Log.h"
 #include "interface/Timer.h"

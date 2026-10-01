@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hmc830Const.h"
+#include "Const.h"
 
 #include "interface/Generator.h"
 #include "interface/Timer.h"

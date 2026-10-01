@@ -1,9 +1,10 @@
 #pragma once
 
+#include "Const.h"
+
 #include "interface/Memory.h"
 #include "interface/Spi.h"
 #include "interface/Timer.h"
-#include "W25Const.h"
 
 #include <cstdint>
 #include <cstring>

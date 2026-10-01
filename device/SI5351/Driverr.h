@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Si5351Const.h"
+#include "Const.h"
 
 #include "interface/Generator.h"
 #include "interface/Timer.h"

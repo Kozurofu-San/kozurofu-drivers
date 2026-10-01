@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Ads1115Const.h"
+#include "Const.h"
 
 #include "interface/I2c.h"
 #include "interface/Adc.h"

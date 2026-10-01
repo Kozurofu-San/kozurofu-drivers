@@ -1,7 +1,7 @@
 #pragma once
 
 #include "interface/Spi.h"
-#include "interface/Touchscreen.h"
+#include "interface/TouchScreen.h"
 #include "interface/Gpio.h"
 #include "interface/Timer.h"
 
@@ -110,7 +110,7 @@ class Xpt2046Driver: public ITouchScreen
         uint32_t value = 0;
         uint16_t ret = 0;
         _p.enable();
-        _p.sendCommand(cmd);
+        _p.transfer(cmd);
         for (size_t i = 0; i < 16; ++i)
         {
             _p.read(_buffer, 2);

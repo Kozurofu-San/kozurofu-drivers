@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Ens160Const.h"
+#include "Const.h"
 
 #include "interface/I2c.h"
 #include "interface/Temperature.h"
