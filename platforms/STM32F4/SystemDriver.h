@@ -20,6 +20,13 @@ class SystemDriver : public ISystem
 {
     public:
 
+    static constexpr uint32_t SystemCoreClock = 168000000u;     // MHz
+
+    SystemDriver()
+    {
+        clock();
+    }
+
     ResetReason getReasonValue() override
     {
         ResetReason ret;
@@ -34,6 +41,61 @@ class SystemDriver : public ISystem
         else                                  { ret = ResetReason::Unknown   ; _reasonIdx = 6; }
 
         return ret;
+    }
+
+    bool clock()
+    {
+        constexpr uint32_t TIMEOUT = 100000;  // simple loop-count timeout
+        uint32_t t;
+
+        // --- Power: enable PWR clock, voltage scale 1 ---
+        RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+        (void)RCC->APB1ENR;                   // dummy read for clock-enable delay
+        PWR->CR |= PWR_CR_VOS;                // VOS = 1 -> Scale 1 (on F407 this is a single bit)
+        (void)PWR->CR;
+
+        // --- HSE on ---
+        RCC->CR |= RCC_CR_HSEON;
+        for (t = TIMEOUT; !(RCC->CR & RCC_CR_HSERDY); )
+            if (--t == 0) return false;
+
+        // --- PLL config: HSE / 4 * 168 / 2 = 168 MHz, Q = 7 -> 48 MHz ---
+        // (PLL must be off while configuring; it is after reset, but make sure)
+        RCC->CR &= ~RCC_CR_PLLON;
+        for (t = TIMEOUT; (RCC->CR & RCC_CR_PLLRDY); )
+            if (--t == 0) return false;
+
+        RCC->PLLCFGR = (4u   << RCC_PLLCFGR_PLLM_Pos)   // PLLM = 4
+                    | (168u << RCC_PLLCFGR_PLLN_Pos)   // PLLN = 168
+                    | (0u   << RCC_PLLCFGR_PLLP_Pos)   // PLLP = 2 (00)
+                    | RCC_PLLCFGR_PLLSRC_HSE           // HSE as PLL source
+                    | (7u   << RCC_PLLCFGR_PLLQ_Pos);  // PLLQ = 7
+
+        // --- PLL on ---
+        RCC->CR |= RCC_CR_PLLON;
+        for (t = TIMEOUT; !(RCC->CR & RCC_CR_PLLRDY); )
+            if (--t == 0) return false;
+
+        // --- Flash: 5 wait states, prefetch + instruction/data caches ---
+        FLASH->ACR = FLASH_ACR_LATENCY_5WS
+                | FLASH_ACR_PRFTEN
+                | FLASH_ACR_ICEN
+                | FLASH_ACR_DCEN;
+        if ((FLASH->ACR & FLASH_ACR_LATENCY) != FLASH_ACR_LATENCY_5WS)
+            return false;
+
+        // --- Bus prescalers: AHB /1, APB1 /4 (42 MHz), APB2 /4 (42 MHz) ---
+        RCC->CFGR = (RCC->CFGR & ~(RCC_CFGR_HPRE | RCC_CFGR_PPRE1 | RCC_CFGR_PPRE2))
+                | RCC_CFGR_HPRE_DIV1
+                | RCC_CFGR_PPRE1_DIV4
+                | RCC_CFGR_PPRE2_DIV4;
+
+        // --- Switch SYSCLK to PLL ---
+        RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_SW) | RCC_CFGR_SW_PLL;
+        for (t = TIMEOUT; (RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_PLL; )
+            if (--t == 0) return false;
+
+        return true;
     }
 
     const char* getReasonString() override

@@ -28,7 +28,9 @@ class LogDriver : public ILog
 
     LogDriver(T &p)
         : _p(p)
-    {}
+    {
+        init();
+    }
 
     bool init()
     {
