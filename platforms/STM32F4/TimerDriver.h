@@ -1,9 +1,9 @@
 #pragma once
 
 #include "interface/Timer.h"
+#include "SystemDriver.h"
 
 #include "stm32f4xx.h"
-extern uint32_t SystemCoreClock;
 
 namespace driver
 {
@@ -33,7 +33,7 @@ class TimerDriver : public ITimer
             ) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
         uint32_t busPrescaler = (RCC->CFGR >> busPrescalerPos) & 0x7;
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
-        _speed = SystemCoreClock / busPrescaler;
+        _speed = SystemDriver::SystemCoreClock / busPrescaler;
         
         if (_speed == 0)
         {

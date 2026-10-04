@@ -1,10 +1,9 @@
 #pragma once
 
 #include "interface/I2c.h"
+#include "SystemDriver.h"
 
 #include "stm32f4xx.h"
-
-extern uint32_t SystemCoreClock;
 
 namespace driver
 {
@@ -27,7 +26,7 @@ public:
         else if (_i2c == I2C2) RCC->APB1ENR |= RCC_APB1ENR_I2C2EN;
 
         // Speed calculation
-        uint32_t busSpeed = SystemCoreClock;
+        uint32_t busSpeed = SystemDriver::SystemCoreClock;
         uint32_t busDiv = (RCC->CFGR & RCC_CFGR_PPRE1) >> RCC_CFGR_PPRE1_Pos;
         if (busDiv >= 4)
             busSpeed >>= (busDiv - 3);          // divide by 2, 4, 8 or 16

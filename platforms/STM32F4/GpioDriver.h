@@ -7,8 +7,6 @@
 
 #include "stm32f4xx.h"
 
-extern uint32_t SystemCoreClock;
-
 namespace driver
 {
     

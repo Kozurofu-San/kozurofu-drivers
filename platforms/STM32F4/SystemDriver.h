@@ -45,6 +45,12 @@ class SystemDriver : public ISystem
 
     bool clock()
     {
+        #if defined(__FPU_PRESENT) && (__FPU_PRESENT == 1U)
+            SCB->CPACR |= (3UL << (10U * 2U)) | (3UL << (11U * 2U));
+            __DSB();
+            __ISB();
+        #endif
+
         constexpr uint32_t TIMEOUT = 100000;  // simple loop-count timeout
         uint32_t t;
 

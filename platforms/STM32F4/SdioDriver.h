@@ -6,7 +6,6 @@
 #include <cstdio>
 
 #include "stm32f4xx.h"
-extern uint32_t SystemCoreClock;
 
 #define SDMMC_VOLTAGE_WINDOW_SD                       0x80100000U
 #define SDMMC_HIGH_CAPACITY                           0x40000000U
@@ -66,11 +65,11 @@ class SdioDriver : public IMemory
     {
         // Clock
         RCC->APB2ENR |= RCC_APB2ENR_SDIOEN;
-        _speed = HSE_VALUE
-            * ((RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> RCC_PLLCFGR_PLLN_Pos)
-            / ((RCC->PLLCFGR & RCC_PLLCFGR_PLLM) >> RCC_PLLCFGR_PLLM_Pos)
-            / ((RCC->PLLCFGR & RCC_PLLCFGR_PLLQ) >> RCC_PLLCFGR_PLLQ_Pos)
-            ;
+        // _speed = HSE_VALUE
+        //     * ((RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> RCC_PLLCFGR_PLLN_Pos)
+        //     / ((RCC->PLLCFGR & RCC_PLLCFGR_PLLM) >> RCC_PLLCFGR_PLLM_Pos)
+        //     / ((RCC->PLLCFGR & RCC_PLLCFGR_PLLQ) >> RCC_PLLCFGR_PLLQ_Pos)
+        //     ;
 
         // Config
         _sdio->CLKCR = 0x76 << SDIO_CLKCR_CLKDIV_Pos

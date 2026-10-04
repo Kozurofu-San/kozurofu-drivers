@@ -32,10 +32,10 @@ class UsbCdc: public ISerial
         // Clock
         RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
 
-        _speed = HSE_VALUE
-                * ((RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> RCC_PLLCFGR_PLLN_Pos)
-                / ((RCC->PLLCFGR & RCC_PLLCFGR_PLLM) >> RCC_PLLCFGR_PLLM_Pos)
-                / ((RCC->PLLCFGR & RCC_PLLCFGR_PLLQ) >> RCC_PLLCFGR_PLLQ_Pos);
+        // _speed = HSE_VALUE
+        //         * ((RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> RCC_PLLCFGR_PLLN_Pos)
+        //         / ((RCC->PLLCFGR & RCC_PLLCFGR_PLLM) >> RCC_PLLCFGR_PLLM_Pos)
+        //         / ((RCC->PLLCFGR & RCC_PLLCFGR_PLLQ) >> RCC_PLLCFGR_PLLQ_Pos);
                 
         _usb->GAHBCFG = USB_OTG_GAHBCFG_GINT; // Enable Global Interrupt
     

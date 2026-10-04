@@ -1,10 +1,9 @@
 #pragma once
 
 #include "interface/Itm.h"
+#include "SystemDriver.h"
 
 #include "stm32f4xx.h"
-
-extern uint32_t SystemCoreClock;
 
 namespace driver
 {
@@ -31,7 +30,7 @@ class ItmDriver : public IItm
     */
     bool init(uint32_t portMask = 0xFFFFFFFF)
     {
-        uint32_t swoPrescaler = (SystemCoreClock / ItmBaudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
+        uint32_t swoPrescaler = (SystemDriver::SystemCoreClock / ItmBaudrate) - 1u ;   // baudrate in Hz, note that cpuCoreFreqHz is expected to match the CPU core clock
         
         CoreDebug->DEMCR = CoreDebug_DEMCR_TRCENA_Msk;      // Debug Exception and Monitor Control Register (DEMCR): enable trace in core debug
         DBGMCU->CR	= 0x00000027u;                          // DBGMCU_CR : TRACE_IOEN DBG_STANDBY DBG_STOP 	DBG_SLEEP
@@ -47,7 +46,7 @@ class ItmDriver : public IItm
         DWT->CTRL	= 0x400003FEu;                          // Data Watchpoint and Trace Register
         TPI->FFCR	= 0x00000100u;                          // Formatter and Flush Control Register
         
-        _speed = SystemCoreClock / (TPI->ACPR + 1);
+        _speed = SystemDriver::SystemCoreClock / (TPI->ACPR + 1);
         _isInit = true;
         return true;
     }

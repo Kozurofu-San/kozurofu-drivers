@@ -6,8 +6,6 @@
 
 #include "SEGGER_RTT.h"
 
-extern uint32_t SystemCoreClock;
-
 namespace driver
 {
 

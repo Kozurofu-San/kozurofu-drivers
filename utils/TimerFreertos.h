@@ -1,6 +1,7 @@
 #pragma once
 
 #include "interface/Timer.h"
+#include "SystemDriver.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -27,7 +28,7 @@ class TimerFreertos : public ITimer
     bool init(TimerHandle_t *timer = nullptr)
     {
     #ifndef ESP32
-        SysTick->LOAD = (SystemCoreClock / 1000) - 1;   // 1 ms
+        SysTick->LOAD = (SystemDriver::SystemCoreClock / 1000) - 1;   // 1 ms
         SysTick->VAL = 0;                               // Clear current value
         SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk;     // AHB clock
     #endif
