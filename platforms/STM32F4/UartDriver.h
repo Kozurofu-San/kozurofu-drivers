@@ -1,7 +1,6 @@
 #pragma once
 
 #include "interface/Serial.h"
-#include "SystemDriver.h"
 
 #include "stm32f4xx.h"
 
@@ -39,7 +38,7 @@ class UartDriver : public ISerial
         uint32_t busPrescaler = (RCC->CFGR >> busPrescalerPos) & 0x7;
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
         uint32_t oversamplingBits = (2 - static_cast<uint32_t>(oversampling)) * 8;
-        uint32_t busSpeed = SystemDriver::SystemCoreClock / busPrescaler / oversamplingBits;
+        uint32_t busSpeed = SYSTEM_CORE_CLOCK_HZ / busPrescaler / oversamplingBits;
         uint32_t mantissa = busSpeed / baudRate;
         uint32_t fraction = (busSpeed % baudRate) * 16 / baudRate;
         _uart->BRR = (mantissa << USART_BRR_DIV_Mantissa_Pos) | (fraction << USART_BRR_DIV_Fraction_Pos);

@@ -5,7 +5,6 @@
 #include "GpioDriver.h"
 
 #include "DmaDriver.h"
-#include "SystemDriver.h"
 
 #include <cmath>
 #include <cstdio>
@@ -62,7 +61,7 @@ class SpiController
         uint32_t busPrescalerPos = (_spi == SPI1) ? RCC_CFGR_PPRE2_Pos : RCC_CFGR_PPRE1_Pos;
         uint32_t busPrescaler = (RCC->CFGR >> busPrescalerPos) & 0x7;
         busPrescaler = (busPrescaler < 4) ? 1 : (1 << (busPrescaler - 3));
-        uint32_t busSpeed = SystemDriver::SystemCoreClock / busPrescaler;
+        uint32_t busSpeed = SYSTEM_CORE_CLOCK_HZ / busPrescaler;
         uint32_t desiredPrescaler = busSpeed / speed;
         if ((desiredPrescaler < 2) || (desiredPrescaler > 256))
         {
@@ -87,7 +86,7 @@ class SpiController
         // Get baudrate
         uint32_t spiPrescaler = (_spi->CR1 & SPI_CR1_BR) >> SPI_CR1_BR_Pos;
         spiPrescaler = 1 << (spiPrescaler + 1);
-        _speed = SystemDriver::SystemCoreClock / busPrescaler / spiPrescaler;
+        _speed = SYSTEM_CORE_CLOCK_HZ / busPrescaler / spiPrescaler;
         if (_speed == 0)
         {
             return false;

@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include "interface/System.h"
 
 #include <cstdint>
@@ -19,8 +20,6 @@ namespace driver
 class SystemDriver : public ISystem
 {
     public:
-
-    static constexpr uint32_t SystemCoreClock = 168000000u;     // MHz
 
     SystemDriver()
     {
@@ -112,7 +111,7 @@ class SystemDriver : public ISystem
 
     inline uint32_t getCpuSpeed() override
     {
-        return SystemCoreClock;
+        return SYSTEM_CORE_CLOCK_HZ;
     }
     
     uint32_t getChipId() override
