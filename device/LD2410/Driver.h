@@ -140,7 +140,7 @@ class Ld2410Driver : IPresence
     
     private:
 
-    IUart &_p;
+    ISerial &_p;
     IGpio *_present;
     ITimer &_timer;
 

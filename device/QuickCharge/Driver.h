@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/VoltageSet.h"
+#include "interface/Adc.h"
 #include "interface/Timer.h"
 
 namespace driver
@@ -18,7 +18,7 @@ class QuickCharge
         V20_0,
     };
 
-    QuickCharge(IVoltageSet &usbDm, IVoltageSet &usbDp, ITimer &timer)
+    QuickCharge(IAdc &usbDm, IAdc &usbDp, ITimer &timer)
         : _usbDm(usbDm), _usbDp(usbDp), _timer(timer) {}
 
     void init()
@@ -56,8 +56,8 @@ class QuickCharge
     
     private:
 
-    IVoltageSet &_usbDm;
-    IVoltageSet &_usbDp;
+    IAdc &_usbDm;
+    IAdc &_usbDp;
     ITimer &_timer;
 };
 
