@@ -28,6 +28,12 @@ class ISpi
         SecondEdge = 0x1
     };
 
+    enum class CsIdleState: bool
+    {
+        Low = 0x0,
+        High = 0x1
+    };
+
     virtual ~ISpi() = default;
 
     virtual void enable()  = 0;

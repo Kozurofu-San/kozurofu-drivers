@@ -19,6 +19,7 @@ class ItmDriver : public IItm
 
     ItmDriver()
     {
+        init();
     }
     
     /*

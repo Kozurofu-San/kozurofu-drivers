@@ -17,6 +17,7 @@ class AdcController
         : _adc(adc)
     {
         _channelCount = 0;
+        init();
     }
 
     bool init()

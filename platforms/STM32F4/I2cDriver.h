@@ -1,6 +1,8 @@
 #pragma once
 
 #include "interface/I2c.h"
+#include "interface/Gpio.h"
+#include "GpioDriver.h"
 
 #include "stm32f4xx.h"
 
@@ -12,9 +14,15 @@ class I2cController
 
 public:
 
-    I2cController(I2C_TypeDef *i2c)
+    I2cController(I2C_TypeDef *i2c,
+        GPIO_TypeDef *portScl, uint8_t pinScl,
+        GPIO_TypeDef *portSda, uint8_t pinSda,
+        uint32_t speed)
         : _i2c(i2c)
     {
+        GpioDriver::mode(portScl, pinScl, GpioDriver::Mode::OutputOpendrain, GpioDriver::Pull::Up, GpioDriver::Alternate::I2C1_3); // SCL
+        GpioDriver::mode(portSda, pinSda, GpioDriver::Mode::OutputOpendrain, GpioDriver::Pull::Up, GpioDriver::Alternate::I2C1_3); // SDA
+        init(speed);
     }
 
     // Speed is a clockrate in Hz
@@ -193,9 +201,10 @@ class I2cDriver: public II2c
 {
     public:
 
-    I2cDriver(I2cController &i2c)
+    I2cDriver(I2cController &i2c, uint8_t address)
         : _i2c(i2c)
     {
+        init(address);
     }
 
     bool init(uint8_t address)

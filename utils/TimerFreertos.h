@@ -22,7 +22,10 @@ class TimerFreertos : public ITimer
 {
     public:
 
-    TimerFreertos() = default;
+    TimerFreertos()
+    {
+        init();
+    }
 
     bool init(TimerHandle_t *timer = nullptr)
     {

@@ -2,6 +2,7 @@
 
 #include "interface/Memory.h"
 #include "interface/Timer.h"
+#include "GpioDriver.h"
 
 #include <cstdio>
 
@@ -59,7 +60,16 @@ class SdioDriver : public IMemory
 
     SdioDriver(SDIO_TypeDef *sdio, ITimer &timer)
         : _sdio(sdio), _timer(timer)
-    {}
+    {
+        GpioDriver::mode(GPIOD,  2, GpioDriver::Mode::OutputPushpull, GpioDriver::Pull::None, GpioDriver::Alternate::FSMC_SDIO_OTGFS);  // CMD
+        GpioDriver::mode(GPIOC, 12, GpioDriver::Mode::OutputPushpull, GpioDriver::Pull::None, GpioDriver::Alternate::FSMC_SDIO_OTGFS);  // CLK
+        GpioDriver::mode(GPIOC,  8, GpioDriver::Mode::OutputPushpull, GpioDriver::Pull::None, GpioDriver::Alternate::FSMC_SDIO_OTGFS);  // D0
+        GpioDriver::mode(GPIOC,  9, GpioDriver::Mode::OutputPushpull, GpioDriver::Pull::None, GpioDriver::Alternate::FSMC_SDIO_OTGFS);  // D1
+        GpioDriver::mode(GPIOC, 10, GpioDriver::Mode::OutputPushpull, GpioDriver::Pull::None, GpioDriver::Alternate::FSMC_SDIO_OTGFS);  // D2
+        GpioDriver::mode(GPIOC, 11, GpioDriver::Mode::OutputPushpull, GpioDriver::Pull::None, GpioDriver::Alternate::FSMC_SDIO_OTGFS);  // D3
+        init(SdioDriver::Bits::b4);
+
+    }
 
     bool init(Bits bits)
     {

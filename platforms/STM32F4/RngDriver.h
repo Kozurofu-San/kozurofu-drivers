@@ -18,6 +18,7 @@ class RngDriver : public IRandom
     RngDriver(RNG_TypeDef *rng)
         : _rng(rng)
     {
+        init();
     }
 
     bool init()

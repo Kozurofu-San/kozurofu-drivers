@@ -35,6 +35,7 @@ class RttDriver : public IRtt
      */
     RttDriver()
     {
+        init();
     }
 
     /**

@@ -295,18 +295,13 @@ class SpiDriver : public ISpi
 {
     public:
 
-    enum class IdleState : bool
-    {
-        Low = false,
-        High = true
-    };
-
-    SpiDriver(SpiController &spi, IGpio *cs = nullptr)
+    SpiDriver(SpiController &spi, IGpio *cs = nullptr, ISpi::CsIdleState csIdleState = ISpi::CsIdleState::Low)
         : _spi(spi), _cs(cs)
     {
+        init(static_cast<bool>(csIdleState));
     }
 
-    bool init(IdleState idleState)
+    bool init(bool idleState)
     {
         if (_cs)
         {
