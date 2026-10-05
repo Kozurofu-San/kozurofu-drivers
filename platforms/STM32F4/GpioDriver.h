@@ -24,7 +24,7 @@ class GpioDriver : public IGpio
 
     GpioDriver(
         GPIO_TypeDef *port, size_t pin,
-        IGpio::Direction dir,
+        IGpio::Direction dir = IGpio::Direction::Input,
         IGpio::Pull pull = IGpio::Pull::None,
         IGpio::Interrupt interrupt = IGpio::Interrupt::None
     )
@@ -41,27 +41,10 @@ class GpioDriver : public IGpio
             while(true);
         }
 
-        // Clock enable
-        uint32_t rccPort = 0;
-        if (_port == GPIOA) rccPort = RCC_AHB1ENR_GPIOAEN;
-        else if (_port == GPIOB) rccPort = RCC_AHB1ENR_GPIOBEN;
-        else if (_port == GPIOC) rccPort = RCC_AHB1ENR_GPIOCEN;
-        else if (_port == GPIOD) rccPort = RCC_AHB1ENR_GPIODEN;
-        else if (_port == GPIOE) rccPort = RCC_AHB1ENR_GPIOEEN;
-        RCC->AHB1ENR |= rccPort;
-
-        // Default "0" state
-        _port->BSRR = 0x10000 << _pin;
-
-        // Configure mode: Input or Output Pushpull
-        _port->MODER &= ~(0x3 << (_pin * 2));
-        _port->MODER |= dir << (_pin * 2);
-        // Always pushpull
-        // _port->OTYPER &= ~(0x1 << _pin);
-        // _port->OTYPER |= (static_cast<uint8_t>(mode) >> 2) << _pin;
-        _port->OSPEEDR |= 0x3 << (_pin * 2);    // Very high speed
-        _port->PUPDR &= ~(0x3 << (_pin * 2));
-        _port->PUPDR |= pull << (_pin * 2);
+        mode(_port, _pin,
+            (dir == Direction::Input) ? Mode::Input : Mode::OutputPushpull,
+            pull
+        );
 
         return true;
     }

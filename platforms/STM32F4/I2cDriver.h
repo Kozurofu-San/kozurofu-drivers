@@ -3,6 +3,7 @@
 #include "interface/I2c.h"
 #include "GpioDriver.h"
 
+#include <cstdio>
 #include "stm32f4xx.h"
 
 namespace driver

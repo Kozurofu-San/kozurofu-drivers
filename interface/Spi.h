@@ -36,6 +36,7 @@ class ISpi
 
     virtual ~ISpi() = default;
 
+    virtual void setIdleState(CsIdleState csIdleState) = 0;
     virtual void enable()  = 0;
     virtual void disable() = 0;
 

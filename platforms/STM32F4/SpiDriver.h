@@ -298,17 +298,10 @@ class SpiDriver : public ISpi
     SpiDriver(SpiController &spi, IGpio *cs = nullptr, ISpi::CsIdleState csIdleState = ISpi::CsIdleState::Low)
         : _spi(spi), _cs(cs)
     {
-        init(static_cast<bool>(csIdleState));
-    }
-
-    bool init(bool idleState)
-    {
-        if (_cs)
+        if (cs)
         {
-            _cs->write(_idleState);
-            _idleState = static_cast<bool>(idleState);
+            cs->setDir(IGpio::Direction::Output);
         }
-        return _spi.isInit();
     }
 
     inline uint8_t transfer(uint8_t data) override
@@ -325,6 +318,15 @@ class SpiDriver : public ISpi
     {
         _spi.read(data, len);
     };
+
+    void setIdleState(CsIdleState csIdleState) override
+    {
+        if (_cs)
+        {
+            _cs->write(_idleState);
+            _idleState = static_cast<bool>(csIdleState);
+        }
+    }
 
     void enable() override
     {

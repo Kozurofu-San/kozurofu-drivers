@@ -37,7 +37,7 @@ namespace driver
 template <typename T>
 requires std::same_as<T, II2c> ||
          std::same_as<T, ISpi>
-class Ens160Driver
+class Ens160Driver : public IAir
 {
     static_assert(std::same_as<T, II2c> || std::same_as<T, ISpi>,
                 "Interface must be I2C or SPI");
@@ -58,12 +58,58 @@ class Ens160Driver
         }
 
         // Get ID
-        
+        uint8_t id[2];
+        if (!read(Ens160::PART_ID, id, sizeof(id)))
+        {
+            return false;
+        }
+        if ((static_cast<uint16_t>(id[1] << 8) | id[0]) != Ens160::PART_ID_VALUE)
+        {
+            return false;
+        }
+ 
+        // // Idle -> clear general purpose registers -> standard operation
+        // if (!setMode(Ens160::OPMODE_IDLE))
+        // {
+        //     return false;
+        // }
+        // if (!writeByte(Ens160::COMMAND, Ens160::CMD_NOP) ||
+        //     !writeByte(Ens160::COMMAND, Ens160::CMD_CLRGPR))
+        // {
+        //     return false;
+        // }
+        // if (!setMode(Ens160::OPMODE_STANDARD))
+        // {
+        //     return false;
+        // }
+ 
         _isInit = true;
-        
         return _isInit;
     }
 
+    // Air Quality Index (UBA): 1 = excellent ... 5 = unhealthy, 0 on error
+    uint16_t getAqi() override
+    {
+        uint8_t v;
+        if (!_isInit || !read(Ens160::DATA_AQI, &v, 1))
+        {
+            return 0;
+        }
+        return v & Ens160::AQI_MASK;
+    }
+ 
+    // TVOC in ppb, 0 on error
+    uint16_t getTvoc() override
+    {
+        // return readWord(Ens160::DATA_TVOC);
+    }
+ 
+    // Equivalent CO2 in ppm, 0 on error
+    uint16_t getEco2() override
+    {
+        // return readWord(Ens160::DATA_ECO2);
+    }
+ 
     bool isInit()
     {
         return _isInit;

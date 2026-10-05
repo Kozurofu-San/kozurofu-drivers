@@ -19,6 +19,9 @@ class Nrf24Driver: public ISerial
     Nrf24Driver(ISpi &p, IGpio &ce, IGpio &irq, ITimer &timer)
         : _p(p), _ce(ce), _irq(irq), _timer(timer)
     {
+        _ce.setDir(IGpio::Direction::Output);
+        _irq.setDir(IGpio::Direction::Input);
+        _p.setIdleState(ISpi::CsIdleState::High);
         init();
     }
     ~Nrf24Driver() = default;

@@ -22,6 +22,7 @@ class W25Driver : public IMemory
     W25Driver(ISpi &p, ITimer &timer)
         : _p(p), _timer(timer)
     {
+        _p.setIdleState(ISpi::CsIdleState::High);
         init();
     }
 

@@ -39,6 +39,8 @@ class Ad8232Driver: public IEcg
     Ad8232Driver(IAdc &adc, IGpio &loP, IGpio &loN, ITimer &timer)
         : _adc(adc), _loP(loP), _loN(loN), _timer(timer)
     {
+        _loP.setDir(IGpio::Direction::Input);
+        _loN.setDir(IGpio::Direction::Input);
         init();
     }
 
