@@ -35,6 +35,12 @@ class GpioDriver : public IGpio
 
     bool init(Direction dir, Pull pull = Pull::None)
     {
+        // Check if it's used
+        if (_port->OSPEEDR & (0x3 << (_pin * 2)))
+        {
+            while(true);
+        }
+
         // Clock enable
         uint32_t rccPort = 0;
         if (_port == GPIOA) rccPort = RCC_AHB1ENR_GPIOAEN;
@@ -53,12 +59,10 @@ class GpioDriver : public IGpio
         // Always pushpull
         // _port->OTYPER &= ~(0x1 << _pin);
         // _port->OTYPER |= (static_cast<uint8_t>(mode) >> 2) << _pin;
-        _port->OSPEEDR &= ~(0x3 << (_pin * 2));
-        _port->OSPEEDR |= Speed::VeryHigh << (_pin * 2);
+        _port->OSPEEDR |= 0x3 << (_pin * 2);    // Very high speed
         _port->PUPDR &= ~(0x3 << (_pin * 2));
         _port->PUPDR |= pull << (_pin * 2);
 
-        _isInit = true;
         return true;
     }
 
@@ -118,8 +122,14 @@ class GpioDriver : public IGpio
         DCMI_               = 13,
     };
 
-    static void mode(GPIO_TypeDef *port, size_t pin, Mode mode, Pull pull = Pull::None, Alternate alternate = Alternate::None)
+    static void mode(GPIO_TypeDef *port, uint8_t pin, Mode mode, Pull pull = Pull::None, Alternate alternate = Alternate::None)
     {
+        // Check if it's used
+        if (port->OSPEEDR & (0x3 << (pin * 2)))
+        {
+            while(true);
+        }
+
         // Clock
         RCC->AHB1ENR |= (port == GPIOA) ? RCC_AHB1ENR_GPIOAEN :
                         (port == GPIOB) ? RCC_AHB1ENR_GPIOBEN :
@@ -134,7 +144,7 @@ class GpioDriver : public IGpio
         port->MODER |= m << (pin * 2);
         port->OTYPER &= ~(0x1 << pin);
         port->OTYPER |= (static_cast<uint8_t>(mode) >> 2) << pin;
-        port->OSPEEDR |= 0x3 << (pin * 2);
+        port->OSPEEDR |= 0x3 << (pin * 2);    // Very high speed
         port->PUPDR &= ~(0x3 << (pin * 2));
         port->PUPDR |= static_cast<uint8_t>(pull) << (pin * 2);
 
@@ -149,7 +159,7 @@ class GpioDriver : public IGpio
 
     bool setCallback(void (*cb)(uint32_t)) override
     {
-        if (!isInit())
+        if (!(_port->LCKR & (1 << _pin)))
         {
             return false;
         }
@@ -195,7 +205,7 @@ class GpioDriver : public IGpio
     
     bool isInit() override
     {
-        return _isInit;
+        return _port->OSPEEDR & (0x3 << (_pin * 2));
     }
 
     private:
@@ -204,7 +214,6 @@ class GpioDriver : public IGpio
     size_t _pin;
     
     void (*_cb)(uint32_t) = nullptr;
-    bool _isInit = false;
 
     enum Speed: uint8_t
     {
