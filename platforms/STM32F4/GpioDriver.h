@@ -22,55 +22,18 @@ class GpioDriver : public IGpio
         OutputOpendrain = 0x5,
     };
 
-    enum class Speed: uint8_t
-    {
-        Low         = 0x0,
-        Meduim      = 0x1,
-        High        = 0x2,
-        VeryHigh    = 0x3,
-    };
-
-    enum class Pull: uint8_t
-    {
-        None        = 0x0,
-        Up          = 0x1,
-        Down        = 0x2,
-    };
-
-    GpioDriver(GPIO_TypeDef *port, size_t pin)
+    GpioDriver(
+        GPIO_TypeDef *port, size_t pin,
+        IGpio::Direction dir,
+        IGpio::Pull pull = IGpio::Pull::None,
+        IGpio::Interrupt interrupt = IGpio::Interrupt::None
+    )
         : _port(port), _pin(pin)
     {
+        init(dir, pull);
     }
 
-    enum class Interrupt: uint8_t
-    {
-        None,
-        Rise,
-        Fall,
-        RiseFall
-    };
-
-    // RM 8.3.2
-    enum class Alternate: uint8_t
-    {
-        None                = 0x80,
-        System              = 0,
-        TIM1_2              = 1,
-        TIM3_5              = 2,
-        TIM8_11             = 3,
-        I2C1_3              = 4,
-        SPI1_2_I2S2_I2S2ext = 5,
-        SPI3_I2Sext_I2S3    = 6,
-        USART1_3_I2s3ext    = 7,
-        USART4_6            = 8,
-        CAN1_2_TIM12_14     = 9,
-        OTGFS_HS            = 10,
-        ETH_                = 11,
-        FSMC_SDIO_OTGFS     = 12,
-        DCMI_               = 13,
-    };
-
-    bool init(Mode mode, Speed speed, Pull pull = GpioDriver::Pull::None)
+    bool init(Direction dir, Pull pull = Pull::None)
     {
         // Clock enable
         uint32_t rccPort = 0;
@@ -84,15 +47,16 @@ class GpioDriver : public IGpio
         // Default "0" state
         _port->BSRR = 0x10000 << _pin;
 
-        // Configure mode
+        // Configure mode: Input or Output Pushpull
         _port->MODER &= ~(0x3 << (_pin * 2));
-        _port->MODER |= (static_cast<uint8_t>(mode) & 3) << (_pin * 2);
-        _port->OTYPER &= ~(0x1 << _pin);
-        _port->OTYPER |= (static_cast<uint8_t>(mode) >> 2) << _pin;
+        _port->MODER |= dir << (_pin * 2);
+        // Always pushpull
+        // _port->OTYPER &= ~(0x1 << _pin);
+        // _port->OTYPER |= (static_cast<uint8_t>(mode) >> 2) << _pin;
         _port->OSPEEDR &= ~(0x3 << (_pin * 2));
-        _port->OSPEEDR |= static_cast<uint8_t>(speed) << (_pin * 2);
+        _port->OSPEEDR |= Speed::VeryHigh << (_pin * 2);
         _port->PUPDR &= ~(0x3 << (_pin * 2));
-        _port->PUPDR |= static_cast<uint8_t>(pull) << (_pin * 2);
+        _port->PUPDR |= pull << (_pin * 2);
 
         _isInit = true;
         return true;
@@ -133,6 +97,26 @@ class GpioDriver : public IGpio
     {
         return (_port->IDR & (1 << _pin)) != 0;
     }
+
+    // RM 8.3.2
+    enum class Alternate: uint8_t
+    {
+        None                = 0x80,
+        System              = 0,
+        TIM1_2              = 1,
+        TIM3_5              = 2,
+        TIM8_11             = 3,
+        I2C1_3              = 4,
+        SPI1_2_I2S2_I2S2ext = 5,
+        SPI3_I2Sext_I2S3    = 6,
+        USART1_3_I2s3ext    = 7,
+        USART4_6            = 8,
+        CAN1_2_TIM12_14     = 9,
+        OTGFS_HS            = 10,
+        ETH_                = 11,
+        FSMC_SDIO_OTGFS     = 12,
+        DCMI_               = 13,
+    };
 
     static void mode(GPIO_TypeDef *port, size_t pin, Mode mode, Pull pull = Pull::None, Alternate alternate = Alternate::None)
     {
@@ -221,6 +205,15 @@ class GpioDriver : public IGpio
     
     void (*_cb)(uint32_t) = nullptr;
     bool _isInit = false;
+
+    enum Speed: uint8_t
+    {
+        Low         = 0x0,
+        Meduim      = 0x1,
+        High        = 0x2,
+        VeryHigh    = 0x3,
+    };
+
 };
 
 }

@@ -10,10 +10,25 @@ class IGpio
 {
     public:
 
-    enum Direction: bool
+    enum Direction: uint8_t
     {
-        Input = false,
-        Output = true,
+        Input,
+        Output
+    };
+
+    enum Pull: uint8_t
+    {
+        None,
+        Up,
+        Down
+    };
+
+    enum class Interrupt: uint8_t
+    {
+        None,
+        Rise,
+        Fall,
+        RiseFall
     };
 
     virtual ~IGpio() = default;

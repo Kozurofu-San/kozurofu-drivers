@@ -22,8 +22,8 @@ class W25Driver : public IMemory
     W25Driver(ISpi &p, ITimer &timer)
         : _p(p), _timer(timer)
     {
+        init();
     }
-    ~W25Driver() = default;
 
     // // Cashe management for FS
     // void cacheLoad(uint32_t addr);

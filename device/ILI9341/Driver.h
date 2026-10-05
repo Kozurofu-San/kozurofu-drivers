@@ -22,8 +22,14 @@ class Ili9341Driver: public IDisplay
     static constexpr uint32_t MaxSpeed = 10'000'000;    // Hz
     static constexpr uint32_t Id = 0x419300;
 
-    Ili9341Driver(IParallel &p, ITimer &timer, IGpio *backlight = nullptr)
-        : _p(p), _timer(timer), _backlight(backlight) {}
+    Ili9341Driver(IParallel &p, ITimer &timer,
+        uint16_t resolutionX, uint16_t resolutionY,
+        IGpio *backlight = nullptr
+    )
+        : _p(p), _timer(timer), _backlight(backlight)
+        {
+            init(resolutionX, resolutionY);
+        }
 
     bool init(uint32_t x, uint32_t y)
     {

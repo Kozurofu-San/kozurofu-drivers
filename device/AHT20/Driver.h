@@ -51,6 +51,7 @@ class Aht20Driver : ITemperature, IHumidity
     Aht20Driver(II2c &p, ITimer &timer)
         : _p(p), _timer(timer)
     {
+        init();
     }
 
     bool init()

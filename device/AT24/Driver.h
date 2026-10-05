@@ -36,6 +36,7 @@ class At24 : public IMemory
     At24(II2c &p, ITimer &timer)
         : _p(p), _timer(timer)
     {
+        init();
     }
 
     bool init()

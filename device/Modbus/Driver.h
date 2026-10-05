@@ -45,6 +45,7 @@ class ModbusDriver : IModbus
     ModbusDriver(ISerial &p, ITimer &timer)
         : _p(p), _timer(timer)
     {
+        init();
     }
 
     bool init()

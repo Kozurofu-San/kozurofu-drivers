@@ -1,6 +1,7 @@
 #pragma once
 
 #include "interface/Adc.h"
+#include "GpioDriver.h"
 
 #include <cstdint>
 
@@ -254,9 +255,13 @@ class AdcDriver : public IAdc
 {
     public:
 
-    AdcDriver(AdcController &adc, uint8_t channel)
+    AdcDriver(AdcController &adc, uint8_t channel,
+        GPIO_TypeDef *portAdc, uint8_t pinAdc
+    )
         : _adc(adc), _channel(channel)
     {
+        GpioDriver::mode(portAdc, pinAdc, GpioDriver::Mode::Analog); 
+        init();
     }
 
     bool init()

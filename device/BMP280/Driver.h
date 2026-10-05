@@ -47,6 +47,7 @@ class Bmp280Driver : ITemperature, IPressure
     Bmp280Driver(T &p)
         : _p(p)
     {
+        init();
     }
 
     bool init()

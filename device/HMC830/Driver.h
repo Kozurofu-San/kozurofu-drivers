@@ -54,7 +54,10 @@ public:
     };
 
     Hmc830Driver(ISpi &p, ITimer &timer)
-        : _p(p), _timer(timer) {}
+        : _p(p), _timer(timer)
+        {
+            init();
+        }
 
     bool init(Mode mode = Mode::Integer, bool singleEnded = true)
     {

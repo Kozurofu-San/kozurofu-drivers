@@ -2,6 +2,8 @@
 
 #include "interface/Serial.h"
 #include "interface/Timer.h"
+#include "GpioDriver.h"
+
 #include <stdio.h>
 
 #include "stm32f4xx.h"
@@ -22,7 +24,11 @@ class UsbCdc: public ISerial
     public:
 
     UsbCdc()
-    {}
+    {
+        GpioDriver::mode(GPIOA, 11, GpioDriver::Mode::Input, GpioDriver::Pull::None, GpioDriver::Alternate::OTGFS_HS);  // D-
+        GpioDriver::mode(GPIOA, 12, GpioDriver::Mode::Input, GpioDriver::Pull::None, GpioDriver::Alternate::OTGFS_HS);  // D+
+        init();
+    }
 
     bool init()
     {

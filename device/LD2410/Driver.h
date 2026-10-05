@@ -46,6 +46,7 @@ class Ld2410Driver : IPresence
     Ld2410Driver(ISerial &p, ITimer &timer)
         : _p(p), _timer(timer)
     {
+        init();
     }
 
     bool init(IGpio *present = nullptr)

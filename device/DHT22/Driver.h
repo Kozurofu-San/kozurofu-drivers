@@ -41,6 +41,7 @@ class Dht22 : ITemperature, IHumidity
     Dht22(IGpio &p, ITimer &timer)
         : _p(p), _timer(timer)
     {
+        init();
     }
 
     bool init()

@@ -39,6 +39,7 @@ class Ads1115Controller
     Ads1115Controller(II2c &p)
         : _p(p)
     {
+        init();
     }
 
     bool init()

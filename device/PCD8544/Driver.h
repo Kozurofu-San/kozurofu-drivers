@@ -50,7 +50,10 @@ class Pcd8544Driver: public ILog
 public:
 
     Pcd8544Driver(ISpi &p, IGpio &dc, IGpio &rst, ITimer &timer)
-        : _p(p), _dc(dc), _rst(rst), _timer(timer) {}
+        : _p(p), _dc(dc), _rst(rst), _timer(timer)
+        {
+            init();
+        }
 
     bool init(IGpio *bl = nullptr)
     {

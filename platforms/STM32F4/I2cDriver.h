@@ -1,7 +1,6 @@
 #pragma once
 
 #include "interface/I2c.h"
-#include "interface/Gpio.h"
 #include "GpioDriver.h"
 
 #include "stm32f4xx.h"

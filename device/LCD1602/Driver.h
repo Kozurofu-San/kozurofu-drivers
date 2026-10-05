@@ -52,7 +52,10 @@ class Lcd1602Driver: public ILog
     public:
 
     explicit Lcd1602Driver(T &p, ITimer &timer, IGpio *backlight = nullptr)
-        : _p(p), _timer(timer), _backlight(backlight) {}
+        : _p(p), _timer(timer), _backlight(backlight)
+        {
+            init();
+        }
 
     bool init()
     {

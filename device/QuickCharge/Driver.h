@@ -19,7 +19,10 @@ class QuickCharge
     };
 
     QuickCharge(IAdc &usbDm, IAdc &usbDp, ITimer &timer)
-        : _usbDm(usbDm), _usbDp(usbDp), _timer(timer) {}
+        : _usbDm(usbDm), _usbDp(usbDp), _timer(timer)
+        {
+            init();
+        }
 
     void init()
     {

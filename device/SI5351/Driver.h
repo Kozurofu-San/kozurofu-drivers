@@ -47,7 +47,10 @@ class Si5351Driver: public IGenerator
     public:
 
     Si5351Driver(II2c &p, ITimer &timer)
-        : _p(p), _timer(timer) {}
+        : _p(p), _timer(timer)
+        {
+            init();
+        }
 
     bool init()
     {

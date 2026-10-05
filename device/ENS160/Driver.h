@@ -46,6 +46,7 @@ class Ens160Driver
     Ens160Driver(T &p)
         : _p(p)
     {
+        init();
     }
 
     bool init()
