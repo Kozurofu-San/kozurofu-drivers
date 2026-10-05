@@ -68,6 +68,11 @@ class ModbusDriver : IModbus
         return false;
     }
 
+    bool read(uint8_t *data, uint8_t len) override
+    {
+        return false;
+    }
+
     bool isInit()
     {
         return _isInit;

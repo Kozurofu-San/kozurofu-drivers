@@ -36,7 +36,7 @@ class FsmcDriver: public IParallel
             _addrCmd  = 0x60000000;   // Bank 1
             _addrData = 0x60080000;   // A18 -> 18+1 bit
 
-            _speed = SystemCoreClock;
+            _speed = SYSTEM_CORE_CLOCK_HZ;
 
             FSMC_Bank1E->BWTR[0] = 0x0FFFFFFF;
             FSMC_Bank1->BTCR[0 + 0]	            // BCR1

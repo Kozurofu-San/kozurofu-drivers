@@ -1,6 +1,6 @@
 #pragma once
 
-#include "interface/VoltageSet.h"
+#include "interface/Pwm.h"
 
 #include "stm32f4xx.h"
 #include <cstdint>
@@ -9,7 +9,7 @@
 namespace driver
 {
 
-class PwmDriver : public IVoltageSet
+class PwmDriver : public IPwm
 {
     public:
 
@@ -25,10 +25,9 @@ class PwmDriver : public IVoltageSet
         _isInit = true;
     }
 
-    void setVoltage(float voltage) override
+    void setDutyCycle(uint8_t percent) override
     {
-        uint32_t value = static_cast<uint32_t>((voltage / 3.3f) * 4095); // Convert voltage to PWM value (12-bit resolution)
-        _tim->CCR1 = value; // Set the output value for channel 1
+        
     }
 
     bool isInit() override

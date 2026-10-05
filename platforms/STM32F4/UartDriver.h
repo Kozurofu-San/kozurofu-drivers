@@ -4,8 +4,6 @@
 
 #include "stm32f4xx.h"
 
-#include "FreeRTOSConfig.h"
-
 namespace driver
 {
 

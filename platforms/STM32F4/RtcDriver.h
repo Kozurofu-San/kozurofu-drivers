@@ -38,7 +38,7 @@ class RtcDriver: public IDateTime
                 while (!(RCC->BDCR & RCC_BDCR_LSERDY));
                 RCC->BDCR |= 1 << RCC_BDCR_RTCSEL_Pos;
 
-                _speed = LSE_VALUE;
+                _speed = LseValue;
             }
             else
             {
@@ -48,7 +48,7 @@ class RtcDriver: public IDateTime
             	PWR->CR |= PWR_CR_DBP;
             	RCC->BDCR |= 2 << RCC_BDCR_RTCSEL_Pos;
 
-                _speed = LSI_VALUE;
+                _speed = LsiValue;
             }
             
             _rtc->WPR = 0xCA;	//Open access to RTC
@@ -172,9 +172,12 @@ class RtcDriver: public IDateTime
 
     RTC_TypeDef *_rtc;
     uint32_t _speed = 0;
-    bool _isInit = false;
 
+    bool _isInit = false;
     void (*_cb)(uint32_t) = nullptr;
+
+    static constexpr uint32_t LseValue = 32768u;
+    static constexpr uint32_t LsiValue = 32000u;
 };
 
 }

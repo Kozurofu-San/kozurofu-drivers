@@ -9,6 +9,7 @@
 #include "interface/I2c.h"
 
 #include <concepts>
+#include <cstdarg>
 
 /* // LCD1602
 
