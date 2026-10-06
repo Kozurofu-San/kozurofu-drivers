@@ -140,16 +140,12 @@ class GpioDriver : public IGpio
         }
     }
 
-    bool setCallback(void (*cb)(uint32_t)) override
+    bool setCallback(void (*cb)(uint32_t), IGpio::Interrupt edge) override
     {
-        if (!(_port->LCKR & (1 << _pin)))
-        {
-            return false;
-        }
-
         _cb = cb;
 
         // Init interrupts
+        RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
         __disable_irq();
 
@@ -158,7 +154,8 @@ class GpioDriver : public IGpio
         uint8_t syscfgNumber = _pin >> 2;
         SYSCFG->EXTICR[syscfgNumber] |= portNumber << ((_pin % 4) * 4);
         EXTI->IMR |= 1 << _pin;
-        EXTI->RTSR |= 1 << _pin;    // Rise edge trigger
+        if (edge == IGpio::Interrupt::Rise || edge == IGpio::Interrupt::RiseFall) { EXTI->RTSR |= 1 << _pin; }
+        if (edge == IGpio::Interrupt::Fall || edge == IGpio::Interrupt::RiseFall) { EXTI->FTSR |= 1 << _pin; }
         EXTI->PR = 1 << _pin;
 
         IRQn_Type irqn;
@@ -180,6 +177,7 @@ class GpioDriver : public IGpio
     
     void interrupt(uint32_t arg)
     {
+        clearInterrupt();
         if (_cb != nullptr)
         {
             _cb(arg);
