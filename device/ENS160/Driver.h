@@ -9,9 +9,10 @@
 #include "interface/Gpio.h"
 #include "interface/Timer.h"
 
+#include <concepts>
 #include <cstdint>
 
-/* // Temperature / Pressure sensor
+/* // Air quality sensor
 
 #include "device/DHT22/Dht22.h"
 
@@ -43,8 +44,8 @@ class Ens160Driver : public IAir
                 "Interface must be I2C or SPI");
     public:
 
-    Ens160Driver(T &p)
-        : _p(p)
+    Ens160Driver(T &p, ITimer &timer)
+        : _p(p), _timer(timer)
     {
         init();
     }
@@ -52,7 +53,7 @@ class Ens160Driver : public IAir
     bool init()
     {
         // Init check
-        if (!_p.isInit())
+        if (!_p.isInit() && _p.getSpeed() > MaxSpeed)
         {
             return false;
         }
@@ -68,20 +69,20 @@ class Ens160Driver : public IAir
             return false;
         }
  
-        // // Idle -> clear general purpose registers -> standard operation
-        // if (!setMode(Ens160::OPMODE_IDLE))
-        // {
-        //     return false;
-        // }
-        // if (!writeByte(Ens160::COMMAND, Ens160::CMD_NOP) ||
-        //     !writeByte(Ens160::COMMAND, Ens160::CMD_CLRGPR))
-        // {
-        //     return false;
-        // }
-        // if (!setMode(Ens160::OPMODE_STANDARD))
-        // {
-        //     return false;
-        // }
+        // Idle -> clear general purpose registers -> standard operation
+        if (!setMode(Ens160::OPMODE_IDLE))
+        {
+            return false;
+        }
+        if (!writeByte(Ens160::COMMAND, Ens160::CMD_NOP) ||
+            !writeByte(Ens160::COMMAND, Ens160::CMD_CLRGPR))
+        {
+            return false;
+        }
+        if (!setMode(Ens160::OPMODE_STANDARD))
+        {
+            return false;
+        }
  
         _isInit = true;
         return _isInit;
@@ -95,19 +96,19 @@ class Ens160Driver : public IAir
         {
             return 0;
         }
-        return v & Ens160::AQI_MASK;
+        return readByte(Ens160::DATA_AQI) & Ens160::AQI_MASK;
     }
  
     // TVOC in ppb, 0 on error
     uint16_t getTvoc() override
     {
-        // return readWord(Ens160::DATA_TVOC);
+        return readWord(Ens160::DATA_TVOC);
     }
  
     // Equivalent CO2 in ppm, 0 on error
     uint16_t getEco2() override
     {
-        // return readWord(Ens160::DATA_ECO2);
+        return readWord(Ens160::DATA_ECO2);
     }
  
     bool isInit()
@@ -118,11 +119,34 @@ class Ens160Driver : public IAir
     private:
 
     T &_p;
+    ITimer &_timer;
     
     bool _isInit = false;
 
+    static constexpr uint32_t MaxSpeed = std::same_as<T, II2c> ? 1'000'000u : 10'000'000u;
     static const size_t Timeout = 10;
 
+    // Set OPMODE and verify by reading it back
+    bool setMode(uint8_t mode)
+    {
+        if (!writeByte(Ens160::OPMODE, mode))
+        {
+            return false;
+        }
+ 
+        for (size_t i = 0; i < Timeout; i++)
+        {
+            _timer.delay(1);
+ 
+            uint8_t v;
+            if (read(Ens160::OPMODE, &v, 1) && v == mode)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+ 
     // Write single byte
     bool writeByte(uint8_t addr, uint8_t data)
     {
@@ -145,6 +169,43 @@ class Ens160Driver : public IAir
         return true;
     }
     
+    // Read single byte
+    uint8_t readByte(uint8_t addr)
+    {
+        uint8_t ret;
+        if constexpr (std::same_as<T, II2c>)
+        {
+            _p.start();
+            _p.address(II2c::Write);
+            _p.write(addr);
+            _p.start();
+            _p.address(II2c::Write);
+            ret =_p.read();
+            _p.stop();
+        }
+        else if constexpr (std::same_as<T, ISpi>)
+        {
+            _p.enable();
+            _p.transfer(0x80 | addr);     // addr[7] = 1 - read
+            ret = _p.transfer(0);
+            _p.disable();
+        }
+
+        return ret;
+    }
+
+    // Read little-endian 16-bit register, 0 on error
+    uint16_t readWord(uint8_t addr)
+    {
+        uint8_t b[2];
+        if (!_isInit || !read(addr, b, sizeof(b)))
+        {
+            return 0;
+        }
+        return static_cast<uint16_t>(b[1] << 8) | b[0];
+    }
+ 
+    
     // Read multiple bytes
     bool read(uint8_t addr, uint8_t *data, uint8_t len)
     {
@@ -164,7 +225,7 @@ class Ens160Driver : public IAir
         else if constexpr (std::same_as<T, ISpi>)
         {
             _p.enable();
-            _p.write(0x80 & addr);     // addr[7] = 1 - read
+            _p.write(0x80 | addr);     // addr[7] = 1 - read
             while (len--)
             {
                 *data++ = _p.transfer(0);
